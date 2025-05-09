@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Info, Plus, Edit, Trash2, X, Save } from "lucide-react";
+import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
 
 const typeColors = {
-  person: "#4299e1",
+  person: "#4299e1", 
   trait: "#68d391",
   belief: "#f6ad55",
-  goal: "#fc8181",
-  default: "#a0aec0"
+  goal: "#fc8181", 
+  default: "#a0aec0" 
 };
 
 const typeBgColors = {
@@ -25,129 +25,71 @@ const typeIcons = {
   default: "📌"
 };
 
-const getGraphData = async () => {
-  const authToken = localStorage.getItem("authToken");
-  if (!authToken) return { nodes: [], edges: [] };
-  try {
-    const response = await fetch("http://localhost:8000/user_data", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`
-      }
-    });
-    if (!response.ok) throw new Error("Network response was not ok");
-    const data = await response.json();
-    console.log("Graph data:", data);
+const computeLayout = (nodes, edges, svgWidth, svgHeight) => {
+  if (!nodes || nodes.length === 0) return [];
 
-    const nodes = Array.isArray(data.nodes) ? data.nodes : [];
-    const edges = Array.isArray(data.edges) ? data.edges : [];
-    return { nodes, edges };
-  }
-  catch (error) {
-    console.error("Error fetching graph data:", error);
-    return { nodes: [], edges: [] };
-  }
-};
-
-const saveGraphData = async (graphData) => {
-  const authToken = localStorage.getItem("authToken");
-  if (!authToken) return false;
-  
-  try {
-    console.log("Saving graph data:", graphData);
-
-    const response = await fetch("http://localhost:8000/user_data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({
-        user_data: graphData
-      })
-    });
-    
-    if (!response.ok) throw new Error("Failed to save graph data");
-    return true;
-  } catch (error) {
-    console.error("Error saving graph data:", error);
-    return false;
-  }
-};
-
-export default function GraphView() {
-  const [graph, setGraph] = useState({ nodes: [], edges: [] });
-  const [hoveredNode, setHoveredNode] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null);
-  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, type: null });
-  const [isCreatingEdge, setIsCreatingEdge] = useState(false);
-  const [sourceNode, setSourceNode] = useState(null);
-  const [edgeForm, setEdgeForm] = useState({ visible: false, label: "" });
-  const [nodeForm, setNodeForm] = useState({
-    visible: false,
-    id: "",
-    label: "",
-    type: "person",
-    description: ""
-  });
-  const [notification, setNotification] = useState({ visible: false, message: "", type: "success" });
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
-  
-  const svgRef = useRef();
-  const nodeIdCounter = useRef(1);
-  
-const computeLayout = (nodes, edges) => {
-  const svgWidth = 800;
-  const svgHeight = 600;
   const centerX = svgWidth / 2;
   const centerY = svgHeight / 2;
   const alphaDecay = 0.02;
   const velocityDecay = 0.6;
-  const repulsionStrength = 1000;
-  const linkDistance = 100;
-  const linkStrength = 0.1;
-  const iterations = 300;
+  const repulsionStrength = .001; 
+  const linkDistance = .0005;
+  const linkStrength = 0.0001; 
+  const iterations = 5;
 
-  nodes.forEach(node => {
-    if (node.id === "1" || node.label === "You") {
+  const layoutNodes = nodes.map(node => ({ ...node }));
+
+  layoutNodes.forEach(node => {
+    if (node.id === "1" || node.label.toLowerCase() === "you") {
       node.x = centerX;
       node.y = centerY;
       node.fx = centerX;
-      node.fy = centerY;
+      node.fy = centerY; 
     } else {
-      node.x = Math.random() * svgWidth;
-      node.y = Math.random() * svgHeight;
+      if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) {
+         node.x = centerX + (Math.random() - 0.5) * 100;
+         node.y = centerY + (Math.random() - 0.5) * 100;
+      }
+      node.fx = null;
+      node.fy = null;
     }
-    node.vx = 0;
-    node.vy = 0;
+    node.vx = node.vx || 0;
+    node.vy = node.vy || 0;
   });
 
-  const adj = new Map();
-  edges.forEach(({ source, target }) => {
-    if (!adj.has(source)) adj.set(source, []);
-    if (!adj.has(target)) adj.set(target, []);
-    adj.get(source).push(target);
-    adj.get(target).push(source);
-  });
+    const isNodeConnected = (nodeId, allEdges) => {
+        return allEdges.some(edge =>
+            !edge.isTemporary && (edge.source === nodeId || edge.target === nodeId)
+        );
+    };
+
+    const tempFloaterEdges = [];
+    const youNode = layoutNodes.find(n => n.id === "1" || n.label.toLowerCase() === "you");
+    const youNodeId = youNode?.id;
+
+    if (youNodeId) {
+      layoutNodes.forEach(node => {
+          if (node.id !== youNodeId && !isNodeConnected(node.id, edges)) {
+              tempFloaterEdges.push({ source: youNodeId, target: node.id, isTemporary: true });
+          }
+      });
+    }
+    const edgesForLayout = [...edges, ...tempFloaterEdges];
 
   for (let iter = 0; iter < iterations; iter++) {
     const alpha = 1 - iter / iterations;
 
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = nodes[i];
-        const b = nodes[j];
+    for (let i = 0; i < layoutNodes.length; i++) {
+      for (let j = i + 1; j < layoutNodes.length; j++) {
+        const a = layoutNodes[i];
+        const b = layoutNodes[j];
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        const dist2 = dx * dx + dy * dy + 0.01;
-        const force = repulsionStrength * alpha / dist2;
-        const fx = force * dx;
-        const fy = force * dy;
+        const dist2 = dx * dx + dy * dy + 1;
+        const dist = Math.sqrt(dist2);
+        const force = (repulsionStrength * alpha) / dist2;
+        const fx = force * (dx / dist);
+        const fy = force * (dy / dist);
         a.vx += fx;
         a.vy += fy;
         b.vx -= fx;
@@ -155,90 +97,128 @@ const computeLayout = (nodes, edges) => {
       }
     }
 
-    edges.forEach(({ source, target }) => {
-      const a = nodes.find(n => n.id === source);
-      const b = nodes.find(n => n.id === target);
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const diff = dist - linkDistance;
-      const force = linkStrength * alpha * diff;
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      a.vx += fx;
-      a.vy += fy;
-      b.vx -= fx;
-      b.vy -= fy;
+    edgesForLayout.forEach(({ source: sourceId, target: targetId, isTemporary }) => {
+        const a = layoutNodes.find(n => n.id === sourceId);
+        const b = layoutNodes.find(n => n.id === targetId);
+
+        if (!a || !b) return;
+
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const diff = dist - (isTemporary ? linkDistance * 1.5 : linkDistance); 
+        const force = (linkStrength * alpha * diff) / (dist || 1); 
+        const fx = dx * force;
+        const fy = dy * force;
+
+        if (a.fx == null) { a.vx += fx; a.vy += fy; }
+        if (b.fx == null) { b.vx -= fx; b.vy += fy; }
     });
 
-    nodes.forEach(node => {
-      node.vx *= velocityDecay;
-      node.vy *= velocityDecay;
-      if (!(node.id === "1" || node.label === "You")) {
-        node.x += node.vx;
-        node.y += node.vy;
-      }
+    layoutNodes.forEach(node => {
+        node.vx *= velocityDecay;
+        node.vy *= velocityDecay;
+
+        if (node.fx == null) {
+            node.x += node.vx;
+            node.y += node.vy;
+        } else {
+            node.x = node.fx;
+            node.y = node.fy;
+            node.vx = 0;
+            node.vy = 0;
+        }
     });
   }
 
-  return nodes;
+  return layoutNodes;
 };
-  
-  useEffect(() => {
-    const updateLayout = () => {
-      if (graph.nodes.length > 0) {
-        setGraph(prev => ({ 
-          ...prev, 
-          nodes: computeLayout(prev.nodes, prev.edges)
-        }));
-      }
-    };
-    
-    updateLayout();
-    window.addEventListener('resize', updateLayout);
-    
-    return () => {
-      window.removeEventListener('resize', updateLayout);
-    };
-  }, [svgRef.current]);
-  
-  useEffect(() => {
-    let isMounted = true;
-  
-    const fetchData = async () => {
-      const data = await getGraphData(); 
-      console.log("Fetched graph data:", data);
-      if (!isMounted) return;
-      
-      let nodes = data.nodes;
-      
-      const youNodeExists = nodes.some(node => node.id === "1" || node.label === "You");
-      if (!youNodeExists) {
-        const youNode = { id: "1", label: "You", type: "person", description: "" };
-        nodes = [youNode];
-        saveGraphData({ nodes: [youNode], edges: [] });
-      }
-      
-      const nodesWithLayout = computeLayout(nodes, data.edges);
-      
-      setGraph({ 
-        nodes: nodesWithLayout, 
-        edges: data.edges 
-      });
-      
-      const nodeIds = nodes.map(node => parseInt(node.id) || 0);
-      const maxId = nodeIds.length > 0 ? Math.max(...nodeIds) : 0;
-      nodeIdCounter.current = maxId + 1;
-    };
-  
-    fetchData();
-  
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
-  useEffect(() => {  
+export default function GraphView({ data, onDataChange }) {
+  const [layoutNodes, setLayoutNodes] = useState([]);
+
+  const structuralEdges = data?.edges || [];
+  const structuralNodes = data?.nodes || [];
+
+
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null); 
+  const [contextMenu, setContextMenu] = useState({ visible: false, x: 0, y: 0, type: null });
+  const [isCreatingEdge, setIsCreatingEdge] = useState(false);
+  const [sourceNode, setSourceNode] = useState(null);
+  const [edgeForm, setEdgeForm] = useState({ visible: false, sourceId: null, targetId: null, label: "" });
+  const [nodeForm, setNodeForm] = useState({
+    visible: false,
+    id: "",
+    label: "",
+    type: "person",
+    description: "",
+    isNew: false,
+    x: 0, y: 0 
+  });
+  const [notification, setNotification] = useState({ visible: false, message: "", type: "success" });
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const zoomStep = 0.1;
+  const minZoom = 0.5;
+  const maxZoom = 2.0;
+
+  const svgRef = useRef(null);
+
+  const nodeIdCounter = useRef(1);
+   useEffect(() => {
+       const nodeIds = structuralNodes.map(node => parseInt(node.id) || 0);
+       const maxId = nodeIds.length > 0 ? Math.max(...nodeIds) : 0;
+       nodeIdCounter.current = maxId >= 1 ? maxId + 1 : 2; 
+   }, [structuralNodes]); 
+
+
+  useEffect(() => {
+      if (!svgRef.current || !structuralNodes || structuralNodes.length === 0) {
+          setLayoutNodes([]);
+          return;
+      }
+
+      const svgElement = svgRef.current;
+      const svgWidth = svgElement.clientWidth;
+      const svgHeight = svgElement.clientHeight;
+
+      console.log("Running layout effect based on structural data change...");
+
+      const nodesWithLayout = computeLayout(structuralNodes, structuralEdges, svgWidth, svgHeight);
+
+      setLayoutNodes(nodesWithLayout);
+  }, [structuralNodes.length, structuralEdges.length, svgRef.current]);
+   useEffect(() => {
+     const handleResize = () => {
+       if (svgRef.current && structuralNodes.length > 0) {
+         const svgElement = svgRef.current;
+         const svgWidth = svgElement.clientWidth;
+         const svgHeight = svgElement.clientHeight;
+         const nodesWithLayout = computeLayout(structuralNodes, structuralEdges, svgWidth, svgHeight);
+         setLayoutNodes(nodesWithLayout);
+       }
+     };
+
+     const resizeTimer = setTimeout(() => {
+       handleResize();
+     }, 100);
+
+     window.addEventListener('resize', handleResize);
+
+     return () => {
+       clearTimeout(resizeTimer);
+       window.removeEventListener('resize', handleResize);
+     };
+   }, [structuralNodes.length, structuralEdges.length]);
+
+
+  useEffect(() => {
     const handleClickOutside = (event) => {
       if (contextMenu.visible && !event.target.closest('.context-menu')) {
         setContextMenu({ ...contextMenu, visible: false });
@@ -248,313 +228,378 @@ const computeLayout = (nodes, edges) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [contextMenu]);
-  
+
+
+  const handleMouseDown = (event) => {
+    if (event.button !== 0 || contextMenu.visible || nodeForm.visible || edgeForm.visible) return; 
+
+    const svgRect = svgRef.current.getBoundingClientRect();
+    setIsPanning(true);
+    setStartPan({ x: event.clientX - svgRect.left, y: event.clientY - svgRect.top });
+    event.preventDefault();
+  };
+
+  const handleMouseMove = (event) => {
+    if (!isPanning) return;
+
+    const svgRect = svgRef.current.getBoundingClientRect();
+    const currentMouseX = event.clientX - svgRect.left;
+    const currentMouseY = event.clientY - svgRect.top;
+
+    const dx = currentMouseX - startPan.x;
+    const dy = currentMouseY - startPan.y;
+
+    setPanOffset(prev => ({
+       x: prev.x + dx,
+       y: prev.y + dy
+    }));
+
+    setStartPan({ x: currentMouseX, y: currentMouseY });
+
+    event.preventDefault();
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+
+  const handleMouseLeave = () => {
+      setIsPanning(false);
+  };
+
+
+  const handleZoomIn = () => {
+      setZoomLevel(prev => Math.min(maxZoom, prev + zoomStep));
+  };
+
+  const handleZoomOut = () => {
+      setZoomLevel(prev => Math.max(minZoom, prev - zoomStep));
+  };
+
+
   const handleRightClick = (event) => {
     event.preventDefault();
-    const svgRect = svgRef.current.getBoundingClientRect();
-    const x = event.clientX - svgRect.left;
-    const y = event.clientY - svgRect.top;
-    
     setContextMenu({
       visible: true,
-      x,
-      y,
+      x: event.clientX,
+      y: event.clientY,
       type: 'canvas'
     });
+    setSelectedNode(null);
   };
-  
-  const handleNodeRightClick = (event, node) => {
+
+  const handleNodeRightClick = (event, layoutNode) => {
     event.preventDefault();
-    event.stopPropagation();
-    const svgRect = svgRef.current.getBoundingClientRect();
-    const x = event.clientX - svgRect.left;
-    const y = event.clientY - svgRect.top;
-    
-    setSelectedNode(node);
+    event.stopPropagation(); 
+    const structuralNode = structuralNodes.find(n => n.id === layoutNode.id);
+    if (!structuralNode) return;
+
+    setSelectedNode(structuralNode);
     setContextMenu({
       visible: true,
-      x,
-      y,
+      x: event.clientX,
+      y: event.clientY,
       type: 'node'
     });
   };
-  
+
+
   const handleAddNode = () => {
     setContextMenu({ ...contextMenu, visible: false });
+     const svgRect = svgRef.current.getBoundingClientRect();
+     const graphX = (contextMenu.x - svgRect.left - panOffset.x) / zoomLevel;
+     const graphY = (contextMenu.y - svgRect.top - panOffset.y) / zoomLevel;
+
     setNodeForm({
       visible: true,
-      id: String(nodeIdCounter.current),
+      id: String(nodeIdCounter.current), 
       label: "",
       type: "person",
       description: "",
-      x: contextMenu.x,
-      y: contextMenu.y,
+      x: graphX, 
+      y: graphY, 
       isNew: true
     });
   };
-  
+
   const handleEditNode = () => {
     setContextMenu({ ...contextMenu, visible: false });
-    setNodeForm({
-      visible: true,
-      id: selectedNode.id,
-      label: selectedNode.label,
-      type: selectedNode.type || "default",
-      description: selectedNode.description || "",
-      isNew: false
-    });
+    if (selectedNode) {
+      setNodeForm({
+        visible: true,
+        id: selectedNode.id,
+        label: selectedNode.label,
+        type: selectedNode.type || "default",
+        description: selectedNode.description || "",
+        isNew: false,
+      });
+    }
   };
-  
+
   const handleDeleteNode = async () => {
     setContextMenu({ ...contextMenu, visible: false });
-    
-    if (selectedNode.id === "1" || selectedNode.label === "You") {
+
+    if (!selectedNode) return;
+
+    if (selectedNode.id === "1" || selectedNode.label.toLowerCase() === "you") {
       showNotification("Cannot delete the 'You' node", "error");
       return;
     }
-    
-    const updatedNodes = graph.nodes.filter(node => node.id !== selectedNode.id);
-    const updatedEdges = graph.edges.filter(
+
+    const updatedStructuralNodes = structuralNodes.filter(node => node.id !== selectedNode.id);
+    const updatedStructuralEdges = structuralEdges.filter(
       edge => edge.source !== selectedNode.id && edge.target !== selectedNode.id
     );
-    
-    const updatedNodesWithLayout = computeLayout(updatedNodes, updatedEdges);
-    
-    const updatedGraph = { 
-      nodes: updatedNodesWithLayout, 
-      edges: updatedEdges 
+
+    const updatedStructuralGraph = {
+      nodes: updatedStructuralNodes,
+      edges: updatedStructuralEdges
     };
-    
-    setGraph(updatedGraph);
-    
-    const success = await saveGraphData(updatedGraph);
+
+    const success = await onDataChange(updatedStructuralGraph);
+
     showNotification(
       success ? "Node deleted successfully" : "Failed to delete node",
       success ? "success" : "error"
     );
+
+    setSelectedNode(null); 
   };
-  
+
   const handleStartEdge = () => {
     setContextMenu({ ...contextMenu, visible: false });
-    setSourceNode(selectedNode);
-    setIsCreatingEdge(true);
-    showNotification("Click on another node to create a connection", "info");
-  };
-  
-  const handleNodeClick = (node) => {
-    if (isCreatingEdge && sourceNode && sourceNode.id !== node.id) {
-      setIsCreatingEdge(false);
-      setEdgeForm({
-        visible: true,
-        sourceId: sourceNode.id,
-        targetId: node.id,
-        label: ""
-      });
+    if (selectedNode) {
+      setSourceNode(selectedNode);
+      setIsCreatingEdge(true);
+      showNotification(`Connecting from "${selectedNode.label}". Click on another node to connect.`, "info");
     }
   };
-  
+
+  const handleNodeClick = (layoutNode) => {
+      if (isPanning) return;
+
+      if (isCreatingEdge && sourceNode && sourceNode.id !== layoutNode.id) {
+          const edgeExists = structuralEdges.some(
+              edge => (edge.source === sourceNode.id && edge.target === layoutNode.id) ||
+                      (edge.source === layoutNode.id && edge.target === sourceNode.id)
+          );
+
+          if (edgeExists) {
+              showNotification("Connection already exists.", "info");
+              setIsCreatingEdge(false);
+              setSourceNode(null);
+              return;
+          }
+
+          setIsCreatingEdge(false);
+          setEdgeForm({
+              visible: true,
+              sourceId: sourceNode.id, 
+              targetId: layoutNode.id, 
+              label: ""
+          });
+          setSourceNode(null); 
+      } else {
+      }
+  };
+
   const saveNodeForm = async () => {
-    const { id, label, type, description, isNew } = nodeForm;
-    
+    const { id, label, type, description, isNew, x, y } = nodeForm;
+
     if (!label.trim()) {
       showNotification("Node label cannot be empty", "error");
       return;
     }
-    
-    let updatedNodes;
+
+    setNodeForm({ ...nodeForm, visible: false }); 
+
+    let updatedStructuralNodes;
     if (isNew) {
-      const newNode = { id, label, type, description };
-      updatedNodes = [...graph.nodes, newNode];
-      nodeIdCounter.current += 1;
+      const newNode = { id, label, type, description, x, y }; 
+      updatedStructuralNodes = [...structuralNodes, newNode];
     } else {
-      updatedNodes = graph.nodes.map(node => 
-        node.id === id ? { 
-          ...node, 
-          label, 
-          type, 
+      updatedStructuralNodes = structuralNodes.map(node =>
+        node.id === id ? {
+          ...node,
+          label,
+          type,
           description
         } : node
       );
     }
-    
-    const updatedNodesWithLayout = computeLayout(updatedNodes, graph.edges);
-    
-    const updatedGraph = { 
-      ...graph, 
-      nodes: updatedNodesWithLayout
+
+    const updatedStructuralGraph = {
+      ...data,
+      nodes: updatedStructuralNodes 
     };
-    
-    setGraph(updatedGraph);
-    setNodeForm({ ...nodeForm, visible: false });
-    
-    const success = await saveGraphData(updatedGraph);
+
+    const success = await onDataChange(updatedStructuralGraph);
+
     showNotification(
       success ? `Node ${isNew ? 'created' : 'updated'} successfully` : `Failed to ${isNew ? 'create' : 'update'} node`,
       success ? "success" : "error"
     );
   };
-  
+
   const saveEdgeForm = async () => {
     const { sourceId, targetId, label } = edgeForm;
-    
+
     if (!label.trim()) {
-      showNotification("Edge label cannot be empty", "error");
+      showNotification("Connection label cannot be empty", "error");
       return;
     }
-    
-    const edgeExists = graph.edges.some(
-      edge => edge.source === sourceId && edge.target === targetId
-    );
-    
-    let updatedEdges;
-    if (edgeExists) {
-      updatedEdges = graph.edges.map(edge => 
-        (edge.source === sourceId && edge.target === targetId) 
-          ? { ...edge, label } 
-          : edge
-      );
-    } else {
-      const newEdge = { source: sourceId, target: targetId, label };
-      updatedEdges = [...graph.edges, newEdge];
-    }
-    
-    const updatedGraph = { ...graph, edges: updatedEdges };
-    setGraph(updatedGraph);
-    setEdgeForm({ ...edgeForm, visible: false });
-    
-    const success = await saveGraphData(updatedGraph);
-    showNotification(
-      success ? "Connection created successfully" : "Failed to create connection",
-      success ? "success" : "error"
-    );
-  };
-  
+
+    setEdgeForm({ ...edgeForm, visible: false }); 
+
+     const edgeExists = structuralEdges.some(
+         edge => (edge.source === sourceId && edge.target === targetId) ||
+                 (edge.source === targetId && edge.target === sourceId)
+     );
+
+     let success = true;
+     if (edgeExists) {
+         showNotification("Connection already exists.", "info");
+         success = false;
+     } else {
+         const newEdge = { source: sourceId, target: targetId, label };
+         const updatedStructuralEdges = [...structuralEdges, newEdge];
+
+         const updatedStructuralGraph = {
+             ...data,
+             edges: updatedStructuralEdges 
+         };
+
+         success = await onDataChange(updatedStructuralGraph);
+
+         showNotification(
+           success ? "Connection created successfully" : "Failed to create connection",
+           success ? "success" : "error"
+         );
+     }
+   };
+
   const showNotification = (message, type = "success") => {
     setNotification({ visible: true, message, type });
     setTimeout(() => {
       setNotification({ ...notification, visible: false });
     }, 3000);
   };
-  
+
   const Arrow = () => (
     <defs>
       <marker
         id="arrowhead"
         markerWidth="10"
         markerHeight="7"
-        refX="9"
+        refX="9" 
         refY="3.5"
         orient="auto"
+        markerUnits="strokeWidth" 
       >
         <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
       </marker>
     </defs>
   );
-  
-  const getEdgePath = (source, target) => {
-    if (source.id === "1" || target.id === "1") {
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const nodeRadius = 32;
-      
-      const scale = (distance - nodeRadius) / distance;
-      const endX = source.x + dx * scale;
-      const endY = source.y + dy * scale;
-      
-      return `M${source.x},${source.y} L${endX},${endY}`;
-    }
-    
-    const midX = (source.x + target.x) / 2;
-    const midY = (source.y + target.y) / 2;
-    const offX = (midX - (source.x + target.x) / 2) * 0.2;
-    const offY = (midY - (source.y + target.y) / 2) * 0.2;
-    
-    return `M${source.x},${source.y} Q${midX + offX},${midY + offY} ${target.x},${target.y}`;
+
+   const getNodeLayoutPosition = (nodeId) => {
+       return layoutNodes.find(n => n.id === nodeId);
+   };
+
+  const getEdgePath = (sourceId, targetId) => {
+      const source = getNodeLayoutPosition(sourceId);
+      const target = getNodeLayoutPosition(targetId);
+      if (!source || !target) return "";
+      return `M${source.x},${source.y} L${target.x},${target.y}`;
   };
-  
-  const getLabelPosition = (source, target) => {
-    const midX = (source.x + target.x) / 2;
-    const midY = (source.y + target.y) / 2;
-    
-    if (source.id === "1") {
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const ratio = 0.4;
-      
-      return {
-        x: source.x + dx * ratio,
-        y: source.y + dy * ratio
-      };
-    }
-    
-    return { x: midX, y: midY };
+
+  const getLabelPosition = (sourceId, targetId) => {
+    const source = getNodeLayoutPosition(sourceId);
+    const target = getNodeLayoutPosition(targetId);
+    if (!source || !target) return { x: 0, y: 0 };
+    return {
+      x: (source.x + target.x) / 2,
+      y: (source.y + target.y) / 2
+    };
   };
-  
-  const handleNodeHover = (node, event) => {
-    if (node) {
-      const svgRect = svgRef.current.getBoundingClientRect();
-      setTooltipPosition({
-        x: node.x + 40,
-        y: node.y - 40
-      });
-    }
-    setHoveredNode(node);
+
+  const handleNodeHover = (layoutNode, event) => {
+      if (layoutNode) {
+          const svgRect = svgRef.current?.getBoundingClientRect();
+          if (!svgRect) return;
+
+          const nodeScreenX = layoutNode.x * zoomLevel + panOffset.x + svgRect.left;
+          const nodeScreenY = layoutNode.y * zoomLevel + panOffset.y + svgRect.top;
+
+          setTooltipPosition({
+              x: nodeScreenX + 40,
+              y: nodeScreenY - 40
+          });
+          setHoveredNode(layoutNode);
+      } else {
+          setHoveredNode(null);
+      }
   };
-  
+
   const NodeTooltip = () => {
     if (!hoveredNode) return null;
-    
-    const svgRect = svgRef.current?.getBoundingClientRect();
-    if (!svgRect) return null;
-    
-    const x = hoveredNode.x + svgRect.left + panOffset.x + 40;
-    const y = hoveredNode.y + svgRect.top + panOffset.y - 40;
-    
+
     return (
-      <div 
-        className="fixed bg-white p-2 rounded shadow-lg border border-gray-200 z-30"
-        style={{ 
-          left: `${x}px`,
-          top: `${y}px`,
-          width: "180px" 
+      <div
+        className="fixed bg-white p-2 rounded shadow-lg border border-gray-200 z-30 pointer-events-none" 
+        style={{
+          left: `${tooltipPosition.x}px`,
+          top: `${tooltipPosition.y}px`,
+          width: "180px",
+           transform: `translate(${tooltipPosition.x + 180 > window.innerWidth ? '-100%' : '0%'}, ${tooltipPosition.y + 100 > window.innerHeight ? '-100%' : '0%'})` 
         }}
       >
-        <div className="font-bold text-sm mb-1">{hoveredNode.label}</div>
+        <div className="font-bold text-sm mb-1 break-words">{hoveredNode.label}</div>
         <div className="text-xs text-gray-600 mb-1 capitalize">Type: {hoveredNode.type || "default"}</div>
-        <div className="text-xs text-gray-700">{hoveredNode.description || "No description"}</div>
+        {hoveredNode.description && (
+            <div className="text-xs text-gray-700 break-words">{hoveredNode.description}</div>
+        )}
       </div>
     );
   };
 
-  const handleMouseDown = (event) => {
-    if (contextMenu.visible) {
-      setContextMenu({ ...contextMenu, visible: false });
-      return;
-    }
-    setIsDragging(true);
-    setStartPan({ x: event.clientX - panOffset.x, y: event.clientY - panOffset.y });
-  };
 
-  const handleMouseMove = (event) => {
-    if (!isDragging) return;
-    setPanOffset({ x: event.clientX - startPan.x, y: event.clientY - startPan.y });
-  };
+  if (!data) {
+    console.log("No data available for GraphView.");
+    return (
+           <div className="flex justify-center items-center h-full">
+           </div>
+      );
+  }
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
+   const isGraphReady = layoutNodes.length > 0 || structuralNodes.length === 0; 
 
   return (
-    <div className="w-full h-full p-4 bg-gray-50 rounded-lg shadow-sm relative">
+    <div className="w-full h-full p-4 bg-gray-50 rounded-lg shadow-sm relative overflow-hidden">
       <div className="mb-4 flex justify-between items-center">
         <h3 className="text-lg font-medium text-gray-700">Knowledge Graph</h3>
-        <div className="flex space-x-4">
+        <div className="flex items-center space-x-4">
+            <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
+                 <button
+                     onClick={handleZoomOut}
+                     disabled={zoomLevel <= minZoom}
+                     className="p-1 border-r hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                     <ZoomOut size={18} />
+                 </button>
+                <span className="text-sm px-2 text-gray-700">{`${Math.round(zoomLevel * 100)}%`}</span>
+                 <button
+                     onClick={handleZoomIn}
+                     disabled={zoomLevel >= maxZoom}
+                     className="p-1 border-l hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                     <ZoomIn size={18} />
+                 </button>
+             </div>
+
           {Object.entries(typeColors).map(([type, color]) => (
             <div key={type} className="flex items-center">
-              <div 
-                className="w-3 h-3 rounded-full mr-2" 
+              <div
+                className="w-3 h-3 rounded-full mr-2"
                 style={{ backgroundColor: color }}
               />
               <span className="text-sm text-gray-600 capitalize">{type}</span>
@@ -562,132 +607,150 @@ const computeLayout = (nodes, edges) => {
           ))}
         </div>
       </div>
-      
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="600px"
-        className="bg-white rounded-lg shadow-inner"
-        onContextMenu={handleRightClick}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >        
-        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path 
-            d="M 20 0 L 0 0 0 20" 
-            fill="none" 
-            stroke="rgba(0, 0, 0, 0.05)" 
-            strokeWidth="1"
-          />
-        </pattern>
-        <rect width="100%" height="100%" fill="url(#grid)" />
-        
-        <g transform={`translate(${panOffset.x}, ${panOffset.y})`}>
-        {graph.edges.map((edge, i) => {
-          const source = graph.nodes.find((n) => n.id === edge.source);
-          const target = graph.nodes.find((n) => n.id === edge.target);
-          if (!source || !target) return null;
-          
-          const labelPos = getLabelPosition(source, target);
-          const path = getEdgePath(source, target);
-          
-          return (
-            <g key={i} className="edge">
+
+        {/* {!isGraphReady && structuralNodes.length > 0 && (
+             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-10">
+               <Loader2 size={40} className="animate-spin text-blue-600" />
+             </div>
+           )} */}
+
+        <svg
+            ref={svgRef}
+            width="100%"
+            height="600px" 
+            className="bg-white rounded-lg shadow-inner cursor-grab active:cursor-grabbing"
+            onContextMenu={handleRightClick}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave} 
+          >
+            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
               <path
-                d={path}
-                stroke="#666"
-                strokeWidth="1.5"
+                d="M 20 0 L 0 0 0 20"
                 fill="none"
-                strokeOpacity="0.8"
-                markerEnd="url(#arrowhead)"
+                stroke="rgba(0, 0, 0, 0.05)"
+                strokeWidth="1"
               />
-              <rect
-                x={labelPos.x - 40}
-                y={labelPos.y - 10}
-                width="80"
-                height="20"
-                rx="4"
-                fill="white"
-                fillOpacity="0.8"
-              />
-              <text
-                x={labelPos.x}
-                y={labelPos.y + 4}
-                fontSize="12"
-                fontWeight="500"
-                fill="#555"
-                textAnchor="middle"
-                className="select-none"
-              >
-                {edge.label}
-              </text>
+            </pattern>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+
+             <Arrow />
+
+            <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
+
+            {structuralEdges.map((edge, i) => {
+              const source = getNodeLayoutPosition(edge.source);
+              const target = getNodeLayoutPosition(edge.target);
+              if (!source || !target) return null; 
+
+              const labelPos = getLabelPosition(edge.source, edge.target);
+              const path = getEdgePath(edge.source, edge.target); 
+
+              return (
+                <g key={i} className="edge">
+                  <path
+                    d={path}
+                    stroke="#666"
+                    strokeWidth="1.5"
+                    fill="none"
+                    strokeOpacity="0.8"
+                    markerEnd="url(#arrowhead)"
+                  />
+                  <rect
+                    x={labelPos.x - 40 / zoomLevel}
+                    y={labelPos.y - 10 / zoomLevel}
+                    width={80 / zoomLevel}
+                    height={20 / zoomLevel}
+                    rx={4 / zoomLevel}
+                    fill="white"
+                    fillOpacity="0.8"
+                     stroke="#ddd"
+                     strokeWidth={0.5 / zoomLevel}
+                  />
+                  <text
+                    x={labelPos.x}
+                    y={labelPos.y + 4 / zoomLevel}
+                    fontSize={12 / zoomLevel}
+                    fontWeight="500"
+                    fill="#555"
+                    textAnchor="middle"
+                    className="select-none pointer-events-none"
+                  >
+                    {edge.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {layoutNodes.map((node) => {
+              const isHovered = hoveredNode && hoveredNode.id === node.id;
+              const isYouNode = node.id === "1" || node.label.toLowerCase() === "you";
+
+              const nodeRadius = (isYouNode ? 32 : 28) / zoomLevel;
+              const strokeWidth = (isHovered ? 4 : 3) / zoomLevel;
+
+              if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) return null;
+
+
+              return (
+                <g
+                  key={node.id}
+                  onMouseEnter={(e) => handleNodeHover(node, e)}
+                  onMouseLeave={() => handleNodeHover(null)}
+                  onClick={() => handleNodeClick(node)}
+                  onContextMenu={(e) => handleNodeRightClick(e, node)}
+                  className="cursor-pointer"
+                >
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={nodeRadius}
+                    fill={typeBgColors[node.type] || typeBgColors.default}
+                    stroke={typeColors[node.type] || typeColors.default}
+                    strokeWidth={strokeWidth}
+                    filter={isHovered ? "drop-shadow(0px 0px 4px rgba(0,0,0,0.2))" : "none"}
+                    className={isHovered ? "brightness-110" : ""}
+                  />
+
+                  <text
+                    x={node.x}
+                    y={node.y + (isYouNode ? 5 : 4) / zoomLevel}
+                    fontSize={(isYouNode ? 14 : 12) / zoomLevel}
+                    fontWeight={isYouNode ? "bold" : "normal"}
+                    fill="white"
+                    textAnchor="middle"
+                    className="select-none pointer-events-none"
+                    dominantBaseline="middle"
+                  >
+                     {node.label.length > (isYouNode ? 8 : 10) * zoomLevel ? node.label.substring(0, Math.floor((isYouNode ? 8 : 10) * zoomLevel)) + "..." : node.label}
+                  </text>
+
+                  <text
+                    x={node.x + (isYouNode ? 24 : 20) / zoomLevel} 
+                    y={node.y - (isYouNode ? 18 : 16) / zoomLevel} 
+                    fontSize={12 / zoomLevel}
+                    fill={typeColors[node.type]}
+                    className="select-none pointer-events-none"
+                  >
+                    {typeIcons[node.type] || typeIcons.default}
+                  </text>
+                </g>
+              );
+            })}
             </g>
-          );
-        })}
-        
-        {graph.nodes.map((node) => {
-          const isHovered = hoveredNode && hoveredNode.id === node.id;
-          const strokeWidth = isHovered ? 4 : 3;
-          const isYouNode = node.id === "1" || node.label === "You";
-          
-          return (
-            <g 
-              key={node.id}
-              onMouseEnter={(e) => handleNodeHover(node, e)}
-              onMouseLeave={() => handleNodeHover(null)}
-              onClick={() => handleNodeClick(node)}
-              onContextMenu={(e) => handleNodeRightClick(e, node)}
-              className="cursor-pointer"
-            >
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={isYouNode ? "32" : "28"}
-                fill={typeBgColors[node.type] || typeBgColors.default}
-                stroke={typeColors[node.type] || typeColors.default}
-                strokeWidth={strokeWidth}
-                filter={isHovered ? "drop-shadow(0px 0px 4px rgba(0,0,0,0.2))" : "none"}
-                className={isHovered ? "brightness-110" : ""}
-              />
-              
-              <text
-                x={node.x}
-                y={node.y + 5}
-                fontSize={isYouNode ? "14" : "12"}
-                fontWeight={isYouNode ? "bold" : "normal"}
-                fill="white"
-                textAnchor="middle"
-                className="select-none pointer-events-none"
-              >
-                {node.label.length > 10 ? node.label.substring(0, 8) + "..." : node.label}
-              </text>
-              
-              <text
-                x={node.x + 24}
-                y={node.y - 18}
-                fontSize="12"
-                fill={typeColors[node.type]}
-                className="select-none pointer-events-none"
-              >
-                {typeIcons[node.type] || typeIcons.default}
-              </text>
-            </g>
-          );
-        })}
-        </g>
-      </svg>
-      
-      {hoveredNode && <NodeTooltip />}
-      
-      {contextMenu.visible && (
-        <div 
-          className="context-menu absolute bg-white shadow-lg rounded-lg p-2 z-10 border border-gray-200"
+        </svg>
+
+
+      <NodeTooltip />
+
+       {contextMenu.visible && (
+        <div
+          className="context-menu absolute bg-white shadow-lg rounded-lg p-2 z-40 border border-gray-200"
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           {contextMenu.type === 'canvas' && (
-            <button 
+            <button
               onClick={handleAddNode}
               className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
             >
@@ -695,18 +758,18 @@ const computeLayout = (nodes, edges) => {
               Add Node
             </button>
           )}
-          
-          {contextMenu.type === 'node' && (
+
+          {contextMenu.type === 'node' && selectedNode && (
             <>
-              <button 
+              <button
                 onClick={handleEditNode}
                 className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
               >
                 <Edit size={16} className="mr-2" />
                 Edit Node
               </button>
-              {(selectedNode?.id !== "1" && selectedNode?.label !== "You") && (
-                <button 
+              {(selectedNode.id !== "1" && selectedNode.label.toLowerCase() !== "you") && (
+                <button
                   onClick={handleDeleteNode}
                   className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-red-50 rounded text-red-600"
                 >
@@ -714,7 +777,7 @@ const computeLayout = (nodes, edges) => {
                   Delete Node
                 </button>
               )}
-              <button 
+              <button
                 onClick={handleStartEdge}
                 className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
               >
@@ -725,31 +788,33 @@ const computeLayout = (nodes, edges) => {
           )}
         </div>
       )}
-      
+
       {nodeForm.visible && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96">
+        <div className="node-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">{nodeForm.isNew ? "Add New Node" : "Edit Node"}</h3>
               <button onClick={() => setNodeForm({ ...nodeForm, visible: false })}>
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                <label htmlFor="node-label" className="block text-sm font-medium text-gray-700 mb-1">Label</label>
                 <input
+                  id="node-label"
                   type="text"
                   value={nodeForm.label}
                   onChange={(e) => setNodeForm({ ...nodeForm, label: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label htmlFor="node-type" className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                 <select
+                  id="node-type"
                   value={nodeForm.type}
                   onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -761,17 +826,18 @@ const computeLayout = (nodes, edges) => {
                   <option value="default">Other</option>
                 </select>
               </div>
-              
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label htmlFor="node-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
+                  id="node-description"
                   value={nodeForm.description}
                   onChange={(e) => setNodeForm({ ...nodeForm, description: e.target.value })}
                   rows="3"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setNodeForm({ ...nodeForm, visible: false })}
@@ -790,21 +856,22 @@ const computeLayout = (nodes, edges) => {
           </div>
         </div>
       )}
-      
+
       {edgeForm.visible && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-96">
+        <div className="edge-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium">Create Connection</h3>
               <button onClick={() => setEdgeForm({ ...edgeForm, visible: false })}>
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Relationship Label</label>
+                <label htmlFor="edge-label" className="block text-sm font-medium text-gray-700 mb-1">Relationship Label</label>
                 <input
+                  id="edge-label"
                   type="text"
                   value={edgeForm.label}
                   onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
@@ -812,7 +879,7 @@ const computeLayout = (nodes, edges) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setEdgeForm({ ...edgeForm, visible: false })}
@@ -821,7 +888,7 @@ const computeLayout = (nodes, edges) => {
                   Cancel
                 </button>
                 <button
-                  onClick={saveEdgeForm}
+                  onClick={saveEdgeForm} 
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                 >
                   Save
@@ -831,23 +898,23 @@ const computeLayout = (nodes, edges) => {
           </div>
         </div>
       )}
-      
+
       {notification.visible && (
-        <div 
-          className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-30 flex items-center ${
-            notification.type === 'success' ? 'bg-green-500' : 
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center ${
+            notification.type === 'success' ? 'bg-green-500' :
             notification.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
           }`}
         >
           <span className="text-white">{notification.message}</span>
         </div>
       )}
-      
+
       <div className="mt-4 text-sm text-gray-500 flex items-center">
-        <Info size={16} className="mr-2" />
+        <Info size={16} className="mr-2 flex-shrink-0" />
         <div>
           <p>Hover over nodes to see details. Right-click on empty space to add a node.</p>
-          <p>Right-click on nodes to edit, delete, or create connections.</p>
+          <p>Right-click on nodes to edit, delete, or create connections. Click and drag to pan.</p>
         </div>
       </div>
     </div>

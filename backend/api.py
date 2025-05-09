@@ -11,7 +11,6 @@ from firebase_admin import credentials, firestore, auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import json
 
-
 if not firebase_admin._apps:
     cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
     firebase_admin.initialize_app(cred)
@@ -51,7 +50,6 @@ async def verify_token(authorization: str = Header(...)) -> Dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the FastAPI application!"}
@@ -100,6 +98,7 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
         user_doc = user_ref.get()
         user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
         username = user_data.get("name", "User")
+        user_prefs = user_data.get("ChatPreferences", "")
         
         prompt = open("prompt.txt", "r").read()
         prompt = prompt.replace("{bulletProse}", request.bulletProse)
@@ -108,6 +107,7 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
         prompt = prompt.replace("{time}", time.strftime("%H:%M:%S"))
         prompt = prompt.replace("{location}", "NYC")
         prompt = prompt.replace("{user}", username)
+        prompt = prompt.replace("{instructionSet}", user_prefs)
         MAX_WORDS = 120000
 
         total_length = 0
@@ -336,6 +336,58 @@ async def username(user_info: dict = Depends(verify_token)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving username: {str(e)}"
+        )
+
+@app.get("/user_prefs")
+async def get_user_prefs(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        prefs = user_data.get("ChatPreferences", "")
+        print(f"User preferences retrieved: {prefs}")
+        return {"prefs": prefs}
+    except Exception as e:
+        print(f"Error retrieving user preferences: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving user preferences: {str(e)}"
+        )
+
+@app.post("/user_prefs")
+async def update_user_prefs(user_info: dict = Depends(verify_token), prefs: dict = Body(...)):
+    try:
+        prefs_value = prefs.get("prefs", "")
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_ref.update({
+            "ChatPreferences": prefs_value
+        })
+        
+        return {"message": "User preferences updated successfully"}
+    except Exception as e:
+        print(f"Error updating user preferences: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user preferences: {str(e)}"
         )
 
 
