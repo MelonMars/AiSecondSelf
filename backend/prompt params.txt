@@ -1,0 +1,14 @@
+For keeping track:
+
+{name}: AI name supplied by user 
+{country}: User's country
+{date}: Current date
+{time}: Current time
+{bulletProse}: JSON of the user's graph in form {"edges": [...], "nodes": [...]}
+{user}: The name of the user
+{instructionSet}: The user's instructions for the AI
+
+For upload prompt:
+
+{userGraph}: Graph of the user's data
+{userText}: Text content of the user uploaded documents
