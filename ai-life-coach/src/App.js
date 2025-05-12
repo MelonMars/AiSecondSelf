@@ -4,11 +4,8 @@ import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, getAuth } from "firebase/auth";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import parse from 'html-react-parser';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
+import ChatComponent from "./chat";
+import ProfileComponent from "./Profile";
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
@@ -17,20 +14,17 @@ const TABS = [
 ];
 
 const saveGraphData = async (graphData) => {
-  const authToken = localStorage.getItem("authToken");
+  const authToken = localStorage.getItem("authToken"); 
   if (!authToken) {
       console.warn("No auth token found. Cannot save graph data.");
       return false;
   }
-
   const dataToSave = {
       nodes: Array.isArray(graphData?.nodes) ? graphData.nodes : [],
       edges: Array.isArray(graphData?.edges) ? graphData.edges : []
   };
-
   try {
     console.log("Saving graph data:", dataToSave);
-
     const response = await fetch("http://127.0.0.1:8000/user_data", {
       method: "POST",
       headers: {
@@ -41,14 +35,13 @@ const saveGraphData = async (graphData) => {
         user_data: dataToSave
       })
     });
-
     if (!response.ok) {
         const errorText = await response.text();
         console.error("Failed to save graph data:", response.status, errorText);
         return false;
     }
     console.log("Graph data saved successfully");
-    return true; 
+    return true;
   } catch (error) {
     console.error("Error saving graph data:", error);
     return false;
@@ -58,16 +51,11 @@ const saveGraphData = async (graphData) => {
 
 export default function App() {
   const [tab, setTab] = useState("chat");
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
 
   const [authToken, setAuthToken] = useState(localStorage.getItem("authToken"));
   const [uid, setUid] = useState(localStorage.getItem("uid"));
   const [userName, setUserName] = useState(localStorage.getItem("userName") || "");
-  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail") || ""); 
+  const [userEmail, setUserEmail] = useState(localStorage.getItem("userEmail") || "");
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState("login");
@@ -78,6 +66,20 @@ export default function App() {
 
   const [graphData, setGraphData] = useState(null);
   const [chatPrefs, setChatPrefs] = useState("");
+
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [conversations, setConversations] = useState([]); 
+  const [currentConversationId, setCurrentConversationId] = useState(null); 
+  const [isConversationsLoading, setIsConversationsLoading] = useState(false);
+  const [starredConversations, setStarredConversations] = useState([]);
+
+
+  const messagesEndRef = useRef(null);
+
+  const inputRef = useRef(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -93,7 +95,12 @@ export default function App() {
            localStorage.setItem("userEmail", user.email || "");
 
            console.log("Firebase auth state changed. User logged in.");
-           setIsLoading(false); 
+           fetchConversations();
+           if (graphData === null) {
+               fetchUserData(idToken);
+               fetchUserPrefs(idToken);
+           }
+           setIsLoading(false);
         }).catch(error => {
              console.error("Failed to get ID token:", error);
              setIsLoading(false);
@@ -110,8 +117,11 @@ export default function App() {
         localStorage.removeItem("userEmail");
 
         setMessages([]);
-        setGraphData({ nodes: [], edges: [] });
+        setConversations([]); 
+        setCurrentConversationId(null);
+        setGraphData({ nodes: [], edges: [] }); 
         setIsLoading(false);
+        setIsConversationsLoading(false); 
         console.log("Firebase auth state changed. User logged out.");
       }
     });
@@ -120,22 +130,368 @@ export default function App() {
   }, []);
 
 
-   useEffect(() => {
-        if (authToken) {
-           if (graphData === null) {
-               fetchUserData(authToken);
-               fetchUserPrefs(authToken);
-           }
-        } else {
-             setGraphData({ nodes: [], edges: [] });
+  useEffect(() => {
+    if (tab === "chat") {
+      inputRef.current?.focus();
+    }
+  }, [tab]);
+
+
+  const fetchConversations = async () => {
+    if (!authToken) {
+        setConversations([]);
+        return;
+    }
+
+    setIsConversationsLoading(true);
+    try {
+        const headers = { "Authorization": `Bearer ${authToken}` };
+        const res = await fetch("http://127.0.0.1:8000/conversations", { headers });
+
+        if (!res.ok) {
+            if (res.status === 401) {
+                setAuthError("Authentication failed. Please log in again.");
+                setShowAuthModal(true);
+                logout();
+            }
+            throw new Error(`Server error: ${res.status}`);
         }
 
-   }, [authToken]);
+        const data = await res.json();
+        setConversations(data);
+        console.log("Fetched conversations:", data);
+        for (const conversation of data) {
+            if (conversation.starred) {
+                console.log("Starred conversation found:", conversation);
+                setStarredConversations((prev) => [...prev, conversation]);
+            }
+        }
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
+    } finally {
+        setIsConversationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log("Starred conversations updated:", starredConversations);
+  }, [starredConversations]);
+
+  const onToggleStar = async (conversationId) => {
+      if (!authToken) {
+          setAuthError("Please log in to star conversations.");
+          setShowAuthModal(true);
+          return;
+      }
+      const headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+      };
+      try {
+          const res = await fetch("http://127.0.1:8000/star_conversation", {
+              method: "POST",
+              headers: headers,
+              body: JSON.stringify(conversationId)
+          });
+          if (!res.ok) {
+              if (res.status === 401) {
+                  setAuthError("Authentication failed. Please log in again.");
+                  setShowAuthModal(true);
+                  logout();
+              }
+              throw new Error(`Server error: ${res.status}`);
+          }
+          const data = await res.json();
+          console.log("Star conversation response:", data);
+          if (data.success) {
+              setStarredConversations((prev) => {
+                  const isStarred = prev.some((conv) => conv.id === conversationId);
+                  if (isStarred) {
+                      return prev.filter((conv) => conv.id !== conversationId);
+                  } else {
+                      const starredConv = conversations.find((conv) => conv.id === conversationId);
+                      return [...prev, starredConv];
+                  }
+              });
+          } else {
+              console.error("Failed to toggle star status:", data.message);
+          }
+      } catch (error) {
+          console.error("Error toggling star status:", error);
+      }
+    }
+
+  const loadConversation = async (conversationId) => {
+      if (!authToken || conversationId === currentConversationId) {
+           return;
+      }
+
+      setIsLoading(true);
+      setCurrentConversationId(conversationId); 
+      setMessages([]);
+
+      try {
+           const headers = { "Authorization": `Bearer ${authToken}` };
+           const res = await fetch(`http://127.0.0.1:8000/conversations/${conversationId}`, { headers });
+
+           if (!res.ok) {
+               if (res.status === 401) {
+                   setAuthError("Authentication failed. Please log in again.");
+                   setShowAuthModal(true);
+                   logout();
+               } else if (res.status === 404) {
+                    console.warn(`Conversation ${conversationId} not found. Starting a new chat.`);
+                    startNewConversation(); 
+                    setMessages([{ role: "assistant", content: "Conversation not found. Starting a new chat." }]);
+               } else {
+                    throw new Error(`Server error: ${res.status}`);
+               }
+               return;
+           }
+
+           const data = await res.json();
+           setMessages(data.messages);
+           console.log("Loaded conversation:", conversationId);
+
+        } catch (error) {
+            console.error(`Error loading conversation ${conversationId}:`, error);
+            setMessages([{ role: "assistant", content: "Failed to load conversation." }]);
+        } finally {
+            setIsLoading(false); 
+        }
+  };
+
+  const sendMessage = async (messageInput) => {
+    console.log("Attempting to send message in App.js"); 
+    console.log("Input state:", messageInput, "AuthToken exists:", !!authToken, "IsLoading state:", isLoading); 
+
+    if (!messageInput.trim()) {
+      console.log("Input is empty, returning.");
+      return;
+    }
+    if (!authToken) {
+      console.log("Auth token missing, cannot send.");
+      setAuthError("Please log in to send messages.");
+      setShowAuthModal(true);
+      return;
+    }
+    if (isLoading) {
+      console.log("Already loading, ignoring send.");
+      return;
+    }
+
+    const userMessageContent = messageInput;
+    const userMessage = { role: "user", content: userMessageContent };
+
+    const bulletProse = graphData ? JSON.stringify(graphData) : null;
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+
+    console.log("c:", [...messages, userMessage]);
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      };
+
+      console.log("Bullet Prose is:", bulletProse);
+
+      const requestBody = {
+        messages: [...messages, userMessage],
+        conversation_id: currentConversationId,
+        bulletProse: bulletProse
+      };
+
+      console.log("Sending message to server from App.js:", requestBody);
+
+      const res = await fetch("http://127.0.0.1:8000/chat", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log("Got response from server in App.js:", res.ok, res.status); 
+
+      if (!res.ok) {
+        const errorText = await res.text(); 
+        console.error(`Server error ${res.status}:`, errorText);
+
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `Error from server: ${res.status}. Details: ${errorText.substring(0, 150)}...`
+        }]);
+        return; 
+      }
+
+      const data = await res.json();
+      console.log("AI response data from App.js:", data);
+
+      if (data && data.reply) {
+        const aiMessage = { role: "assistant", content: data.reply };
+        setMessages((prev) => [...prev, aiMessage]);
+
+        if (data.conversation_id && data.conversation_id !== currentConversationId) {
+          console.log("Backend created new conversation with ID:", data.conversation_id);
+          setCurrentConversationId(data.conversation_id); 
+          fetchConversations();
+        } else if (currentConversationId) {
+          fetchConversations();
+        } else if (data.conversation_id && !currentConversationId) {
+          setCurrentConversationId(data.conversation_id);
+          fetchConversations();
+        }
+
+      } else {
+        console.warn("AI response data missing 'reply' field in App.js:", data);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "Received unexpected response from AI. Response data:",
+        }]);
+      }
+
+    } catch (error) { 
+      console.error("Network or processing error in App.js sendMessage:", error);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "Sorry, there was a connection or processing error. Please try again later."
+      }]);
+    } finally {
+      console.log("sendMessage finally block reached in App.js");
+      setIsLoading(false); 
+    }
+  };
+
+
+  const startNewConversation = () => {
+      console.log("Starting new conversation in App.js");
+      setCurrentConversationId(null); 
+      setMessages([]);
+      setInput(""); 
+      inputRef.current?.focus();
+  };
+
+  const renderAuthModal = () => {
+     if (!showAuthModal) return null;
+      return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
+              <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                <h2 className="text-2xl font-medium text-gray-800 mb-4">
+                  {authMode === "login" ? "Log in" : "Sign up"}
+                </h2>
+
+                {authError && (
+                  <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
+                    {authError}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {authMode === "signup" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Your name"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="your@email.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    onClick={authMode === "login" ? login : signup}
+                    disabled={isLoading}
+                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    {isLoading ? (
+                      <Loader size={20} className="animate-spin" />
+                    ) : (
+                      authMode === "login" ? "Log in" : "Sign up"
+                    )}
+                  </button>
+                </div>
+
+                <div className="mt-4 text-center">
+                  {authMode === "login" ? (
+                    <p className="text-sm text-gray-600">
+                      Don't have an account?{" "}
+                      <button
+                        onClick={() => {
+                          setAuthMode("signup");
+                          setAuthError("");
+                        }}
+                        className="text-blue-600 hover:text-blue-800 focus:outline-none"
+                      >
+                        Sign up
+                      </button>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-600">
+                      Already have an account?{" "}
+                      <button
+                        onClick={() => {
+                          setAuthMode("login");
+                          setAuthError("");
+                        }}
+                        className="text-blue-600 hover:text-blue-800 focus:outline-none"
+                      >
+                        Log in
+                      </button>
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setShowAuthModal(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700 focus:outline-none"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+          </div>
+      );
+  };
+
 
 
   const fetchUserPrefs = async (token) => {
     if (!token) return;
     try {
+      console.log("Fetching user prefs with token:", token);
       const response = await fetch("http://127.0.0.1:8000/user_prefs", {
         method: "GET",
         headers: {
@@ -163,483 +519,266 @@ export default function App() {
     }
   };
 
-  const fetchUserData = async (token) => {
-    if (!token) {
-        setGraphData({ nodes: [], edges: [] });
-        return;
-    }
-    setIsLoading(true);
-    try {
-      const response = await fetch("http://127.0.0.1:8000/user_data", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.user_data && (Array.isArray(data.user_data.nodes) || Array.isArray(data.user_data.edges))) {
-           const nodes = Array.isArray(data.user_data.nodes) ? data.user_data.nodes.map(node => ({
-             ...node,
-             type: node.type || 'default',
-             description: node.description || ''
-           })) : [];
-           const edges = Array.isArray(data.user_data.edges) ? data.user_data.edges : [];
-
-           setGraphData({ nodes, edges }); 
-
-        } else if (data && (Array.isArray(data.nodes) || Array.isArray(data.edges))) {
-             const nodes = Array.isArray(data.nodes) ? data.nodes.map(node => ({
-                ...node,
-                type: node.type || 'default',
-                description: node.description || ''
-             })) : [];
-             const edges = Array.isArray(data.edges) ? data.edges : [];
-             setGraphData({ nodes, edges });
-
-        }
-         else {
-          console.warn("Fetched user data is not in expected format. Loading empty graph.", data);
+    const fetchUserData = async (token) => {
+      if (!token) {
           setGraphData({ nodes: [], edges: [] });
-        }
-      } else {
-         if (response.status === 401) {
-            console.error("Auth failed fetching user data. Logging out.");
-            logout();
-         } else {
-            console.error("Failed to fetch user data", response.status);
-            setGraphData({ nodes: [], edges: [] }); 
-         }
+          return;
       }
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-       setGraphData({ nodes: [], edges: [] });
-    } finally {
-        setIsLoading(false); 
-    }
-  };
-
-
-  const handleGraphDataChange = async (updatedStructuralGraphData) => {
+      setIsLoading(true);
+      try {
+        console.log("Fetching user data with token:", token);
+        const response = await fetch("http://127.0.0.1:8000/user_data", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+  
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.user_data && (Array.isArray(data.user_data.nodes) || Array.isArray(data.user_data.edges))) {
+             const nodes = Array.isArray(data.user_data.nodes) ? data.user_data.nodes.map(node => ({
+               ...node,
+               type: node.type || 'default',
+               description: node.description || ''
+             })) : [];
+             const edges = Array.isArray(data.user_data.edges) ? data.user_data.edges : [];
+  
+             setGraphData({ nodes, edges }); 
+  
+          } else if (data && (Array.isArray(data.nodes) || Array.isArray(data.edges))) {
+               const nodes = Array.isArray(data.nodes) ? data.nodes.map(node => ({
+                  ...node,
+                  type: node.type || 'default',
+                  description: node.description || ''
+               })) : [];
+               const edges = Array.isArray(data.edges) ? data.edges : [];
+               setGraphData({ nodes, edges });
+  
+          }
+           else {
+            console.warn("Fetched user data is not in expected format. Loading empty graph.", data);
+            setGraphData({ nodes: [], edges: [] });
+          }
+        } else {
+           if (response.status === 401) {
+              console.error("Auth failed fetching user data. Logging out.");
+              logout();
+           } else {
+              console.error("Failed to fetch user data", response.status);
+              setGraphData({ nodes: [], edges: [] }); 
+           }
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+         setGraphData({ nodes: [], edges: [] });
+      } finally {
+          setIsLoading(false); 
+      }
+    };
+    
+    const handleGraphDataChange = async (updatedStructuralGraphData) => {
       console.log("Graph data changed by GraphView (structural):", updatedStructuralGraphData);
       setGraphData(updatedStructuralGraphData);
       const success = await saveGraphData(updatedStructuralGraphData);
       return success;
-  };
-
-
-  const handleChatPrefsChange = (newValue) => {
-    setChatPrefs(newValue); 
-    const authToken = localStorage.getItem("authToken");
-    if (!authToken) {
-        console.warn("No auth token found. Cannot save chat preferences.");
-        return;
-    }
-
-    fetch("http://127.0.0.1:8000/user_prefs", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({ prefs: newValue })
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error("Failed to update user preferences");
+    };
+    const handleChatPrefsChange = (newValue) => {
+      setChatPrefs(newValue); 
+      const authToken = localStorage.getItem("authToken");
+      if (!authToken) {
+          console.warn("No auth token found. Cannot save chat preferences.");
+          return;
       }
-      return response.json();
-    })
-    .then(data => {
-      console.log("User preferences updated:", data);
-    })
-    .catch(error => {
-      console.error("Error updating user preferences:", error);
-    });
-  }
-
-
-  const login = async () => {
-    setAuthError("");
-    if (!email || !password) {
-      setAuthError("Email and password are required");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setShowAuthModal(false);
-      setEmail("");
-      setPassword("");
-
-    } catch (error) {
-      setAuthError(error.message);
-      console.error("Login error:", error);
-    } finally {}
-  };
-
-  const signup = async () => {
-    setAuthError("");
-    if (!email || !password || !name) {
-      setAuthError("All fields are required");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch("http://127.0.0.1:8000/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Signup failed");
-      }
-
-       await signInWithEmailAndPassword(auth, email, password);
-
-      setShowAuthModal(false);
-      setEmail("");
-      setPassword("");
-      setName("");
-
-    } catch (error) {
-      setAuthError(error.message);
-      console.error("Signup error:", error);
-    } finally {
-    }
-  };
-
-  const logout = async () => {
-     setIsLoading(true);
-     try {
-        const firebaseAuth = getAuth();
-        await firebaseAuth.signOut(); 
-     } catch (error) {
-        console.error("Error signing out:", error);
-        setAuthToken(null);
-        setUid(null);
-        setUserName("");
-        setUserEmail("");
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("uid");
-        localStorage.removeItem("userName");
-        localStorage.removeItem("userEmail");
-        setMessages([]);
-        setGraphData({ nodes: [], edges: [] });
-     } finally {
-        setIsLoading(false);
-     }
-  };
-
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    if (tab === "chat") {
-      inputRef.current?.focus();
-    }
-  }, [tab]);
-
-  const sendMessage = async () => {
-    if (!input.trim()) return;
-
-    const userMessage = { role: "user", content: input };
-    const bulletProse = graphData ? JSON.stringify(graphData) : null;
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      const headers = {
-        "Content-Type": "application/json"
-      };
-
-      if (authToken) {
-        headers["Authorization"] = `Bearer ${authToken}`;
-      }
-
-      const res = await fetch("http://127.0.0.1:8000/chat", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ messages: [...messages, userMessage], bulletProse })
-      });
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          setAuthError("Authentication failed. Please log in again.");
-          setShowAuthModal(true);
-           logout();
-        }
-        throw new Error(`Server error: ${res.status}`);
-      }
-
-      const data = await res.json();
-      setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: "Sorry, there was an error processing your message. Please try again later."
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendMessageWithDoc = async (file) => {
-    if (!file || file.type !== "text/plain") {
-      console.error("only .txt files are supported");
-      return;
-    }
-
-    const headers = {};
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    } else {
-         console.warn("No auth token available to send document.");
-         setAuthError("Please log in to upload documents.");
-         setShowAuthModal(true);
-         return;
-    }
-
-    const graphDataString = graphData ? JSON.stringify(graphData) : null;
-    const formData = new FormData();
-    formData.append("txt_file", file);
-    formData.append("bulletProse", graphDataString);
-
-    setIsLoading(true);
-    try {
-      const res = await fetch("http://127.0.0.1:8000/update_graph_with_doc", {
+  
+      fetch("http://127.0.0.1:8000/user_prefs", {
         method: "POST",
         headers: {
-            "Authorization": `Bearer ${authToken}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`
         },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          setAuthError("Authentication failed. Please log in again.");
-          setShowAuthModal(true);
-           logout(); 
-           return; 
+        body: JSON.stringify({ prefs: newValue })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Failed to update user preferences");
         }
-        throw new Error(`Server error: ${res.status}`);
+        return response.json();
+      })
+      .then(data => {
+        console.log("User preferences updated:", data);
+      })
+      .catch(error => {
+        console.error("Error updating user preferences:", error);
+      });
+    };
+
+    const login = async () => {
+      setAuthError("");
+      if (!email || !password) {
+        setAuthError("Email and password are required");
+        return;
       }
+  
+      setIsLoading(true);
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        setShowAuthModal(false);
+        setEmail("");
+        setPassword("");
+  
+      } catch (error) {
+        setAuthError(error.message);
+        console.error("Login error:", error);
+      } finally {}
+    };
 
-      const data = await res.json();
-      console.log("Document processed:", data);
-
-      if (data && data.updated_graph && Array.isArray(data.updated_graph.nodes)) {
-          console.log("Received updated graph from backend after doc processing");
-          const nodes = Array.isArray(data.updated_graph.nodes) ? data.updated_graph.nodes.map(node => ({
-              ...node,
-              type: node.type || 'default',
-              description: node.description || ''
-          })) : [];
-          const edges = Array.isArray(data.updated_graph.edges) ? data.updated_graph.edges : [];
-
-          setGraphData({ nodes, edges });
-      } else {
-           console.warn("Backend did not return updated graph data in expected format after doc processing.");
+    const signup = async () => {
+      setAuthError("");
+      if (!email || !password || !name) {
+        setAuthError("All fields are required");
+        return;
       }
+  
+      setIsLoading(true);
+      try {
+        const response = await fetch("http://127.0.0.1:8000/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name })
+        });
+  
+        const data = await response.json();
+  
+        if (!response.ok) {
+          throw new Error(data.detail || "Signup failed");
+        }
+  
+         await signInWithEmailAndPassword(auth, email, password);
+  
+        setShowAuthModal(false);
+        setEmail("");
+        setPassword("");
+        setName("");
+  
+      } catch (error) {
+        setAuthError(error.message);
+        console.error("Signup error:", error);
+      } finally {
+      }
+    };
 
-       if (data && data.reply) {
-            const injectElem = document.getElementById("doc-result");
-             if (injectElem) {
-                injectElem.innerHTML = data.reply; 
+    const logout = async () => {
+       setIsLoading(true);
+       try {
+          const firebaseAuth = getAuth();
+          await firebaseAuth.signOut();
+       } catch (error) {
+          console.error("Error signing out:", error);
+          setAuthToken(null); setUid(null); setUserName(""); setUserEmail("");
+          localStorage.removeItem("authToken"); localStorage.removeItem("uid");
+          localStorage.removeItem("userName"); localStorage.removeItem("userEmail");
+          setMessages([]); setConversations([]); setCurrentConversationId(null);
+          setGraphData({ nodes: [], edges: [] });
+       } finally {
+          setIsLoading(false);
+       }
+    };
+
+    const sendMessageWithDoc = async (file) => {
+         if (!file || file.type !== "text/plain") {
+            console.error("only .txt files are supported");
+            return;
+          }
+
+          const headers = {};
+          if (authToken) {
+            headers["Authorization"] = `Bearer ${authToken}`;
+          } else {
+               console.warn("No auth token available to send document.");
+               setAuthError("Please log in to upload documents.");
+               setShowAuthModal(true);
+               return;
+          }
+
+          const graphDataString = graphData ? JSON.stringify(graphData) : null;
+          const formData = new FormData();
+          formData.append("txt_file", file);
+          formData.append("bulletProse", graphDataString);
+
+          setIsLoading(true);
+          try {
+            const res = await fetch("http://127.0.0.1:8000/update_graph_with_doc", {
+              method: "POST",
+              headers: {
+                  "Authorization": `Bearer ${authToken}`
+              },
+              body: formData,
+            });
+
+            if (!res.ok) {
+              if (res.status === 401) {
+                setAuthError("Authentication failed. Please log in again.");
+                setShowAuthModal(true);
+                 logout();
+                 return;
+              }
+               const errorText = await res.text();
+               console.error(`Server error ${res.status}:`, errorText);
+               setMessages((prev) => [ 
+                  ...prev,
+                  { role: "assistant", content: `Error processing document: ${res.status}. Details: ${errorText.substring(0, 100)}...` },
+                ]);
+               return;
+            }
+
+            const data = await res.json();
+            console.log("Document processed response:", data);
+
+            if (data && data.updated_graph && Array.isArray(data.updated_graph.nodes)) {
+                console.log("Received updated graph from backend after doc processing");
+                const nodes = Array.isArray(data.updated_graph.nodes) ? data.updated_graph.nodes.map(node => ({
+                    ...node,
+                    type: node.type || 'default',
+                    description: node.description || ''
+                })) : [];
+                const edges = Array.isArray(data.updated_graph.edges) ? data.updated_graph.edges : [];
+
+                setGraphData({ nodes, edges });
+            } else {
+                 console.warn("Backend did not return updated graph data in expected format after doc processing.");
+            }
+
+             if (data && data.reply) {
+                  const injectElem = document.getElementById("doc-result");
+                   if (injectElem) {
+                      injectElem.innerHTML = data.reply;
+                   } else {
+                       console.warn("Element with ID 'doc-result' not found. Document reply not displayed.");
+                        setMessages((prev) => [...prev, { role: "assistant", content: `Document processed. Reply: ${data.reply}` }]);
+                   }
              } else {
-                 console.warn("Element with ID 'doc-result' not found.");
+                  console.warn("Backend did not return a 'reply' field after doc processing.");
+                   setMessages((prev) => [...prev, { role: "assistant", content: "Document processed." }]);
              }
-       }
 
-    } catch (error) {
-      console.error("Error sending document:", error);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "error processing your document." },
-      ]);
-       const injectElem = document.getElementById("doc-result");
-       if (injectElem) {
-           injectElem.innerHTML = `Error: ${error.message}`;
-       }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const formatTime = () => {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  };
+          } catch (error) {
+            console.error("Error sending document:", error);
+            setMessages((prev) => [
+              ...prev,
+              { role: "assistant", content: "Sorry, there was an error processing your document." },
+            ]);
+             const injectElem = document.getElementById("doc-result");
+             if (injectElem) {
+                 injectElem.innerHTML = `Error: ${error.message}`;
+             }
+          } finally {
+            setIsLoading(false);
+          }
+    };
 
-  const renderMessage = (message, index) => {
-    const isUser = message.role === "user";
-    const aiContent = message.content;
-  
-    return (
-      <div
-        key={index}
-        className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4 animate-fadeIn`}
-      >
-        {!isUser && (
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-2 flex-shrink-0">
-            AI
-          </div>
-        )}
-  
-        <div
-          className={`px-4 py-3 rounded-2xl max-w-3xl ${
-            isUser
-              ? "bg-blue-500 text-white rounded-tr-none"
-              : "bg-gray-100 text-gray-800 rounded-tl-none"
-          }`}
-        >
-          <div className={`prose ${isUser ? 'prose-invert' : ''}`}>
-              <ReactMarkdown
-                  remarkPlugins={[remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-              >
-                  {message.content}
-              </ReactMarkdown>
-          </div>
-  
-          <div className={`text-xs mt-1 ${isUser ? "text-blue-100" : "text-gray-500"} text-right`}>
-            {formatTime()}
-          </div>
-        </div>
-  
-        {isUser && (
-          <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center ml-2 flex-shrink-0">
-            you
-          </div>
-        )}
-      </div>
-    );
-  };
-        
-  const renderAuthModal = () => {
-    if (!showAuthModal) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
-        <div className="bg-white rounded-lg p-6 w-full max-w-md">
-          <h2 className="text-2xl font-medium text-gray-800 mb-4">
-            {authMode === "login" ? "Log in" : "Sign up"}
-          </h2>
-
-          {authError && (
-            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
-              {authError}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {authMode === "signup" && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Your name"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="your@email.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="••••••••"
-              />
-            </div>
-          </div>
-
-          <div className="mt-6">
-            <button
-              onClick={authMode === "login" ? login : signup}
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {isLoading ? (
-                <Loader size={20} className="animate-spin" />
-              ) : (
-                authMode === "login" ? "Log in" : "Sign up"
-              )}
-            </button>
-          </div>
-
-          <div className="mt-4 text-center">
-            {authMode === "login" ? (
-              <p className="text-sm text-gray-600">
-                Don't have an account?{" "}
-                <button
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthError("");
-                  }}
-                  className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                >
-                  Sign up
-                </button>
-              </p>
-            ) : (
-              <p className="text-sm text-gray-600">
-                Already have an account?{" "}
-                <button
-                  onClick={() => {
-                    setAuthMode("login");
-                    setAuthError("");
-                  }}
-                  className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                >
-                  Log in
-                </button>
-              </p>
-            )}
-          </div>
-
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setShowAuthModal(false)}
-              className="text-sm text-gray-500 hover:text-gray-700 focus:outline-none"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -709,7 +848,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-hidden relative">
           {isLoading && (
              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-10">
                <Loader size={40} className="animate-spin text-blue-600" />
@@ -717,192 +856,76 @@ export default function App() {
            )}
 
          {tab === "chat" && (
-            <div className="max-w-4xl mx-auto pt-4 pb-20">
-              {messages.length === 0 && !isLoading ? (
-                <div className="text-center py-16">
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare size={24} className="text-blue-500" />
-                  </div>
-                  <h3 className="text-xl font-medium text-gray-700 mb-2">Start a conversation</h3>
-                  <p className="text-gray-500 max-w-md mx-auto">
-                    Send a message to begin chatting with the AI assistant
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {messages.map(renderMessage)}
-                  <div ref={messagesEndRef} />
-                </>
-              )}
-            </div>
-          )}
-
-         {tab === "graph" && (
-             <GraphView
-                 data={graphData}
-                 onDataChange={handleGraphDataChange}
+             <ChatComponent
+                 messages={messages}
+                 conversations={conversations}
+                 currentConversationId={currentConversationId}
+                 isLoading={isLoading}
+                 isConversationsLoading={isConversationsLoading}
+                 loadConversation={loadConversation}
+                 startNewConversation={startNewConversation}
+                 authToken={authToken}
+                 setAuthError={setAuthError} 
+                 setShowAuthModal={setShowAuthModal}
+                 logout={logout}
+                 starredConversations={starredConversations}
+                 onToggleStar={onToggleStar}
+                 onConversationRenamed={fetchConversations}
+                sendMessage={sendMessage}
              />
-          )}
+         )}
+         {tab === "graph" && (<GraphView data={graphData} onGraphDataChange={handleGraphDataChange} />)}
+         {tab === "profile" && (<ProfileComponent 
+                    authToken={authToken} 
+                    userName={userName} 
+                    userEmail={userEmail} 
+                    chatPrefs={chatPrefs}
+                    handleChatPrefsChange={handleChatPrefsChange}
+                    sendMessageWithDoc={sendMessageWithDoc}
+                    isLoading={isLoading}/>)}
 
-         {tab === "profile" && (
-            <div className="max-w-4xl mx-auto py-4">
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                {authToken ? (
-                  <>
-                    <div className="flex items-center mb-6">
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-500 text-xl font-bold mr-4">
-                        {userName ? userName.charAt(0).toUpperCase() : "U"}
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-medium text-gray-800">{userName}</h2>
-                         {userEmail && <p className="text-gray-500 text-sm">{userEmail}</p>}
-                        <p className="text-gray-500 text-sm">Personal information and preferences</p>
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div className="space-y-6">
-                        <div className="space-y-4">
-                          <h3 className="font-medium text-gray-700 border-b pb-2">Account Details</h3>
-                          <div className="flex justify-between items-center">
-                            <span className="text-gray-500">Name</span>
-                            <span className="font-medium">{userName}</span>
-                          </div>
-                           {uid && (
-                           <div className="flex justify-between items-center">
-                             <span className="text-gray-500">UID</span>
-                             <span className="font-medium text-xs break-all text-right">{uid}</span>
-                           </div>
-                           )}
-                        </div>
-
-                        <div className="space-y-4">
-                          <h3 className="font-medium text-gray-700 border-b pb-2">Preferences (Placeholder)</h3>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Theme</span>
-                            <span className="font-medium">Light</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-500">Notifications</span>
-                            <span className="font-medium">Enabled</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={logout}
-                          className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors flex items-center"
-                        >
-                          <LogOut size={16} className="mr-2" />
-                          Log out
-                        </button>
-                      </div>
-
-                      <div className="space-y-6">
-                        <div className="space-y-4">
-                           <h3 className="font-medium text-gray-700 border-b pb-2">File Operations</h3>
-                           <div className="mt-4">
-                             <h4 className="text-sm font-medium text-gray-700 mb-2">Upload a .txt file to update graph</h4>
-                             <input
-                               type="file"
-                               accept=".txt"
-                               onChange={(e) => sendMessageWithDoc(e.target.files[0])}
-                               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                             />
-                           </div>
-
-                           <div className="mt-4">
-                             <h4 className="text-sm font-medium text-gray-700 mb-2">Upload Result</h4>
-                             <div className="p-4 bg-gray-100 rounded-md text-gray-800 text-sm max-h-40 overflow-y-auto">
-                               <p id="doc-result">No result yet.</p>
-                             </div>
-                           </div>
-                        </div>
-
-                         <div className="space-y-4">
-                           <h3 className="font-medium text-gray-700 border-b pb-2">Chat Preferences</h3>
-                            <label htmlFor="chat-prefs" className="block text-sm font-medium text-gray-700 mb-1">Instructions for AI</label>
-                           <textarea
-                             id="chat-prefs"
-                             rows="3"
-                             value={chatPrefs}
-                             onChange={(e) => {
-                             const newValue = e.target.value;
-                             setChatPrefs(newValue);
-                             handleChatPrefsChange(newValue);
-                             }}
-                             className="block w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                             placeholder="e.g., Always respond concisely, Focus on practical advice, Use markdown formatting"
-                           />
-                         </div>
-                      </div>
-
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-10">
-                    <User size={48} className="mx-auto text-gray-300 mb-4" />
-                    <h3 className="text-xl font-medium text-gray-700 mb-3">Log in to view your profile</h3>
-                    <p className="text-gray-500 mb-6">
-                      Create an account or log in to access your profile and save your data.
-                    </p>
-                    <div className="flex justify-center space-x-4">
-                      <button
-                        onClick={() => {
-                          setAuthMode("login");
-                          setAuthError("");
-                          setShowAuthModal(true);
-                        }}
-                        className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                      >
-                        Log in
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAuthMode("signup");
-                          setAuthError("");
-                          setShowAuthModal(true);
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        Sign up
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-           )}
       </div>
 
-      {tab === "chat" && (
+      {/* {tab === "chat" && (
        <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
          <div className="max-w-4xl mx-auto">
-           <div className="flex items-center bg-white border border-gray-300 rounded-full overflow-hidden focus-within:ring-2 focus-within:ring-blue-300 focus-within:border-blue-500">
-             <input
-               ref={inputRef}
-               type="text"
-               value={input}
-               onChange={(e) => setInput(e.target.value)}
-               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-               placeholder="Type your message..."
-               className="flex-1 py-3 px-4 focus:outline-none"
-               disabled={isLoading}
-             />
-             <button
-               onClick={sendMessage}
-               disabled={!input.trim() || isLoading}
-               className={`p-3 mr-1 rounded-full transition-colors ${
-                 input.trim() && !isLoading
-                   ? 'bg-blue-500 text-white hover:bg-blue-600'
-                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-               }`}
-             >
-               {isLoading ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-             </button>
-           </div>
+           {authToken ? (
+               <div className="flex items-center bg-white border border-gray-300 rounded-full overflow-hidden focus-within:ring-2 focus-within:ring-blue-300 focus-within:border-blue-500">
+                 <input
+                   ref={inputRef}
+                   type="text"
+                   value={input} 
+                   onChange={(e) => setInput(e.target.value)}
+                   onKeyDown={(e) => {
+                       if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                       }
+                   }}
+                   placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
+                   className="flex-1 py-3 px-4 focus:outline-none"
+                   disabled={isLoading} 
+                 />
+                 <button
+                   onClick={sendMessage} 
+                   disabled={!input.trim() || isLoading}
+                   className={`p-3 mr-1 rounded-full transition-colors ${
+                     input.trim() && !isLoading 
+                       ? 'bg-blue-500 text-white hover:bg-blue-600'
+                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                   }`}
+                 >
+                   {isLoading ? <Loader size={18} className="animate-spin" /> : <Send size={18} />} 
+                 </button>
+               </div>
+           ) : (
+               <div className="text-center text-gray-600">
+                   Please log in to start chatting.
+               </div>
+           )}
          </div>
        </div>
-       )}
+      )} */}
 
 
       {renderAuthModal()}
@@ -913,15 +936,6 @@ export default function App() {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
         }
 
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-in-out;
         }
@@ -930,6 +944,11 @@ export default function App() {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
+
+         .prose-invert {
+            color: white;
+         }
+
       `}</style>
     </div>
   );

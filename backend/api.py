@@ -10,6 +10,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import json
+import datetime
 
 if not firebase_admin._apps:
     cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
@@ -39,11 +40,13 @@ async def verify_token(authorization: str = Header(...)) -> Dict:
         )
 
     id_token = authorization.split(" ")[1]
+    print(f"ID Token: {id_token}")
     try:
         decoded_token = auth.verify_id_token(id_token)
         print(f"Decoded token: {decoded_token}")
         return decoded_token
     except Exception as e:
+        print(f"Error verifying token: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
@@ -57,6 +60,7 @@ def read_root():
 class Message(BaseModel):
     role: str
     content: str
+    timestamp: datetime.datetime
 
 class ChatRequest(BaseModel):
     messages: List[Message]
@@ -82,88 +86,330 @@ class AuthResponse(BaseModel):
 class DocumentRequest(BaseModel):
     bulletProse: str
 
+class Message(BaseModel):
+    role: str 
+    content: str
+    timestamp: datetime.datetime 
+
+class ConversationSummary(BaseModel):
+    id: str
+    title: str
+    last_updated: datetime.datetime
+    starred: bool
+
+class Conversation(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    messages: List[Message]
+    created_at: datetime.datetime
+    last_updated: datetime.datetime
+    starred: bool
+
+class ChatRequest(BaseModel):
+    messages: List[dict]
+    bulletProse: str
+    conversation_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    reply: str
+    conversation_id: Optional[str] = None 
+
+
+@app.get("/conversations", response_model=List[ConversationSummary])
+async def list_conversations(user_info: dict = Depends(verify_token)):
+    user_uid = user_info["uid"]
+    conversations_ref = db.collection("users").document(user_uid).collection("conversations")
+
+    try:
+        docs = conversations_ref.order_by("last_updated", direction=firestore.Query.DESCENDING).get()
+
+        summaries: List[ConversationSummary] = []
+        for doc in docs:
+            data = doc.to_dict()
+            summary = ConversationSummary(
+                id=doc.id,
+                title=data.get("title", "Untitled Conversation"),
+                last_updated=data.get("last_updated", datetime.datetime.min),
+                starred=data.get("starred", False)
+            )
+            summaries.append(summary)
+
+        logger.info(f"Listed {len(summaries)} conversations for user {user_uid}")
+        return summaries
+
+    except Exception as e:
+        logger.error(f"Error listing conversations for user {user_uid}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving conversations")
+
+@app.get("/conversations/{conversation_id}", response_model=Conversation)
+async def get_conversation(conversation_id: str, user_info: dict = Depends(verify_token)):
+    user_uid = user_info["uid"]
+    conversation_ref = db.collection("users").document(user_uid).collection("conversations").document(conversation_id)
+
+    try:
+        doc = conversation_ref.get()
+
+        if not doc.exists:
+            logger.warning(f"Conversation {conversation_id} not found for user {user_uid}")
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        data = doc.to_dict()
+
+        messages = [
+             Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', datetime.datetime.min))
+             for msg in data.get('messages', [])
+        ]
+
+        conversation = Conversation(
+            id=doc.id,
+            user_id=data.get("user_id"),
+            title=data.get("title", "Untitled Conversation"),
+            messages=messages,
+            created_at=data.get("created_at", datetime.datetime.min),
+            last_updated=data.get("last_updated", datetime.datetime.min),
+            starred=data.get("starred", False)
+        )
+
+        if conversation.user_id != user_uid:
+             logger.warning(f"User {user_uid} attempted to access conversation {conversation_id} belonging to user {conversation.user_id}")
+             raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
+
+
+        logger.info(f"Retrieved conversation {conversation_id} for user {user_uid}")
+        return conversation
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving conversation {conversation_id} for user {user_uid}: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving conversation")
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
-    if request.messages:
-        url = "https://ai.hackclub.com/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-        }
-        data = {
-            "messages": [message.dict() for message in request.messages],
-            "model": "llama-3.3-70b-versatile"
-        }
+    user_uid = user_info["uid"]
+    user_ref = db.collection("users").document(user_uid)
 
-        user_ref = db.collection("users").document(user_info["uid"])
-        user_doc = user_ref.get()
-        user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
-        username = user_data.get("name", "User")
-        user_prefs = user_data.get("ChatPreferences", "")
-        
-        prompt = open("prompt.txt", "r").read()
-        prompt = prompt.replace("{bulletProse}", request.bulletProse)
-        prompt = prompt.replace("{name}", user_data.get("name", "User"))
-        prompt = prompt.replace("{date}", time.strftime("%Y-%m-%d"))
-        prompt = prompt.replace("{time}", time.strftime("%H:%M:%S"))
-        prompt = prompt.replace("{location}", "NYC")
-        prompt = prompt.replace("{user}", username)
-        prompt = prompt.replace("{instructionSet}", user_prefs)
-        MAX_WORDS = 120000
+    conversation_ref: firestore.DocumentReference
+    conversation_id = request.conversation_id
+    existing_messages: List[Message] = []
+    now = datetime.datetime.now(datetime.timezone.utc)
 
-        total_length = 0
-        truncated_messages = []
+    if conversation_id:
+        conversation_ref = user_ref.collection("conversations").document(conversation_id)
+        conversation_doc = conversation_ref.get()
 
-        for message in data["messages"]:
-            message_words = message["content"].split()
-            if total_length + len(message_words) > MAX_WORDS:
-                remaining_words = MAX_WORDS - total_length
-                if remaining_words > 0:
-                    truncated_content = ' '.join(message_words[:remaining_words])
-                    truncated_messages.append({
-                        **message,
-                        "content": truncated_content
-                    })
-                break
-            else:
-                truncated_messages.append(message)
-                total_length += len(message_words)
-
-        if total_length >= MAX_WORDS:
-            logger.warning("Total message length exceeds 120000 words, messages have been truncated")
-
-        data["messages"] = truncated_messages
-        data["messages"] = [{"role": "system", "content": prompt}] + data["messages"]
-        print("Messages sent to AI:", data["messages"])
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 200:
-            response_data = response.json()
-            print(f"Response from AI: {response_data}")
-            if "choices" in response_data and len(response_data["choices"]) > 0:
-                reply = response_data["choices"][0]["message"]["content"]
-                if "<GRAPH>" in reply:
-                    graph_string = reply.split("<GRAPH>")[1].split("</GRAPH>")[0]
-                    try:
-                        graph_data = json.loads(graph_string)
-                        user_ref.update({
-                            "edges": graph_data["edges"],
-                            "nodes": graph_data["nodes"]
-                        })
-                        print("Graph data updated in Firestore")
-                        return ChatResponse(reply=reply.replace(graph_string, "").replace("<GRAPH>", "").replace("</GRAPH>", ""))
-                    except json.JSONDecodeError as e:
-                        logger.error(f"Error decoding JSON: {e}")
-                        print("Error decoding JSON:", e)
-                        return ChatResponse(reply="Error processing graph data")
-                return ChatResponse(reply=reply)
-            else:
-                logger.error("No choices found in the response")
-                return ChatResponse(reply="No valid response from AI")
+        if conversation_doc.exists:
+            print(f"Conversation ID {conversation_id} found for user {user_uid}.")
+            conversation_data = conversation_doc.to_dict()
+            existing_messages = [
+                Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', now))
+                for msg in conversation_data.get('messages', [])
+            ]
+            logger.info(f"Loaded existing conversation: {conversation_id} for user {user_uid}")
         else:
-            logger.error(f"Error from AI: {response.status_code} - {response.text}")
-            return ChatResponse(reply="Error communicating with AI")
-        logger.error(f"Error from AI: {response.status_code} - {response.text}")
+            print(f"Conversation ID {conversation_id} not found for user {user_uid}, starting a new conversation.")
+            conversation_ref = user_ref.collection("conversations").document() 
+            conversation_id = conversation_ref.id
+            conversation_ref.set({
+                "user_id": user_uid,
+                "created_at": now,
+                "last_updated": now,
+                "messages": [],
+                "title": "New Conversation"
+            })
+            print("Started new conversation: ", conversation_id)
+
     else:
-        return ChatResponse(reply="No messages received")
+        conversation_ref = user_ref.collection("conversations").document()
+        conversation_id = conversation_ref.id
+        conversation_ref.set({
+            "user_id": user_uid,
+            "created_at": now,
+            "last_updated": now,
+            "messages": [],
+            "title": "New Conversation"
+        })
+        logger.info(f"Started new conversation: {conversation_id} for user {user_uid}")
+
+    if not request.messages:
+         return ChatResponse(reply="No messages received", conversation_id=conversation_id)
+
+    new_user_message_dict = request.messages[-1]
+    new_user_message = Message(role="user", content=new_user_message_dict["content"], timestamp=now)
+
+    all_messages: List[Message] = existing_messages + [new_user_message]
+
+    print("All messages for AI:", all_messages)
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
+    username = user_data.get("name", "User")
+    user_prefs = user_data.get("ChatPreferences", "")
+
+    try:
+        with open("prompt.txt", "r") as f:
+             prompt_template = f.read()
+    except FileNotFoundError:
+         logger.error("prompt.txt not found")
+         return ChatResponse(reply="Server error: Prompt file not found.", conversation_id=conversation_id)
+
+    current_date = datetime.date.today().strftime("%Y-%m-%d")
+    current_time = datetime.datetime.now().strftime("%H:%M:%S")
+
+    prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    prompt = prompt.replace("{name}", user_data.get("name", "User"))
+    prompt = prompt.replace("{date}", current_date)
+    prompt = prompt.replace("{time}", current_time)
+    prompt = prompt.replace("{location}", "NYC") 
+    prompt = prompt.replace("{user}", username)
+    prompt = prompt.replace("{instructionSet}", user_prefs)
+
+    system_message = {"role": "system", "content": prompt}
+
+    MAX_WORDS = 120000
+    messages_for_ai = []
+    total_length = 0
+
+    messages_for_ai.append(system_message)
+    total_length += len(system_message["content"].split())
+
+
+    truncated_history_messages = []
+    for msg in all_messages:
+        message_content = msg.content
+        message_words = message_content.split()
+        if total_length + len(message_words) > MAX_WORDS:
+            remaining_words = MAX_WORDS - total_length
+            if remaining_words > 0:
+                truncated_content = ' '.join(message_words[:remaining_words])
+                truncated_history_messages.append({"role": msg.role, "content": truncated_content})
+                total_length += len(truncated_content.split())
+            break
+        else:
+            truncated_history_messages.append({"role": msg.role, "content": message_content})
+            total_length += len(message_words)
+
+    messages_for_ai.extend(truncated_history_messages)
+
+
+    if total_length >= MAX_WORDS:
+        logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {conversation_id})")
+
+    print("Messages sent to AI:", messages_for_ai)
+
+    url = "https://ai.hackclub.com/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    data_to_send = {
+        "messages": messages_for_ai,
+        "model": "llama-3.3-70b-versatile"
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data_to_send)
+        response.raise_for_status()
+
+        response_data = response.json()
+        print(f"Response from AI: {response_data}")
+
+        if "choices" in response_data and len(response_data["choices"]) > 0:
+            ai_reply_content = response_data["choices"][0]["message"]["content"]
+            ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
+
+            all_messages.append(ai_message)
+
+            graph_string = None
+            if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+                 try:
+                    start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
+                    end_index = ai_reply_content.find("</GRAPH>", start_index)
+                    if end_index != -1:
+                         graph_string = ai_reply_content[start_index:end_index]
+                         graph_data = json.loads(graph_string)
+                         user_ref.update({
+                            "edges": graph_data.get("edges", []),
+                            "nodes": graph_data.get("nodes", [])
+                         })
+                         logger.info(f"Graph data updated in Firestore for user {user_uid}")
+                         ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
+                    else:
+                         logger.warning("Mismatched <GRAPH> tags in AI response.")
+                 except json.JSONDecodeError as e:
+                    logger.error(f"Error decoding JSON graph data: {e}")
+                    ai_reply_content += "\n\n(Error processing graph data)"
+                 except Exception as e:
+                    logger.error(f"Unexpected error processing graph data: {e}")
+                    ai_reply_content += "\n\n(Error processing graph data)"
+
+            if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+                try:
+                    start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
+                    end_index = ai_reply_content.find("</PREF>", start_index)
+                    if end_index != -1:
+                        pref = ai_reply_content[start_index:end_index]
+                        user_ref.update({
+                            "ChatPreferences": pref
+                        }) 
+                        logger.info(f"User preferences updated in Firestore for user {user_uid}")
+                        ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
+                    else:
+                        logger.warning("Mismatched <PREF> tags in AI response.")
+                except Exception as e:
+                    logger.error(f"Unexpected error processing user preferences: {e}")
+                    ai_reply_content += "\n\n(Error processing user preferences)"
+
+            messages_to_store = [msg.model_dump() for msg in all_messages]
+
+            update_data = {
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            }
+
+            if not request.conversation_id and len(all_messages) > 0 and all_messages[0].role == "user":
+                first_message_content = all_messages[0].content
+                titleprompt = open("titleprompt.txt", "r").read()
+                data_to_send = {
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": titleprompt
+                        },
+                        {
+                            "role": "user",
+                            "content": "Please generate a conversation title for my message: \n" + first_message_content
+                        }
+                    ],
+                }
+                response = requests.post(url, headers=headers, json=data_to_send)
+                response.raise_for_status()
+                response_data = response.json()
+                if "choices" in response_data and len(response_data["choices"]) > 0:
+                    title = response_data["choices"][0]["message"]["content"]
+                    update_data["title"] = title
+                else:
+                    logger.error("No choices found in the AI response for title generation.")
+                    update_data["title"] = "Untitled Conversation"
+
+            conversation_ref.update(update_data) 
+            logger.info(f"Conversation {conversation_id} updated in Firestore.")
+
+
+            return ChatResponse(reply=ai_reply_content, conversation_id=conversation_id)
+
+        else:
+            logger.error("No choices found in the AI response.")
+            return ChatResponse(reply="No valid response from AI", conversation_id=conversation_id)
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error from AI API: {e.response.status_code} - {e.response.text}")
+        return ChatResponse(reply=f"Error communicating with AI: {e.response.status_code} - {e.response.text}", conversation_id=conversation_id)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error communicating with AI API: {e}")
+        return ChatResponse(reply="Network error communicating with AI", conversation_id=conversation_id)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in /chat: {e}")
+        return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
 
 @app.post("/update_graph_with_doc", response_model=ChatResponse)
 async def update_graph_with_doc(
@@ -390,6 +636,63 @@ async def update_user_prefs(user_info: dict = Depends(verify_token), prefs: dict
             detail=f"Error updating user preferences: {str(e)}"
         )
 
+@app.post("/change_conversation_title")
+async def change_conversation_title(user_info: dict = Depends(verify_token), title: str = Body(...), conversation_id: str = Body(...)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        conversation_ref = user_ref.collection("conversations").document(conversation_id)
+        conversation_doc = conversation_ref.get()
+        
+        if not conversation_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+        
+        conversation_ref.update({
+            "title": title
+        })
+        
+        return {"message": "Conversation title updated successfully"}
+    except Exception as e:
+        print(f"Error updating conversation title: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating conversation title: {str(e)}"
+        )
+
+@app.post("/star_conversation")
+async def star_conversation(user_info: dict = Depends(verify_token), conversation_id: str = Body(...)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        conversation_ref = user_ref.collection("conversations").document(conversation_id)
+        conversation_doc = conversation_ref.get()
+        
+        if not conversation_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+        
+        conversation_data = conversation_doc.to_dict()
+        starred = conversation_data.get("starred", False)
+        nxt = not starred
+
+        conversation_ref.update({
+            "starred": nxt
+        })
+        
+        return {"message": "Conversation starred successfully", "success": "true"}
+    except Exception as e:
+        print(f"Error starring conversation: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error starring conversation: {str(e)}"
+        )
 
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True, log_level="info")
