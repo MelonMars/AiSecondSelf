@@ -42,6 +42,7 @@ async def verify_token(authorization: str = Header(...)) -> Dict:
     id_token = authorization.split(" ")[1]
     print(f"ID Token: {id_token}")
     try:
+        time.sleep(0.5)
         decoded_token = auth.verify_id_token(id_token)
         print(f"Decoded token: {decoded_token}")
         return decoded_token
@@ -53,6 +54,13 @@ async def verify_token(authorization: str = Header(...)) -> Dict:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+async def optional_verify_token(authorization: str = Header(None)) -> Optional[Dict]:
+    if authorization is None:
+        return None
+    else:
+        return await verify_token(authorization)
+    
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the FastAPI application!"}
@@ -142,8 +150,8 @@ async def list_conversations(user_info: dict = Depends(verify_token)):
         logger.error(f"Error listing conversations for user {user_uid}: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving conversations")
 
-@app.get("/conversations/{conversation_id}", response_model=Conversation)
-async def get_conversation(conversation_id: str, user_info: dict = Depends(verify_token)):
+@app.get("/conversations/{owner_id}/{conversation_id}", response_model=Conversation)
+async def get_conversation(conversation_id: str, owner_id: str, user_info: dict = Depends(verify_token)):
     user_uid = user_info["uid"]
     conversation_ref = db.collection("users").document(user_uid).collection("conversations").document(conversation_id)
 
@@ -503,7 +511,6 @@ async def signup_user(user_data: UserRegistration):
             detail=f"Error creating user: {str(e)}"
         )
 
-
 @app.get("/user_data")
 async def get_user_data(user_info: dict = Depends(verify_token)):
     try:
@@ -693,6 +700,38 @@ async def star_conversation(user_info: dict = Depends(verify_token), conversatio
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error starring conversation: {str(e)}"
         )
+
+@app.post("/share_conversation")
+async def share_conversation(user_info: dict = Depends(verify_token), conversation_id: str = Body(...)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        conversation_ref = user_ref.collection("conversations").document(conversation_id)
+        conversation_doc = conversation_ref.get()
+        
+        if not conversation_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found"
+            )
+        
+        conversation_data = conversation_doc.to_dict()
+        shared = conversation_data.get("shared", False)
+        nxt = not shared
+
+        conversation_ref.update({
+            "shared": nxt
+        })
+        
+        return {"message": "Conversation shared successfully", "success": "true"}
+    except Exception as e:
+        print(f"Error sharing conversation: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error sharing conversation: {str(e)}"
+        )
+
 
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True, log_level="info")

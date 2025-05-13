@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { Moon, Sun } from 'lucide-react';
+
 function ProfileComponent({
   authToken,
   userName,
@@ -7,7 +9,9 @@ function ProfileComponent({
   chatPrefs,
   handleChatPrefsChange,
   sendMessageWithDoc,
-  isLoading
+  isLoading,
+  darkMode,
+    setDarkMode,
 }) {
 
   return (
@@ -38,6 +42,22 @@ function ProfileComponent({
             className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-gray-700"
           >
           </div>
+            <div className="flex items-center mt-4">
+                <label className="mr-2 text-sm font-medium text-gray-700">
+                Dark Mode
+                </label>
+                <input
+                type="checkbox"
+                checked={darkMode}
+                onChange={() => setDarkMode(!darkMode)}
+                className="toggle toggle-primary"
+                />
+                {darkMode ? (
+                <Sun className="ml-2 text-yellow-500" />
+                ) : (
+                <Moon className="ml-2 text-gray-500" />
+                )}
+            </div>
           <div className="mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Upload Document (.txt only)

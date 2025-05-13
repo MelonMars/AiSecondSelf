@@ -74,6 +74,7 @@ export default function App() {
   const [currentConversationId, setCurrentConversationId] = useState(null); 
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [starredConversations, setStarredConversations] = useState([]);
+  const [darkMode, setDarkMode] = useState(true);
 
 
   const messagesEndRef = useRef(null);
@@ -232,7 +233,7 @@ export default function App() {
 
       try {
            const headers = { "Authorization": `Bearer ${authToken}` };
-           const res = await fetch(`http://127.0.0.1:8000/conversations/${conversationId}`, { headers });
+           const res = await fetch(`http://127.0.0.1:8000/conversations/${uid}/${conversationId}`, { headers });
 
            if (!res.ok) {
                if (res.status === 401) {
@@ -380,108 +381,108 @@ export default function App() {
   const renderAuthModal = () => {
      if (!showAuthModal) return null;
       return (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
-              <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h2 className="text-2xl font-medium text-gray-800 mb-4">
-                  {authMode === "login" ? "Log in" : "Sign up"}
-                </h2>
+          <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-black'} bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn`}>
+          <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-lg p-6 w-full max-w-md`}>
+            <h2 className="text-2xl font-medium mb-4">
+          {authMode === "login" ? "Log in" : "Sign up"}
+            </h2>
 
-                {authError && (
-                  <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md text-sm">
-                    {authError}
-                  </div>
-                )}
+            {authError && (
+          <div className={`mb-4 p-3 ${darkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'} rounded-md text-sm`}>
+            {authError}
+          </div>
+            )}
 
-                <div className="space-y-4">
-                  {authMode === "signup" && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Your name"
-                      />
-                    </div>
-                  )}
+            <div className="space-y-4">
+          {authMode === "signup" && (
+            <div>
+              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
+              <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+            placeholder="Your name"
+              />
+            </div>
+          )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="your@email.com"
-                    />
-                  </div>
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              placeholder="your@email.com"
+            />
+          </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="••••••••"
-                    />
-                  </div>
-                </div>
+          <div>
+            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              placeholder="••••••••"
+            />
+          </div>
+            </div>
 
-                <div className="mt-6">
-                  <button
-                    onClick={authMode === "login" ? login : signup}
-                    disabled={isLoading}
-                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    {isLoading ? (
-                      <Loader size={20} className="animate-spin" />
-                    ) : (
-                      authMode === "login" ? "Log in" : "Sign up"
-                    )}
-                  </button>
-                </div>
+            <div className="mt-6">
+          <button
+            onClick={authMode === "login" ? login : signup}
+            disabled={isLoading}
+            className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+          >
+            {isLoading ? (
+              <Loader size={20} className="animate-spin" />
+            ) : (
+              authMode === "login" ? "Log in" : "Sign up"
+            )}
+          </button>
+            </div>
 
-                <div className="mt-4 text-center">
-                  {authMode === "login" ? (
-                    <p className="text-sm text-gray-600">
-                      Don't have an account?{" "}
-                      <button
-                        onClick={() => {
-                          setAuthMode("signup");
-                          setAuthError("");
-                        }}
-                        className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                      >
-                        Sign up
-                      </button>
-                    </p>
-                  ) : (
-                    <p className="text-sm text-gray-600">
-                      Already have an account?{" "}
-                      <button
-                        onClick={() => {
-                          setAuthMode("login");
-                          setAuthError("");
-                        }}
-                        className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                      >
-                        Log in
-                      </button>
-                    </p>
-                  )}
-                </div>
+            <div className="mt-4 text-center">
+          {authMode === "login" ? (
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Don't have an account?{" "}
+              <button
+            onClick={() => {
+              setAuthMode("signup");
+              setAuthError("");
+            }}
+            className="text-blue-600 hover:text-blue-800 focus:outline-none"
+              >
+            Sign up
+              </button>
+            </p>
+          ) : (
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Already have an account?{" "}
+              <button
+            onClick={() => {
+              setAuthMode("login");
+              setAuthError("");
+            }}
+            className="text-blue-600 hover:text-blue-800 focus:outline-none"
+              >
+            Log in
+              </button>
+            </p>
+          )}
+            </div>
 
-                <div className="mt-4 text-center">
-                  <button
-                    onClick={() => setShowAuthModal(false)}
-                    className="text-sm text-gray-500 hover:text-gray-700 focus:outline-none"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
+            <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowAuthModal(false)}
+            className={`text-sm ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} focus:outline-none`}
+          >
+            Cancel
+          </button>
+            </div>
+          </div>
           </div>
       );
   };
@@ -872,6 +873,7 @@ export default function App() {
                  onToggleStar={onToggleStar}
                  onConversationRenamed={fetchConversations}
                 sendMessage={sendMessage}
+                darkMode={darkMode}
              />
          )}
          {tab === "graph" && (<GraphView data={graphData} onGraphDataChange={handleGraphDataChange} />)}
@@ -882,51 +884,11 @@ export default function App() {
                     chatPrefs={chatPrefs}
                     handleChatPrefsChange={handleChatPrefsChange}
                     sendMessageWithDoc={sendMessageWithDoc}
-                    isLoading={isLoading}/>)}
+                    isLoading={isLoading}
+                    darkMode={darkMode}
+                    setDarkMode={setDarkMode}/>)}
 
       </div>
-
-      {/* {tab === "chat" && (
-       <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
-         <div className="max-w-4xl mx-auto">
-           {authToken ? (
-               <div className="flex items-center bg-white border border-gray-300 rounded-full overflow-hidden focus-within:ring-2 focus-within:ring-blue-300 focus-within:border-blue-500">
-                 <input
-                   ref={inputRef}
-                   type="text"
-                   value={input} 
-                   onChange={(e) => setInput(e.target.value)}
-                   onKeyDown={(e) => {
-                       if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                       }
-                   }}
-                   placeholder={isLoading ? "Waiting for response..." : "Type your message..."}
-                   className="flex-1 py-3 px-4 focus:outline-none"
-                   disabled={isLoading} 
-                 />
-                 <button
-                   onClick={sendMessage} 
-                   disabled={!input.trim() || isLoading}
-                   className={`p-3 mr-1 rounded-full transition-colors ${
-                     input.trim() && !isLoading 
-                       ? 'bg-blue-500 text-white hover:bg-blue-600'
-                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                   }`}
-                 >
-                   {isLoading ? <Loader size={18} className="animate-spin" /> : <Send size={18} />} 
-                 </button>
-               </div>
-           ) : (
-               <div className="text-center text-gray-600">
-                   Please log in to start chatting.
-               </div>
-           )}
-         </div>
-       </div>
-      )} */}
-
 
       {renderAuthModal()}
 
