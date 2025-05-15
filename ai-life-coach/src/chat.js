@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
 import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -13,7 +13,6 @@ const ChatComponent = ({
   isConversationsLoading,
   loadConversation,
   startNewConversation,
-  authToken,
   setAuthError,
   setShowAuthModal,
   logout,
@@ -87,6 +86,142 @@ const ChatComponent = ({
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
+
+    function WidgetIframe({ payload }) {
+      const iframeRef = useRef(null);
+      const [initialized, setInitialized] = useState(false);
+
+      const shell = useMemo(() => `
+          <html>
+              <head>
+                  <style>${payload.css}</style>
+              </head>
+              <body>
+                  <div id="root">${payload.html}</div>
+                  <script>
+                      window.addEventListener('message', (e) => {
+                          const msg = e.data;
+                          if (msg.type === 'update') {
+                            if (typeof update === 'function') update(msg.data);
+                          }
+                      });
+
+                      ;(function(){
+                          ${payload.js}
+                      })();
+                  <\/script>
+              </body>
+          </html>
+      `, [payload]); 
+
+      useEffect(() => {
+          if (!initialized && iframeRef.current) {
+              console.log('WidgetIframe: Setting srcdoc');
+              iframeRef.current.srcdoc = shell;
+              setInitialized(true);
+          }
+          
+      }, [initialized, shell]);
+      
+      useEffect(() => {
+          if (initialized && iframeRef.current?.contentWindow) {
+              console.log('WidgetIframe: Sending update via postMessage'); 
+              iframeRef.current.contentWindow.postMessage(
+                  { type: 'update', data: payload.data },
+                  '*'
+              );
+          }
+      }, [initialized, payload.data]);
+
+      useEffect(() => {
+          if (initialized && iframeRef.current?.contentWindow && payload.data !== undefined) {
+              console.log('WidgetIframe: Sending data update via postMessage');
+              iframeRef.current.contentWindow.postMessage(
+                  { type: 'update', data: payload.data },
+                  '*'
+              );
+          }
+      }, [initialized, payload.data, iframeRef.current]); 
+
+      return (
+          <iframe
+              ref={iframeRef}
+              sandbox="allow-scripts"
+              style={{ width: '100%', height: 'auto', border: 'none' }}
+            />
+      );
+  }
+
+    const MemoizedWidgetIframe = memo(WidgetIframe, (prevProps, nextProps) => {
+      return (
+          prevProps.darkMode === nextProps.darkMode &&
+          JSON.stringify(prevProps.payload) === JSON.stringify(nextProps.payload)
+      );
+  });
+
+
+    const ChatMessage = memo(({ content, darkMode }) => { 
+      console.log('ChatMessage render:', content.substring(0, 50) + '...');
+      const parts = []
+      const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g
+      let last = 0
+      let match = null;
+      let idx = 0
+    
+      while ((match = regex.exec(content))) {
+        const [full, name, jsonBody] = match
+        const start = match.index
+    
+        if (start > last) {
+          parts.push(
+            <ReactMarkdown
+              key={`md-${idx}`}
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {content.slice(last, start)}
+            </ReactMarkdown>
+          )
+        }
+    
+        const payload = useMemo(() => {
+          let parsedPayload = { html: '', css: '', js: '', data: null };
+          try {
+            const potentialPayload = JSON.parse(jsonBody);
+            if (typeof potentialPayload === 'object' && potentialPayload !== null) {
+                 parsedPayload = { ...parsedPayload, ...potentialPayload };
+            } else {
+                console.error('Widget JSON is not an object:', potentialPayload);
+                parsedPayload.html = `<pre>Invalid widget data format</pre>`;
+            }
+          } catch (e) {
+            console.error('Invalid JSON in widget:', jsonBody)
+            console.error(e)
+            parsedPayload.html = `<pre>invalid widget json</pre>`;
+          }
+          return parsedPayload;
+        }, [jsonBody]);
+    
+        parts.push(<MemoizedWidgetIframe key={`w-${name}-${idx}-${match.index}`} payload={payload} darkMode={darkMode} />);
+        last = start + full.length
+        idx++
+      }
+    
+      if (last < content.length) {
+        parts.push(
+          <ReactMarkdown
+            key={`md-tail-${idx}`}
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {content.slice(last)}
+          </ReactMarkdown>
+        )
+      }
+    
+      return <>{parts}</>
+    });
+    
 
   const ConversationItem = ({ conversation }) => {
     const isCurrent = currentConversationId === conversation.id;
@@ -290,12 +425,7 @@ const ChatComponent = ({
                     : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black'
                 }`}
               >
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                <ChatMessage content={message.content} darkMode={darkMode}/>
               </div>
             </div>
           ))}

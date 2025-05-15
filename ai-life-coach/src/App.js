@@ -782,8 +782,8 @@ export default function App() {
 
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
+    <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex overflow-x-auto hide-scrollbar">
             {TABS.map((t) => {
@@ -797,7 +797,7 @@ export default function App() {
                   className={`flex items-center px-6 py-4 transition-all focus:outline-none border-b-2 ${
                     isActive
                       ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : `border-transparent ${darkMode ? 'text-gray-400 hover:text-gray-300 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
                   }`}
                 >
                   <Icon size={18} className="mr-2" />
@@ -810,10 +810,10 @@ export default function App() {
           <div className="pr-4">
             {authToken ? (
               <div className="flex items-center">
-                <span className="text-sm text-gray-600 mr-3">{userName}</span>
+                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} mr-3`}>{userName}</span>
                 <button
                   onClick={logout}
-                  className="flex items-center text-sm text-gray-600 hover:text-gray-800"
+                  className={`flex items-center text-sm ${darkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'}`}
                 >
                   <LogOut size={16} className="mr-1" />
                   Log out
@@ -827,7 +827,7 @@ export default function App() {
                     setAuthError("");
                     setShowAuthModal(true);
                   }}
-                  className="flex items-center text-sm text-gray-600 hover:text-gray-800"
+                  className={`flex items-center text-sm ${darkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'}`}
                 >
                   <LogIn size={16} className="mr-1" />
                   Log in
@@ -838,7 +838,7 @@ export default function App() {
                     setAuthError("");
                     setShowAuthModal(true);
                   }}
-                  className="flex items-center text-sm text-blue-600 hover:text-blue-800"
+                  className={`flex items-center text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
                 >
                   <UserPlus size={16} className="mr-1" />
                   Sign up
@@ -851,7 +851,7 @@ export default function App() {
 
       <div className="flex-1 overflow-hidden relative">
           {isLoading && (
-             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-10">
+             <div className={`absolute inset-0 flex items-center justify-center ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} bg-opacity-75 z-10`}>
                <Loader size={40} className="animate-spin text-blue-600" />
              </div>
            )}
@@ -865,7 +865,6 @@ export default function App() {
                  isConversationsLoading={isConversationsLoading}
                  loadConversation={loadConversation}
                  startNewConversation={startNewConversation}
-                 authToken={authToken}
                  setAuthError={setAuthError} 
                  setShowAuthModal={setShowAuthModal}
                  logout={logout}
@@ -876,7 +875,10 @@ export default function App() {
                 darkMode={darkMode}
              />
          )}
-         {tab === "graph" && (<GraphView data={graphData} onGraphDataChange={handleGraphDataChange} />)}
+         {tab === "graph" && (<GraphView 
+                                data={graphData} 
+                                onGraphDataChange={handleGraphDataChange} 
+                                darkMode={darkMode}/>)}
          {tab === "profile" && (<ProfileComponent 
                     authToken={authToken} 
                     userName={userName} 

@@ -134,7 +134,7 @@ const computeLayout = (nodes, edges, svgWidth, svgHeight) => {
   return layoutNodes;
 };
 
-export default function GraphView({ data, onDataChange }) {
+export default function GraphView({ data, onDataChange, darkMode }) {
   const [layoutNodes, setLayoutNodes] = useState([]);
 
   const structuralEdges = data?.edges || [];
@@ -281,8 +281,8 @@ export default function GraphView({ data, onDataChange }) {
     event.preventDefault();
     setContextMenu({
       visible: true,
-      x: event.clientX,
-      y: event.clientY,
+      x: event.clientX-20,
+      y: event.clientY-30,
       type: 'canvas'
     });
     setSelectedNode(null);
@@ -297,8 +297,8 @@ export default function GraphView({ data, onDataChange }) {
     setSelectedNode(structuralNode);
     setContextMenu({
       visible: true,
-      x: event.clientX,
-      y: event.clientY,
+      x: tooltipPosition.x,
+      y: tooltipPosition.y,
       type: 'node'
     });
   };
@@ -485,22 +485,6 @@ export default function GraphView({ data, onDataChange }) {
     }, 3000);
   };
 
-  const Arrow = () => (
-    <defs>
-      <marker
-        id="arrowhead"
-        markerWidth="10"
-        markerHeight="7"
-        refX="9" 
-        refY="3.5"
-        orient="auto"
-        markerUnits="strokeWidth" 
-      >
-        <polygon points="0 0, 10 3.5, 0 7" fill="#666" />
-      </marker>
-    </defs>
-  );
-
    const getNodeLayoutPosition = (nodeId) => {
        return layoutNodes.find(n => n.id === nodeId);
    };
@@ -573,197 +557,196 @@ export default function GraphView({ data, onDataChange }) {
 
    const isGraphReady = layoutNodes.length > 0 || structuralNodes.length === 0; 
 
-  return (
-    <div className="w-full h-full p-4 bg-gray-50 rounded-lg shadow-sm relative overflow-hidden">
+   return (
+    <div className={`w-full h-full p-4 rounded-lg shadow-sm relative overflow-hidden ${darkMode ? "bg-gray-800" : "bg-gray-50"}`}>
       <div className="mb-4 flex justify-between items-center">
-        <h3 className="text-lg font-medium text-gray-700">Knowledge Graph</h3>
+        <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-700"}`}>Knowledge Graph</h3>
         <div className="flex items-center space-x-4">
-            <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
-                 <button
-                     onClick={handleZoomOut}
-                     disabled={zoomLevel <= minZoom}
-                     className="p-1 border-r hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                     <ZoomOut size={18} />
-                 </button>
-                <span className="text-sm px-2 text-gray-700">{`${Math.round(zoomLevel * 100)}%`}</span>
-                 <button
-                     onClick={handleZoomIn}
-                     disabled={zoomLevel >= maxZoom}
-                     className="p-1 border-l hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                     <ZoomIn size={18} />
-                 </button>
-             </div>
-
+          <div className={`flex items-center border rounded-md overflow-hidden shadow-sm ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+            <button
+              onClick={handleZoomOut}
+              disabled={zoomLevel <= minZoom}
+              className={`p-1 border-r ${darkMode ? "border-gray-700 hover:bg-gray-700" : "border-gray-200 hover:bg-gray-100"} disabled:opacity-50 disabled:cursor-not-allowed ${darkMode ? "text-gray-300" : "text-gray-600"}`}
+            >
+              <ZoomOut size={18} />
+            </button>
+            <span className={`text-sm px-2 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>{`${Math.round(zoomLevel * 100)}%`}</span>
+            <button
+              onClick={handleZoomIn}
+              disabled={zoomLevel >= maxZoom}
+              className={`p-1 border-l ${darkMode ? "border-gray-700 hover:bg-gray-700" : "border-gray-200 hover:bg-gray-100"} disabled:opacity-50 disabled:cursor-not-allowed ${darkMode ? "text-gray-300" : "text-gray-600"}`}
+            >
+              <ZoomIn size={18} />
+            </button>
+          </div>
+  
           {Object.entries(typeColors).map(([type, color]) => (
             <div key={type} className="flex items-center">
               <div
                 className="w-3 h-3 rounded-full mr-2"
                 style={{ backgroundColor: color }}
               />
-              <span className="text-sm text-gray-600 capitalize">{type}</span>
+              <span className={`text-sm capitalize ${darkMode ? "text-gray-400" : "text-gray-600"}`}>{type}</span>
             </div>
           ))}
         </div>
       </div>
-
-        {/* {!isGraphReady && structuralNodes.length > 0 && (
-             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-75 z-10">
-               <Loader2 size={40} className="animate-spin text-blue-600" />
-             </div>
-           )} */}
-
-        <svg
-            ref={svgRef}
-            width="100%"
-            height="600px" 
-            className="bg-white rounded-lg shadow-inner cursor-grab active:cursor-grabbing"
-            onContextMenu={handleRightClick}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave} 
-          >
-            <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path
-                d="M 20 0 L 0 0 0 20"
-                fill="none"
-                stroke="rgba(0, 0, 0, 0.05)"
-                strokeWidth="1"
-              />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-
-             <Arrow />
-
-            <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
-
-            {structuralEdges.map((edge, i) => {
-              const source = getNodeLayoutPosition(edge.source);
-              const target = getNodeLayoutPosition(edge.target);
-              if (!source || !target) return null; 
-
-              const labelPos = getLabelPosition(edge.source, edge.target);
-              const path = getEdgePath(edge.source, edge.target); 
-
-              return (
-                <g key={i} className="edge">
-                  <path
-                    d={path}
-                    stroke="#666"
-                    strokeWidth="1.5"
-                    fill="none"
-                    strokeOpacity="0.8"
-                    markerEnd="url(#arrowhead)"
-                  />
-                  <rect
-                    x={labelPos.x - 40 / zoomLevel}
-                    y={labelPos.y - 10 / zoomLevel}
-                    width={80 / zoomLevel}
-                    height={20 / zoomLevel}
-                    rx={4 / zoomLevel}
-                    fill="white"
-                    fillOpacity="0.8"
-                     stroke="#ddd"
-                     strokeWidth={0.5 / zoomLevel}
-                  />
-                  <text
-                    x={labelPos.x}
-                    y={labelPos.y + 4 / zoomLevel}
-                    fontSize={12 / zoomLevel}
-                    fontWeight="500"
-                    fill="#555"
-                    textAnchor="middle"
-                    className="select-none pointer-events-none"
-                  >
-                    {edge.label}
-                  </text>
-                </g>
-              );
-            })}
-
-            {layoutNodes.map((node) => {
-              const isHovered = hoveredNode && hoveredNode.id === node.id;
-              const isYouNode = node.id === "1" || node.label.toLowerCase() === "you";
-
-              const nodeRadius = (isYouNode ? 32 : 28) / zoomLevel;
-              const strokeWidth = (isHovered ? 4 : 3) / zoomLevel;
-
-              if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) return null;
-
-
-              return (
-                <g
-                  key={node.id}
-                  onMouseEnter={(e) => handleNodeHover(node, e)}
-                  onMouseLeave={() => handleNodeHover(null)}
-                  onClick={() => handleNodeClick(node)}
-                  onContextMenu={(e) => handleNodeRightClick(e, node)}
-                  className="cursor-pointer"
+  
+      <svg
+        ref={svgRef}
+        width="100%"
+        height="600px" 
+        className={`rounded-lg shadow-inner cursor-grab active:cursor-grabbing ${darkMode ? "bg-gray-700" : "bg-white"}`}
+        onContextMenu={handleRightClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave} 
+      >
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path
+            d="M 20 0 L 0 0 0 20"
+            fill="none"
+            stroke={darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
+            strokeWidth="1"
+          />
+        </pattern>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+  
+        <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
+          {structuralEdges.map((edge, i) => {
+            const source = getNodeLayoutPosition(edge.source);
+            const target = getNodeLayoutPosition(edge.target);
+            if (!source || !target) return null; 
+  
+            const labelPos = getLabelPosition(edge.source, edge.target);
+            const path = getEdgePath(edge.source, edge.target); 
+  
+            return (
+              <g key={i} className="edge">
+                <path
+                  d={path}
+                  stroke={darkMode ? "#999" : "#666"}
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeOpacity="0.8"
+                  markerEnd="url(#arrowhead)"
+                />
+                <rect
+                  x={labelPos.x - 40 / zoomLevel}
+                  y={labelPos.y - 10 / zoomLevel}
+                  width={80 / zoomLevel}
+                  height={20 / zoomLevel}
+                  rx={4 / zoomLevel}
+                  fill={darkMode ? "#4b5563" : "white"}
+                  fillOpacity="0.8"
+                  stroke={darkMode ? "#555" : "#ddd"}
+                  strokeWidth={0.5 / zoomLevel}
+                />
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y + 4 / zoomLevel}
+                  fontSize={12 / zoomLevel}
+                  fontWeight="500"
+                  fill={darkMode ? "#e5e7eb" : "#555"}
+                  textAnchor="middle"
+                  className="select-none pointer-events-none"
                 >
-                  <circle
-                    cx={node.x}
-                    cy={node.y}
-                    r={nodeRadius}
-                    fill={typeBgColors[node.type] || typeBgColors.default}
-                    stroke={typeColors[node.type] || typeColors.default}
-                    strokeWidth={strokeWidth}
-                    filter={isHovered ? "drop-shadow(0px 0px 4px rgba(0,0,0,0.2))" : "none"}
-                    className={isHovered ? "brightness-110" : ""}
-                  />
-
-                  <text
-                    x={node.x}
-                    y={node.y + (isYouNode ? 5 : 4) / zoomLevel}
-                    fontSize={(isYouNode ? 14 : 12) / zoomLevel}
-                    fontWeight={isYouNode ? "bold" : "normal"}
-                    fill="white"
-                    textAnchor="middle"
-                    className="select-none pointer-events-none"
-                    dominantBaseline="middle"
-                  >
-                     {node.label.length > (isYouNode ? 8 : 10) * zoomLevel ? node.label.substring(0, Math.floor((isYouNode ? 8 : 10) * zoomLevel)) + "..." : node.label}
-                  </text>
-
-                  <text
-                    x={node.x + (isYouNode ? 24 : 20) / zoomLevel} 
-                    y={node.y - (isYouNode ? 18 : 16) / zoomLevel} 
-                    fontSize={12 / zoomLevel}
-                    fill={typeColors[node.type]}
-                    className="select-none pointer-events-none"
-                  >
-                    {typeIcons[node.type] || typeIcons.default}
-                  </text>
-                </g>
-              );
-            })}
-            </g>
-        </svg>
-
-
+                  {edge.label}
+                </text>
+              </g>
+            );
+          })}
+  
+          {layoutNodes.map((node) => {
+            const isHovered = hoveredNode && hoveredNode.id === node.id;
+            const isYouNode = node.id === "1" || node.label.toLowerCase() === "you";
+  
+            const nodeRadius = (isYouNode ? 32 : 28) / Math.sqrt(zoomLevel);
+            const strokeWidth = (isHovered ? 4 : 3) / zoomLevel;
+  
+            if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) return null;
+  
+            return (
+              <g
+                key={node.id}
+                onMouseEnter={(e) => handleNodeHover(node, e)}
+                onMouseLeave={() => handleNodeHover(null)}
+                onClick={() => handleNodeClick(node)}
+                onContextMenu={(e) => handleNodeRightClick(e, node)}
+                className="cursor-pointer"
+              >
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r={nodeRadius}
+                  fill={typeBgColors[node.type] || typeBgColors.default}
+                  stroke={typeColors[node.type] || typeColors.default}
+                  strokeWidth={strokeWidth}
+                  filter={isHovered ? "drop-shadow(0px 0px 4px rgba(0,0,0,0.2))" : "none"}
+                  className={isHovered ? "brightness-110" : ""}
+                />
+  
+                <text
+                  x={node.x}
+                  y={node.y + (isYouNode ? 5 : 4) / zoomLevel}
+                  fontSize={(isYouNode ? 14 : 12) / zoomLevel}
+                  fontWeight={isYouNode ? "bold" : "normal"}
+                  fill="white"
+                  textAnchor="middle"
+                  className="select-none pointer-events-none"
+                  dominantBaseline="middle"
+                >
+                  {node.label.length > (isYouNode ? 8 : 10) * zoomLevel ? node.label.substring(0, Math.floor((isYouNode ? 8 : 10) * zoomLevel)) + "..." : node.label}
+                </text>
+  
+                <text
+                  x={node.x + (isYouNode ? 24 : 20) / zoomLevel} 
+                  y={node.y - (isYouNode ? 18 : 16) / zoomLevel} 
+                  fontSize={12 / zoomLevel}
+                  fill={typeColors[node.type]}
+                  className="select-none pointer-events-none"
+                >
+                  {typeIcons[node.type] || typeIcons.default}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+  
       <NodeTooltip />
-
-       {contextMenu.visible && (
+  
+      {contextMenu.visible && (
         <div
-          className="context-menu absolute bg-white shadow-lg rounded-lg p-2 z-40 border border-gray-200"
+          className={`context-menu absolute shadow-lg rounded-lg p-2 z-40 border ${
+            darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          }`}
           style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
         >
           {contextMenu.type === 'canvas' && (
             <button
               onClick={handleAddNode}
-              className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
+              className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                darkMode 
+                  ? "text-gray-300 hover:bg-gray-700" 
+                  : "text-gray-700 hover:bg-blue-50"
+              }`}
             >
               <Plus size={16} className="mr-2" />
               Add Node
             </button>
           )}
-
+  
           {contextMenu.type === 'node' && selectedNode && (
             <>
               <button
                 onClick={handleEditNode}
-                className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
+                className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                  darkMode 
+                    ? "text-gray-300 hover:bg-gray-700" 
+                    : "text-gray-700 hover:bg-blue-50"
+                }`}
               >
                 <Edit size={16} className="mr-2" />
                 Edit Node
@@ -771,7 +754,11 @@ export default function GraphView({ data, onDataChange }) {
               {(selectedNode.id !== "1" && selectedNode.label.toLowerCase() !== "you") && (
                 <button
                   onClick={handleDeleteNode}
-                  className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-red-50 rounded text-red-600"
+                  className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                    darkMode 
+                      ? "text-red-400 hover:bg-gray-700" 
+                      : "text-red-600 hover:bg-red-50"
+                  }`}
                 >
                   <Trash2 size={16} className="mr-2" />
                   Delete Node
@@ -779,7 +766,11 @@ export default function GraphView({ data, onDataChange }) {
               )}
               <button
                 onClick={handleStartEdge}
-                className="flex items-center w-full text-left px-3 py-2 text-sm hover:bg-blue-50 rounded text-gray-700"
+                className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                  darkMode 
+                    ? "text-gray-300 hover:bg-gray-700" 
+                    : "text-gray-700 hover:bg-blue-50"
+                }`}
               >
                 <Plus size={16} className="mr-2" />
                 Create Connection
@@ -788,36 +779,50 @@ export default function GraphView({ data, onDataChange }) {
           )}
         </div>
       )}
-
+  
       {nodeForm.visible && (
         <div className="node-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className={`rounded-lg shadow-xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800" : "bg-white"}`}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">{nodeForm.isNew ? "Add New Node" : "Edit Node"}</h3>
-              <button onClick={() => setNodeForm({ ...nodeForm, visible: false })}>
+              <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-800"}`}>
+                {nodeForm.isNew ? "Add New Node" : "Edit Node"}
+              </h3>
+              <button onClick={() => setNodeForm({ ...nodeForm, visible: false })} className={darkMode ? "text-gray-400" : "text-gray-600"}>
                 <X size={20} />
               </button>
             </div>
-
+  
             <div className="space-y-4">
               <div>
-                <label htmlFor="node-label" className="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                <label htmlFor="node-label" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Label
+                </label>
                 <input
                   id="node-label"
                   type="text"
                   value={nodeForm.label}
                   onChange={(e) => setNodeForm({ ...nodeForm, label: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                    darkMode 
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                  }`}
                 />
               </div>
-
+  
               <div>
-                <label htmlFor="node-type" className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label htmlFor="node-type" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Type
+                </label>
                 <select
                   id="node-type"
                   value={nodeForm.type}
                   onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                    darkMode 
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                  }`}
                 >
                   <option value="person">Person</option>
                   <option value="trait">Trait</option>
@@ -826,28 +831,42 @@ export default function GraphView({ data, onDataChange }) {
                   <option value="default">Other</option>
                 </select>
               </div>
-
+  
               <div>
-                <label htmlFor="node-description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label htmlFor="node-description" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Description
+                </label>
                 <textarea
                   id="node-description"
                   value={nodeForm.description}
                   onChange={(e) => setNodeForm({ ...nodeForm, description: e.target.value })}
                   rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                    darkMode 
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                  }`}
                 />
               </div>
-
+  
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setNodeForm({ ...nodeForm, visible: false })}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    darkMode 
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveNodeForm}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    darkMode 
+                      ? "bg-orange-600 hover:bg-orange-700" 
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                 >
                   Save
                 </button>
@@ -856,40 +875,54 @@ export default function GraphView({ data, onDataChange }) {
           </div>
         </div>
       )}
-
+  
       {edgeForm.visible && (
         <div className="edge-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+          <div className={`rounded-lg shadow-xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800" : "bg-white"}`}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">Create Connection</h3>
-              <button onClick={() => setEdgeForm({ ...edgeForm, visible: false })}>
+              <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-800"}`}>Create Connection</h3>
+              <button onClick={() => setEdgeForm({ ...edgeForm, visible: false })} className={darkMode ? "text-gray-400" : "text-gray-600"}>
                 <X size={20} />
               </button>
             </div>
-
+  
             <div className="space-y-4">
               <div>
-                <label htmlFor="edge-label" className="block text-sm font-medium text-gray-700 mb-1">Relationship Label</label>
+                <label htmlFor="edge-label" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Relationship Label
+                </label>
                 <input
                   id="edge-label"
                   type="text"
                   value={edgeForm.label}
                   onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
                   placeholder="e.g., is friends with, believes in, aspires to"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                    darkMode 
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 placeholder-gray-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 placeholder-gray-400"
+                  }`}
                 />
               </div>
-
+  
               <div className="flex justify-end space-x-3">
                 <button
                   onClick={() => setEdgeForm({ ...edgeForm, visible: false })}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                    darkMode 
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdgeForm} 
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    darkMode 
+                      ? "bg-orange-600 hover:bg-orange-700" 
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
                 >
                   Save
                 </button>
@@ -898,19 +931,20 @@ export default function GraphView({ data, onDataChange }) {
           </div>
         </div>
       )}
-
+  
       {notification.visible && (
         <div
           className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center ${
-            notification.type === 'success' ? 'bg-green-500' :
-            notification.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+            notification.type === 'success' ? (darkMode ? 'bg-green-600' : 'bg-green-500') :
+            notification.type === 'error' ? (darkMode ? 'bg-red-600' : 'bg-red-500') : 
+            (darkMode ? 'bg-blue-600' : 'bg-blue-500')
           }`}
         >
           <span className="text-white">{notification.message}</span>
         </div>
       )}
-
-      <div className="mt-4 text-sm text-gray-500 flex items-center">
+  
+      <div className={`mt-4 text-sm flex items-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
         <Info size={16} className="mr-2 flex-shrink-0" />
         <div>
           <p>Hover over nodes to see details. Right-click on empty space to add a node.</p>
