@@ -4,94 +4,79 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import * as Babel from "@babel/standalone";
 
-function WidgetIframe( { payload }) {
-  const iframeRef = useRef(null);
-  const [initialized, setInitialized] = useState(false);
+function DynamicWidget({ payload }) {
+  const containerRef = useRef(null);
 
-  const shell = useMemo(() => `<html>
-            <head>
-                <style>${payload.css}</style>
-            </head>
-            <body>
-                <div id="root">${payload.html}</div>
-                <script>
-                    window.addEventListener('message', (e) => {
-                        const msg = e.data;
-                        if (msg.type === 'update') {
-                           if (typeof update === 'function') update(msg.data);
-                        }
-                    });
+  const Comp = useMemo(() => {
+    const toCompile = `var Comp = ${payload.code};`;
 
-                    ;(function(){
-                        ${payload.js}
-                    })();
-                <\/script>
-            </body>
-        </html>`, [payload]);
-  
-  useEffect(() => {
-    if (iframeRef.current && !initialized) {
-      console.log("Setting iframe content");
-      iframeRef.current.srcdoc = shell;
-      setInitialized(true);
+    try {
+      const { code: js } = Babel.transform(toCompile, {
+        presets: ['es2015', 'react']
+      });
+
+      const finalBody = js + '\nreturn Comp;';
+
+      return new Function('React', finalBody)(React);
+    } catch (e) {
+      console.error('Error compiling widget code:', e);
+      return () => (
+        <pre className="bg-red-100 p-2">
+          Error compiling widget code
+        </pre>
+      );
     }
-  }, [shell, initialized]);
-
-  useEffect(() => {
-    if (initialized && iframeRef.current?.contentWindow) {
-      console.log("Sending widgetIframe postMessage");
-      iframeRef.current.contentWindow.postMessage({ type: 'update', data: payload.data }, '*');
-    }
-  }, [payload.data, initialized]);
+  }, [payload.code]);
 
   return (
-    <iframe
-        ref={iframeRef}
-        sandbox="allow-scripts"
-        style={{ width: '100%', height: 'auto', border: 'none' }}
-    />
+    <div
+      ref={containerRef}
+      className="my-4 p-4 border border-gray-200 rounded-lg shadow-sm bg-white"
+    >
+      <Comp {...payload.props} />
+    </div>
   );
-} 
-
+}
 
 const ChatMessage = memo(({ content }) => {
-  console.log("Rendering chat message");
   const parts = [];
   const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g;
-  let last = 0;
-  let match = null;
-  let idx = 0;
+  let last = 0, match, idx = 0;
 
   while ((match = regex.exec(content)) !== null) {
-    const [fullMatch, name, data] = match;
-    const start = match.index;
-    const end = start + fullMatch.length;
+    const [full, name, data] = match;
+    const start = match.index, end = start + full.length;
 
     if (last < start) {
-      parts.push(<span key={`text-${idx++}`} className="text-gray-800">{content.slice(last, start)}</span>);
+      parts.push(
+        <span key={`t-${idx++}`} className="text-gray-800">
+          {content.slice(last, start)}
+        </span>
+      );
     }
 
-    const widgetData = JSON.parse(data);
+    let payload;
+    try { payload = JSON.parse(data); }
+    catch { payload = { code: `()=><pre>Invalid JSON</pre>` }; }
+
     parts.push(
-      <div key={`widget-${idx++}`} className="my-2">
-        <WidgetIframe payload={widgetData} />
-      </div>
+      <DynamicWidget key={`w-${idx++}`} payload={payload} />
     );
 
     last = end;
   }
+
   if (last < content.length) {
-    parts.push(<span key={`text-${idx++}`} className="text-gray-800">{content.slice(last)}</span>);
+    parts.push(
+      <span key={`t-${idx++}`} className="text-gray-800">
+        {content.slice(last)}
+      </span>
+    );
   }
 
-  return (
-    <div className="prose max-w-full">
-      {parts.map((part, index) => (
-        <React.Fragment key={index}>{part}</React.Fragment>
-      ))}
-    </div>
-  );
+  return <div className="prose max-w-full">{parts}</div>;
 });
 
 const ChatComponent = ({
