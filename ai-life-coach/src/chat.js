@@ -10,16 +10,26 @@ function DynamicWidget({ payload }) {
   const containerRef = useRef(null);
 
   const Comp = useMemo(() => {
-    const toCompile = `var Comp = ${payload.code};`;
+    const propKeys = Object.keys(payload.props || []);
+    const destructureLine = propKeys.length
+      ? `const { ${propKeys.join(', ')} } = props;`
+      : '';
+
+    const jsxBody = payload.code.replace(/^\s*\(\s*\)\s*=>\s*/, '');
+
+    const toCompile = `
+      var Comp = function(props) {
+        ${destructureLine}
+        return (${jsxBody});
+      };
+    `;
 
     try {
       const { code: js } = Babel.transform(toCompile, {
-        presets: ['es2015', 'react']
+        presets: ['es2015', 'react'],
       });
 
-      const finalBody = js + '\nreturn Comp;';
-
-      return new Function('React', finalBody)(React);
+      return new Function('React', js + '\nreturn Comp;')(React);
     } catch (e) {
       console.error('Error compiling widget code:', e);
       return () => (
@@ -28,7 +38,7 @@ function DynamicWidget({ payload }) {
         </pre>
       );
     }
-  }, [payload.code]);
+  }, [payload.code, payload.props]);
 
   return (
     <div
