@@ -780,6 +780,9 @@ export default function App() {
           }
     };
 
+  const updateMessages = (newMessages) => {
+    setMessages(newMessages);
+  }
 
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -873,6 +876,7 @@ export default function App() {
                  onConversationRenamed={fetchConversations}
                 sendMessage={sendMessage}
                 darkMode={darkMode}
+                updateMessages={updateMessages}
              />
          )}
          {tab === "graph" && (<GraphView 
