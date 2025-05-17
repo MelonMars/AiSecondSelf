@@ -11,6 +11,7 @@ from firebase_admin import credentials, firestore, auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import json
 import datetime
+import logging
 
 if not firebase_admin._apps:
     cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
@@ -123,6 +124,8 @@ class ChatResponse(BaseModel):
     reply: str
     conversation_id: Optional[str] = None 
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @app.get("/conversations", response_model=List[ConversationSummary])
 async def list_conversations(user_info: dict = Depends(verify_token)):
@@ -200,24 +203,16 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
 
     conversation_ref: firestore.DocumentReference
     conversation_id = request.conversation_id
-    existing_messages: List[Message] = []
     now = datetime.datetime.now(datetime.timezone.utc)
+    is_brand_new_conversation_this_call = False
 
     if conversation_id:
         conversation_ref = user_ref.collection("conversations").document(conversation_id)
         conversation_doc = conversation_ref.get()
 
-        if conversation_doc.exists:
-            print(f"Conversation ID {conversation_id} found for user {user_uid}.")
-            conversation_data = conversation_doc.to_dict()
-            existing_messages = [
-                Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', now))
-                for msg in conversation_data.get('messages', [])
-            ]
-            logger.info(f"Loaded existing conversation: {conversation_id} for user {user_uid}")
-        else:
-            print(f"Conversation ID {conversation_id} not found for user {user_uid}, starting a new conversation.")
-            conversation_ref = user_ref.collection("conversations").document() 
+        if not conversation_doc.exists:
+            logger.warning(f"Provided conversation ID {conversation_id} not found for user {user_uid}. Starting a new conversation with a *new* ID.")
+            conversation_ref = user_ref.collection("conversations").document()
             conversation_id = conversation_ref.id
             conversation_ref.set({
                 "user_id": user_uid,
@@ -226,7 +221,7 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
                 "messages": [],
                 "title": "New Conversation"
             })
-            print("Started new conversation: ", conversation_id)
+            logger.info(f"Created new conversation with ID {conversation_id} as provided ID was not found.")
 
     else:
         conversation_ref = user_ref.collection("conversations").document()
@@ -238,17 +233,24 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
             "messages": [],
             "title": "New Conversation"
         })
-        logger.info(f"Started new conversation: {conversation_id} for user {user_uid}")
+        logger.info(f"Started brand new conversation: {conversation_id} for user {user_uid}")
+        is_brand_new_conversation_this_call = True
 
     if not request.messages:
-         return ChatResponse(reply="No messages received", conversation_id=conversation_id)
+        logger.warning(f"Received empty message list for conversation {conversation_id}")
+        return ChatResponse(reply="No messages received", conversation_id=conversation_id)
 
-    new_user_message_dict = request.messages[-1]
-    new_user_message = Message(role="user", content=new_user_message_dict["content"], timestamp=now)
+    all_messages: List[Message] = [
+         Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', now))
+         for msg in request.messages
+     ]
 
-    all_messages: List[Message] = existing_messages + [new_user_message]
+    if all_messages and not all_messages[-1].timestamp:
+         all_messages[-1].timestamp = now
 
-    print("All messages for AI:", all_messages)
+
+    print("Full message history from request:", all_messages)
+
     user_doc = user_ref.get()
     user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
     username = user_data.get("name", "User")
@@ -256,10 +258,10 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
 
     try:
         with open("prompt.txt", "r") as f:
-             prompt_template = f.read()
+            prompt_template = f.read()
     except FileNotFoundError:
-         logger.error("prompt.txt not found")
-         return ChatResponse(reply="Server error: Prompt file not found.", conversation_id=conversation_id)
+        logger.error("prompt.txt not found")
+        return ChatResponse(reply="Server error: Prompt file not found.", conversation_id=conversation_id)
 
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     current_time = datetime.datetime.now().strftime("%H:%M:%S")
@@ -268,7 +270,7 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
     prompt = prompt.replace("{name}", user_data.get("name", "User"))
     prompt = prompt.replace("{date}", current_date)
     prompt = prompt.replace("{time}", current_time)
-    prompt = prompt.replace("{location}", "NYC") 
+    prompt = prompt.replace("{location}", "NYC")
     prompt = prompt.replace("{user}", username)
     prompt = prompt.replace("{instructionSet}", user_prefs)
 
@@ -280,7 +282,6 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
 
     messages_for_ai.append(system_message)
     total_length += len(system_message["content"].split())
-
 
     truncated_history_messages = []
     for msg in all_messages:
@@ -298,7 +299,6 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
             total_length += len(message_words)
 
     messages_for_ai.extend(truncated_history_messages)
-
 
     if total_length >= MAX_WORDS:
         logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {conversation_id})")
@@ -319,37 +319,40 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
         response.raise_for_status()
 
         response_data = response.json()
-        print(f"Response from AI: {response_data}")
 
+        ai_reply_content = "No valid response from AI"
         if "choices" in response_data and len(response_data["choices"]) > 0:
             ai_reply_content = response_data["choices"][0]["message"]["content"]
+            logger.info(f"Received AI reply for conversation {conversation_id}")
             ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
-
             all_messages.append(ai_message)
 
             graph_string = None
             if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
-                 try:
+                try:
                     start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
                     end_index = ai_reply_content.find("</GRAPH>", start_index)
                     if end_index != -1:
-                         graph_string = ai_reply_content[start_index:end_index]
-                         graph_data = json.loads(graph_string)
-                         user_ref.update({
+                        graph_string = ai_reply_content[start_index:end_index]
+                        graph_data = json.loads(graph_string)
+                        user_ref.update({
                             "edges": graph_data.get("edges", []),
                             "nodes": graph_data.get("nodes", [])
-                         })
-                         logger.info(f"Graph data updated in Firestore for user {user_uid}")
-                         ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
+                        })
+                        logger.info(f"Graph data updated in Firestore for user {user_uid}")
+                        ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
                     else:
-                         logger.warning("Mismatched <GRAPH> tags in AI response.")
-                 except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding JSON graph data: {e}")
-                    ai_reply_content += "\n\n(Error processing graph data)"
-                 except Exception as e:
+                        logger.warning("Mismatched <GRAPH> tags in AI response.")
+                        ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error decoding JSON graph data from AI: {e}")
+                    ai_reply_content += "\n\n(Error processing graph data)" 
+                except Exception as e:
                     logger.error(f"Unexpected error processing graph data: {e}")
                     ai_reply_content += "\n\n(Error processing graph data)"
 
+
+            pref = None
             if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
                 try:
                     start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
@@ -358,11 +361,12 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
                         pref = ai_reply_content[start_index:end_index]
                         user_ref.update({
                             "ChatPreferences": pref
-                        }) 
+                        })
                         logger.info(f"User preferences updated in Firestore for user {user_uid}")
                         ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
                     else:
                         logger.warning("Mismatched <PREF> tags in AI response.")
+                        ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
                 except Exception as e:
                     logger.error(f"Unexpected error processing user preferences: {e}")
                     ai_reply_content += "\n\n(Error processing user preferences)"
@@ -374,49 +378,96 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
                 "last_updated": datetime.datetime.now(datetime.timezone.utc)
             }
 
-            if not request.conversation_id and len(all_messages) > 0 and all_messages[0].role == "user":
-                first_message_content = all_messages[0].content
-                titleprompt = open("titleprompt.txt", "r").read()
-                data_to_send = {
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": titleprompt
-                        },
-                        {
-                            "role": "user",
-                            "content": "Please generate a conversation title for my message: \n" + first_message_content
-                        }
-                    ],
-                }
-                response = requests.post(url, headers=headers, json=data_to_send)
-                response.raise_for_status()
-                response_data = response.json()
-                if "choices" in response_data and len(response_data["choices"]) > 0:
-                    title = response_data["choices"][0]["message"]["content"]
-                    update_data["title"] = title
-                else:
-                    logger.error("No choices found in the AI response for title generation.")
-                    update_data["title"] = "Untitled Conversation"
+            if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
+                try:
+                    first_message_content = all_messages[0].content
+                    titleprompt = open("titleprompt.txt", "r").read()
+                    title_data_to_send = {
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": titleprompt
+                            },
+                            {
+                                "role": "user",
+                                "content": "Please generate a short, descriptive conversation title for the following message:\n" + first_message_content
+                            }
+                        ],
+                        "model": "llama-3.3-70b-versatile"
+                    }
+                    title_response = requests.post(url, headers=headers, json=title_data_to_send)
+                    title_response.raise_for_status()
+                    title_response_data = title_response.json()
+                    if "choices" in title_response_data and len(title_response_data["choices"]) > 0:
+                        title = title_response_data["choices"][0]["message"]["content"].strip()
+                        update_data["title"] = title
+                        logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
+                    else:
+                        logger.error("No choices found in the AI response for title generation.")
+                except FileNotFoundError:
+                    logger.error("titleprompt.txt not found, could not generate title.")
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Error calling AI for title generation: {e}")
+                except Exception as e:
+                    logger.error(f"An unexpected error occurred during title generation: {e}")
 
-            conversation_ref.update(update_data) 
-            logger.info(f"Conversation {conversation_id} updated in Firestore.")
 
+            conversation_ref.update(update_data)
+            logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
 
-            return ChatResponse(reply=ai_reply_content, conversation_id=conversation_id)
+            return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
 
         else:
-            logger.error("No choices found in the AI response.")
+            logger.error("No choices found in the AI response payload.")
+            messages_to_store = [msg.model_dump() for msg in all_messages]
+            conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"Conversation {conversation_id} updated in Firestore after AI error.")
             return ChatResponse(reply="No valid response from AI", conversation_id=conversation_id)
+
 
     except requests.exceptions.HTTPError as e:
         logger.error(f"HTTP error from AI API: {e.response.status_code} - {e.response.text}")
+        try:
+            messages_to_store = [msg.model_dump() for msg in all_messages]
+            conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"Conversation {conversation_id} updated in Firestore after HTTP error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history after HTTP error: {db_e}")
+
         return ChatResponse(reply=f"Error communicating with AI: {e.response.status_code} - {e.response.text}", conversation_id=conversation_id)
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Network error communicating with AI API: {e}")
+        try:
+            messages_to_store = [msg.model_dump() for msg in all_messages]
+            conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"Conversation {conversation_id} updated in Firestore after network error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history after network error: {db_e}")
+
         return ChatResponse(reply="Network error communicating with AI", conversation_id=conversation_id)
+
     except Exception as e:
-        logger.error(f"An unexpected error occurred in /chat: {e}")
+        logger.error(f"An unexpected error occurred in /chat: {e}", exc_info=True)
+        try:
+            messages_to_store = [msg.model_dump() for msg in all_messages]
+            conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"Conversation {conversation_id} updated in Firestore after unexpected error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
+
         return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
 
 @app.post("/update_graph_with_doc", response_model=ChatResponse)

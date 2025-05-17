@@ -414,6 +414,85 @@ export default function App() {
     }
   };
 
+  const sendMessages = async (messages) => {
+    console.log("Attempting to send messages in App.js");
+    if (!authToken) {
+      console.log("Auth token missing, cannot send.");
+      setAuthError("Please log in to send messages.");
+      setShowAuthModal(true);
+      return;
+    }
+    if (isLoading) {
+      console.log("Already loading, ignoring send.");
+      return;
+    }
+    setMessages(messages);
+    setInput("");
+    setIsLoading(true);
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      };
+      const bulletProse = graphData ? JSON.stringify(graphData) : null;
+      const requestBody = {
+        messages: messages,
+        conversation_id: currentConversationId,
+        bulletProse: bulletProse
+      };
+      const res = await fetch("http://127.0.1:8000/chat", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(requestBody)
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status}:`, errorText);
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `Error from server: ${res.status}. Details: ${errorText.substring(0, 150)}...`
+        }]);
+        return;
+      }
+      const data = await res.json();
+      console.log("AI response data from App.js:", data);
+      if (data && data.reply) {
+        const aiMessage = { role: "assistant", content: data.reply };
+        setMessages((prev) => [...prev, aiMessage]);
+        if (data.conversation_id && data.conversation_id !== currentConversationId) {
+          console.log("Backend created new conversation with ID:", data.conversation_id);
+          setCurrentConversationId(data.conversation_id);
+          fetchConversations();
+        } else if (currentConversationId) {
+          fetchConversations();
+        } else if (data.conversation_id && !currentConversationId) {
+          setCurrentConversationId(data.conversation_id);
+          fetchConversations();
+        }
+      } else {
+        console.warn("AI response data missing 'reply' field in App.js:", data);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "Received unexpected response from AI. Response data:",
+        }]);
+      }
+    } catch (error) {
+      console.error("Network or processing error in App.js sendMessages:", error);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "Sorry, there was a connection or processing error. Please try again later."
+      }]);
+    }
+    finally {
+      console.log("sendMessages finally block reached in App.js");
+      setIsLoading(false);
+    }
+  }
 
   const startNewConversation = () => {
       console.log("Starting new conversation in App.js");
@@ -920,6 +999,7 @@ export default function App() {
                  onToggleStar={onToggleStar}
                  onConversationRenamed={renameConversation}
                  sendMessage={sendMessage}
+                 sendMessages={sendMessages}
                  darkMode={darkMode}
                  updateMessages={updateMessages}
              />

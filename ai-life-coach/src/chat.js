@@ -238,9 +238,10 @@ const ChatComponent = ({
   onToggleStar,
   onConversationRenamed,
   sendMessage,
+  sendMessages,
   shareConversation,
   darkMode,
-  updateMessages
+  updateMessages,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -248,9 +249,24 @@ const ChatComponent = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); 
   const [editingMessageIndex, setEditingMessageIndex] = useState(null);
   const [editMessageContent, setEditMessageContent] = useState('');
+  const [hoveredMessageIndex, setHoveredMessageIndex] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const editTextareaRef = useRef(null);
+
+  useEffect(() => {
+    if (editingMessageIndex !== null && editTextareaRef.current) {
+      editTextareaRef.current.focus();
+      adjustTextareaHeight(editTextareaRef.current);
+    }
+  }, [editingMessageIndex]);
+
+  const adjustTextareaHeight = (textarea) => {
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -319,23 +335,31 @@ const ChatComponent = ({
   const handleStartEditingMessage = (index, content) => {
     setEditingMessageIndex(index);
     setEditMessageContent(content);
+    setHoveredMessageIndex(null);
   };
+
 
   const handleCancelEditMessage = () => {
     setEditingMessageIndex(null);
     setEditMessageContent('');
   };
 
+
   const handleSaveEditMessage = (index) => {
     if (editMessageContent.trim()) {
-      const updatedMessages = messages.slice(0, index + 1);
-      updatedMessages[index] = {
-        ...updatedMessages[index],
-        content: editMessageContent.trim()
-      };
+      const updatedMessages = messages.slice(0, index + 1).map((msg, i) => {
+        if (i === index) {
+          return {
+            ...msg,
+            content: editMessageContent.trim()
+          };
+        }
+        return msg;
+      });
 
       if (typeof updateMessages === 'function') {
         updateMessages(updatedMessages);
+        sendMessages(updatedMessages);
       } else {
         console.warn('updateMessages function not provided. Unable to save edited message.');
       }
@@ -345,12 +369,6 @@ const ChatComponent = ({
     }
   };
 
-  const adjustTextareaHeight = (textarea) => {
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  };
 
   return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
@@ -476,18 +494,63 @@ const ChatComponent = ({
           {messages.map((message, index) => (
             <div
               key={index}
-              className={`flex ${
+              className={`flex group ${
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               }`}
+              onMouseEnter={() => setHoveredMessageIndex(index)}
+              onMouseLeave={() => setHoveredMessageIndex(null)}
             >
               <div
-                className={`max-w-2xl px-2 py-2 rounded-lg  ${
+                className={`max-w-2xl px-3 py-2 rounded-lg relative ${
                   message.role === 'user'
                     ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
                     : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black'
                 }`}
               >
-                <ChatMessage content={message.content} darkMode={darkMode}/>
+                {editingMessageIndex === index ? (
+                  <div className="flex flex-col">
+                    <textarea
+                      ref={editTextareaRef}
+                      value={editMessageContent}
+                      onChange={(e) => {
+                        setEditMessageContent(e.target.value);
+                        adjustTextareaHeight(e.target);
+                      }}
+                      className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
+                        darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                      }`}
+                      rows={1}
+                      style={{ overflow: 'hidden' }}
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleSaveEditMessage(index)}
+                        className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={handleCancelEditMessage}
+                        className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ChatMessage content={message.content} darkMode={darkMode}/>
+                    {hoveredMessageIndex === index && message.role === 'user' && (
+                      <button
+                        onClick={() => handleStartEditingMessage(index, message.content)}
+                        className={`absolute bottom-1 right-1 p-1 rounded-full ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                        title="Edit message"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}
