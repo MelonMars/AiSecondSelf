@@ -154,18 +154,31 @@ async def list_conversations(user_info: dict = Depends(verify_token)):
         raise HTTPException(status_code=500, detail="Error retrieving conversations")
 
 @app.get("/conversations/{owner_id}/{conversation_id}", response_model=Conversation)
-async def get_conversation(conversation_id: str, owner_id: str, user_info: dict = Depends(verify_token)):
-    user_uid = user_info["uid"]
-    conversation_ref = db.collection("users").document(user_uid).collection("conversations").document(conversation_id)
+async def get_conversation(
+    conversation_id: str,
+    owner_id: str,
+    user_info: dict = Depends(verify_token)
+):
+    caller_uid = user_info["uid"]
+
+    conversation_ref = db.collection("users").document(owner_id).collection("conversations").document(conversation_id)
 
     try:
         doc = conversation_ref.get()
 
         if not doc.exists:
-            logger.warning(f"Conversation {conversation_id} not found for user {user_uid}")
+            logger.warning(f"Conversation {conversation_id} not found for owner {owner_id} (requested by {caller_uid})")
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         data = doc.to_dict()
+
+        conversation_owner_uid = data.get("user_id")
+        is_shared = data.get("shared", False)
+
+        if conversation_owner_uid != caller_uid and not is_shared:
+             logger.warning(f"User {caller_uid} attempted to access unshared conversation {conversation_id} owned by {conversation_owner_uid}")
+             raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
+
 
         messages = [
              Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', datetime.datetime.min))
@@ -174,26 +187,27 @@ async def get_conversation(conversation_id: str, owner_id: str, user_info: dict 
 
         conversation = Conversation(
             id=doc.id,
-            user_id=data.get("user_id"),
+            user_id=conversation_owner_uid, 
             title=data.get("title", "Untitled Conversation"),
             messages=messages,
-            created_at=data.get("created_at", datetime.datetime.min),
-            last_updated=data.get("last_updated", datetime.datetime.min),
-            starred=data.get("starred", False)
+            created_at=data.get("created_at", data.get('_createdAt', datetime.datetime.min)),
+            last_updated=data.get("last_updated", data.get('_updatedAt', datetime.datetime.min)),
+            starred=data.get("starred", False),
+            shared=is_shared
         )
 
-        if conversation.user_id != user_uid:
-             logger.warning(f"User {user_uid} attempted to access conversation {conversation_id} belonging to user {conversation.user_id}")
-             raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
+        if conversation_owner_uid == caller_uid:
+             logger.info(f"Owner {caller_uid} retrieved conversation {conversation_id}.")
+        elif is_shared:
+             logger.info(f"User {caller_uid} retrieved shared conversation {conversation_id} owned by {conversation_owner_uid}.")
 
 
-        logger.info(f"Retrieved conversation {conversation_id} for user {user_uid}")
         return conversation
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving conversation {conversation_id} for user {user_uid}: {e}")
+        logger.error(f"Error retrieving conversation {conversation_id} for owner {owner_id} (accessed by {caller_uid}): {e}")
         raise HTTPException(status_code=500, detail="Error retrieving conversation")
 
 @app.post("/chat", response_model=ChatResponse)

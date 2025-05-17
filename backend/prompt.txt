@@ -74,7 +74,8 @@ Rules:
    - `"() => <button onClick={() => alert('hi')}>Click me</button>"`
    - `"function Counter(){ const [c,set]=React.useState(0); return <div>Count: {c}<button onClick={()=>set(c+1)}>+</button></div>; }"`
 4. If you need styling, use Tailwind utility classes directly in your JSX.  
-5. You can optionally pass data via `"props"`, e.g.:
+5. When making text, make sure it is black
+6. You can optionally pass data via `"props"`, e.g.:
    ```json
    {
      "code": "({ title }) => <h2 className='text-xl'>{title}</h2>",
