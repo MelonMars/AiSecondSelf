@@ -222,6 +222,51 @@ export default function App() {
       }
     }
 
+  const renameConversation = async (conversationId, newName) => {
+    if (!authToken) {
+        setAuthError("Please log in to rename conversations.");
+        setShowAuthModal(true);
+        return;
+    }
+    const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+    };
+    try {
+        const res = await fetch("http://127.0.0.1:8000/change_conversation_title", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({ conversation_id: conversationId, title: newName })
+        });
+        if (!res.ok) {
+            if (res.status === 401) {
+                setAuthError("Authentication failed. Please log in again.");
+                setShowAuthModal(true);
+                logout();
+            }
+            throw new Error(`Server error: ${res.status}`);
+        }
+        const data = await res.json();
+        console.log("Rename conversation response:", data);
+        if (data.success) {
+            setConversations((prev) => {
+                return prev.map((conv) => {
+                    if (conv.id === conversationId) {
+                        return { ...conv, title: newName };
+                    }
+                    return conv;
+                });
+            });
+        } else {
+            console.error("Failed to rename conversation:", data.message);
+        }
+      } catch (error) {
+        console.error("Error renaming conversation:", error);
+      }
+
+      fetchConversations();
+  }
+
   const loadConversation = async (conversationId) => {
       if (!authToken || conversationId === currentConversationId) {
            return;
@@ -873,15 +918,15 @@ export default function App() {
                  logout={logout}
                  starredConversations={starredConversations}
                  onToggleStar={onToggleStar}
-                 onConversationRenamed={fetchConversations}
-                sendMessage={sendMessage}
-                darkMode={darkMode}
-                updateMessages={updateMessages}
+                 onConversationRenamed={renameConversation}
+                 sendMessage={sendMessage}
+                 darkMode={darkMode}
+                 updateMessages={updateMessages}
              />
          )}
          {tab === "graph" && (<GraphView 
                                 data={graphData} 
-                                onGraphDataChange={handleGraphDataChange} 
+                                onDataChange={handleGraphDataChange} 
                                 darkMode={darkMode}/>)}
          {tab === "profile" && (<ProfileComponent 
                     authToken={authToken} 
