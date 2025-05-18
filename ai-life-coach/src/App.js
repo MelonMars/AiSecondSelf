@@ -1,16 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, getAuth } from "firebase/auth";
 import { auth } from "./firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import ChatComponent from "./chat";
 import ProfileComponent from "./Profile";
+import SharedComponent from "./Shared";
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "graph", label: "Graph", icon: Network },
-  { id: "profile", label: "Profile", icon: User }
+  { id: "profile", label: "Profile", icon: User },
+  { id: "shared", label: "Shared", icon: Share}
 ];
 
 const saveGraphData = async (graphData) => {
@@ -66,6 +68,9 @@ export default function App() {
 
   const [graphData, setGraphData] = useState(null);
   const [chatPrefs, setChatPrefs] = useState("");
+
+  const [sharedURL, setSharedURL] = useState("");
+  const [showSharedModal, setShowSharedModal] = useState(false);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -908,6 +913,60 @@ export default function App() {
     setMessages(newMessages);
   }
 
+  const shareConversation = async (conversationId) => {
+    console.log("Sharing conversation with ID:", conversationId);
+
+    if (!authToken) {
+      console.warn("No auth token found. Cannot share conversation.");
+      setAuthError("Please log in to share conversations.");
+      setShowAuthModal(true);
+      return;
+    }
+
+    const headers = {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json"
+    };
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/share_conversation", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ conversation_id: conversationId })
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.conversation_url) {
+        console.log("Conversation shared successfully. URL:", data.conversation_url);
+        setSharedURL(data.conversation_url);
+        setShowSharedModal(true);
+      } else {
+        console.warn("No conversation URL returned from backend.");
+      }
+    } catch (error) {
+      console.error("Error sharing conversation:", error);
+    }
+  };
+
+  const copySharedURL = async () => {
+    try {
+      await navigator.clipboard.writeText(sharedURL);
+      alert("URL copied to clipboard!");
+    } catch (err) {
+      console.error("Failed to copy URL: ", err);
+      alert("Failed to copy URL.");
+    }
+  };
+
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
@@ -1002,6 +1061,7 @@ export default function App() {
                  sendMessages={sendMessages}
                  darkMode={darkMode}
                  updateMessages={updateMessages}
+                 shareConversation={shareConversation}
              />
          )}
          {tab === "graph" && (<GraphView 
@@ -1018,10 +1078,43 @@ export default function App() {
                     isLoading={isLoading}
                     darkMode={darkMode}
                     setDarkMode={setDarkMode}/>)}
+         {tab === "shared" && (<SharedComponent 
+                               darkMode={darkMode}
+                               authToken={authToken}/>)}
 
       </div>
 
       {renderAuthModal()}
+
+      {showSharedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className={`rounded-lg shadow-lg p-6 w-full max-w-md relative ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+            <h3 className="text-lg font-semibold mb-4">Share Conversation</h3>
+            <div className={`flex items-center border rounded-md ${darkMode ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-100'}`}>
+              <input
+                type="text"
+                value={sharedURL}
+                readOnly
+                className={`flex-grow px-3 py-2 text-sm focus:outline-none rounded-l-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}
+              />
+              <button
+                onClick={copySharedURL}
+                className={`px-4 py-2 text-sm font-medium rounded-r-md transition-colors ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
+                aria-label="Copy URL to clipboard"
+              >
+                <Copy size={16} />
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSharedModal(false)}
+              className={`absolute top-2 right-2 rounded-full p-1 transition-colors ${darkMode ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         body {

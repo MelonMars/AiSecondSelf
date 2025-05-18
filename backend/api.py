@@ -12,9 +12,15 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import json
 import datetime
 import logging
+import os
+
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
+    # use my Mac service account or my Desktop service account
+    if os.name == 'posix':
+        cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-83bb9cb5c9.json")
+    else:
+        cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -209,6 +215,7 @@ async def get_conversation(
     except Exception as e:
         logger.error(f"Error retrieving conversation {conversation_id} for owner {owner_id} (accessed by {caller_uid}): {e}")
         raise HTTPException(status_code=500, detail="Error retrieving conversation")
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
@@ -767,7 +774,7 @@ async def star_conversation(user_info: dict = Depends(verify_token), conversatio
         )
 
 @app.post("/share_conversation")
-async def share_conversation(user_info: dict = Depends(verify_token), conversation_id: str = Body(...)):
+async def share_conversation(user_info: dict = Depends(verify_token), conversation_id: str = Body(..., embed=True)):
     try:
         user_ref = db.collection("users").document(user_info["uid"])
         conversation_ref = user_ref.collection("conversations").document(conversation_id)
@@ -787,7 +794,8 @@ async def share_conversation(user_info: dict = Depends(verify_token), conversati
             "shared": nxt
         })
         
-        return {"message": "Conversation shared successfully", "success": "true"}
+        owner_id = user_info["uid"]
+        return {"message": "Conversation shared successfully", "success": "true", "conversation_url": f"http://127.0.0.1:8000/conversations/{owner_id}/{conversation_id}"}
     except Exception as e:
         print(f"Error sharing conversation: {str(e)}")
         if isinstance(e, HTTPException):

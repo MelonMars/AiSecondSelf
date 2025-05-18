@@ -6,7 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import * as Babel from "@babel/standalone";
 
-function DynamicWidget({ payload }) {
+function DynamicWidget({ key, payload }) {
   const containerRef = useRef(null);
 
   const Comp = useMemo(() => {
@@ -97,7 +97,8 @@ const ConversationItem = ({
   onConversationRenamed,
   onToggleStar,
   starredConversations,
-  isSidebarCollapsed
+  isSidebarCollapsed,
+  onConversationShare
 }) => {
 
   const [isEditing, setIsEditing] = useState(false);
@@ -142,6 +143,12 @@ const ConversationItem = ({
           handleCancelEdit(e);
       }
   };
+
+  const handleShareConversation = (e) => {
+    e.stopPropagation();
+    console.log("Sharing conversation", conversation.title);
+    onConversationShare(conversation.id);
+  }
 
 
   const isCurrent = currentConversationId === conversation.id;
@@ -196,13 +203,22 @@ const ConversationItem = ({
             )}
             <div className={`flex items-center ${isSidebarCollapsed ? '' : 'ml-2'}`}>
               {!isSidebarCollapsed && (
-                <button
-                  onClick={handleStartEditing}
-                  className={darkMode ? 'mr-2 text-gray-400 hover:text-white' : 'mr-2 text-gray-500 hover:text-gray-700'}
-                >
-                  <Edit2 size={16} />
-                </button>
+                <div className='flex items-center'>
+                  <button
+                    onClick={handleStartEditing}
+                    className={darkMode ? 'mr-2 text-gray-400 hover:text-white' : 'mr-2 text-gray-500 hover:text-gray-700'}
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={handleShareConversation}
+                    className={darkMode ? 'mr-2 text-gray-400 hover:text-white' : 'mr-2 text-gray-500 hover:text-gray-700'}
+                    >
+                      <Share size={16} />
+                    </button>
+                  </div>
               )}
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -421,6 +437,7 @@ const ChatComponent = ({
         onToggleStar={onToggleStar}
         starredConversations={starredConversations}
         isSidebarCollapsed={isSidebarCollapsed}
+        onConversationShare={shareConversation}
       />
     ))}
     {starredChats.length > 0 && nonStarredChats.length > 0 && !isSidebarCollapsed && (
@@ -447,6 +464,7 @@ const ChatComponent = ({
             onToggleStar={onToggleStar}
             starredConversations={starredConversations}
             isSidebarCollapsed={isSidebarCollapsed}
+            onConversationShare={shareConversation}
           />
         ))}
       </>
