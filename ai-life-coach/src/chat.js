@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share } from 'lucide-react';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import * as Babel from "@babel/standalone";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 function DynamicWidget({ key, payload }) {
   const containerRef = useRef(null);
@@ -44,48 +46,168 @@ const ChatMessage = memo(({ content, darkMode }) => {
   const parts = [];
   const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g;
   let last = 0, match, idx = 0;
-
+  
   while ((match = regex.exec(content)) !== null) {
     const [full, name, data] = match;
     const start = match.index, end = start + full.length;
-
+    
     if (last < start) {
       parts.push(
-        <div key={`t-${idx++}`} className={`m-0 p-0 prose ${darkMode ? 'dark:prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}>
+        <div 
+          key={`t-${idx++}`} 
+          className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
+        >
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
             rehypePlugins={[rehypeKatex]}
+            components={{
+              code: ({node, inline, className, children, ...props}) => {
+                const match = /language-(\w+)/.exec(className || '');
+                return !inline && match ? (
+                  <div className="rounded-md overflow-hidden my-2">
+                    <div className={`px-4 py-1 text-xs ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                      {match[1].toUpperCase()}
+                    </div>
+                    <SyntaxHighlighter
+                      language={match[1]}
+                      style={darkMode ? oneDark : oneLight}
+                      customStyle={{margin: 0, borderRadius: '0 0 0.375rem 0.375rem'}}
+                      PreTag="div"
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
+                  </div>
+                ) : (
+                  <code className={`${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100'} px-1 py-0.5 rounded text-sm`} {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              p: ({node, children}) => <p className="mb-2 last:mb-0">{children}</p>,
+              ul: ({node, children}) => <ul className="list-disc pl-6 mb-2 space-y-1">{children}</ul>,
+              ol: ({node, children}) => <ol className="list-decimal pl-6 mb-2 space-y-1">{children}</ol>,
+              li: ({node, children}) => <li className="mb-1">{children}</li>,
+              table: ({node, children}) => (
+                <div className="overflow-x-auto my-2">
+                  <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                    {children}
+                  </table>
+                </div>
+              ),
+              th: ({node, children}) => (
+                <th className={`px-3 py-2 text-left text-sm font-medium ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                  {children}
+                </th>
+              ),
+              td: ({node, children}) => (
+                <td className={`px-3 py-2 text-sm ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  {children}
+                </td>
+              ),
+              hr: () => <hr className={`my-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} />,
+              h1: ({node, children}) => <h1 className="text-2xl font-bold mt-6 mb-3 first:mt-0">{children}</h1>,
+              h2: ({node, children}) => <h2 className="text-xl font-bold mt-5 mb-2">{children}</h2>,
+              h3: ({node, children}) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
+              h4: ({node, children}) => <h4 className="text-base font-bold mt-3 mb-1">{children}</h4>,
+              blockquote: ({node, children}) => (
+                <blockquote className={`border-l-4 ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-300 bg-gray-50'} pl-4 py-1 my-3`}>
+                  {children}
+                </blockquote>
+              ),
+            }}
           >
             {content.slice(last)}
           </ReactMarkdown>
         </div>
       );
     }
-
+    
     let payload;
     try { payload = JSON.parse(data); }
     catch { payload = { code: `()=><pre>Invalid JSON</pre>` }; }
-
+    
     parts.push(
-      <DynamicWidget key={`w-${idx++}`} payload={payload} />
+      <div key={`w-${idx++}`} className="my-2 w-full">
+        <DynamicWidget payload={payload} />
+      </div>
     );
-
+    
     last = end;
   }
-
+  
   if (last < content.length) {
     parts.push(
-      <div key={`t-${idx++}`} className={`m-0 p-0 prose ${darkMode ? 'dark:prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}>
+      <div 
+        key={`t-${idx++}`} 
+        className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
+      >
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
           rehypePlugins={[rehypeKatex]}
+          components={{
+            code: ({node, inline, className, children, ...props}) => {
+              const match = /language-(\w+)/.exec(className || '');
+              return !inline && match ? (
+                <div className="rounded-md overflow-hidden my-2">
+                  <div className={`px-4 py-1 text-xs ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                    {match[1].toUpperCase()}
+                  </div>
+                  <SyntaxHighlighter
+                    language={match[1]}
+                    style={darkMode ? oneDark : oneLight}
+                    customStyle={{margin: 0, borderRadius: '0 0 0.375rem 0.375rem'}}
+                    PreTag="div"
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                </div>
+              ) : (
+                <code className={`${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100'} px-1 py-0.5 rounded text-sm`} {...props}>
+                  {children}
+                </code>
+              );
+            },
+            p: ({node, children}) => <p className="mb-2 last:mb-0">{children}</p>,
+            ul: ({node, children}) => <ul className="list-disc pl-6 mb-2 space-y-1">{children}</ul>,
+            ol: ({node, children}) => <ol className="list-decimal pl-6 mb-2 space-y-1">{children}</ol>,
+            li: ({node, children}) => <li className="mb-1">{children}</li>,
+            table: ({node, children}) => (
+              <div className="overflow-x-auto my-2">
+                <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                  {children}
+                </table>
+              </div>
+            ),
+            th: ({node, children}) => (
+              <th className={`px-3 py-2 text-left text-sm font-medium ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                {children}
+              </th>
+            ),
+            td: ({node, children}) => (
+              <td className={`px-3 py-2 text-sm ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                {children}
+              </td>
+            ),
+            hr: () => <hr className={`my-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} />,
+            h1: ({node, children}) => <h1 className="text-2xl font-bold mt-6 mb-3 first:mt-0">{children}</h1>,
+            h2: ({node, children}) => <h2 className="text-xl font-bold mt-5 mb-2">{children}</h2>,
+            h3: ({node, children}) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
+            h4: ({node, children}) => <h4 className="text-base font-bold mt-3 mb-1">{children}</h4>,
+            blockquote: ({node, children}) => (
+              <blockquote className={`border-l-4 ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-300 bg-gray-50'} pl-4 py-1 my-3`}>
+                {children}
+              </blockquote>
+            ),
+          }}
         >
           {content.slice(last)}
         </ReactMarkdown>
       </div>
     );
   }
-
+  
   return <div className="max-w-full">{parts}</div>;
 });
 
@@ -156,87 +278,96 @@ const ConversationItem = ({
 
 
   return (
-      <div
-        key={conversation.id} 
-        className={`p-3 ${
-          darkMode
-            ? `hover:bg-gray-700 ${isCurrent ? 'bg-gray-700' : 'bg-gray-800'}`
-            : `hover:bg-gray-100 ${isCurrent ? 'bg-gray-200' : ''}`
-        } cursor-pointer flex items-center justify-between ${isSidebarCollapsed ? 'justify-center' : ''}`}
-        onClick={() => {
-          if (!isEditing && loadConversation) {
-            loadConversation(conversation.id);
-          }
-        }}
-      >
-        {isEditing ? (
-          <div className="flex items-center w-full">
-            <input
-              ref={inputRef}
-              value={localRenamedTitle}
-              onChange={(e) => setLocalRenamedTitle(e.target.value)}
-              onKeyPress={handleInputKeyPress}
-              className={`flex-grow mr-2 p-1 border rounded text-sm ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
-              }`}
-              onClick={e => e.stopPropagation()} 
-            />
-            <button
-              onClick={handleSaveEdit} 
-              className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
-            >
-              <Check size={16} />
-            </button>
-            <button
-              onClick={handleCancelEdit}
-              className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ) : (
-          <>
-            {!isSidebarCollapsed && (
-              <span className={`flex-grow truncate text-sm ${darkMode ? 'text-gray-300' : ''}`}>
+    <div
+      key={conversation.id}
+      className={`py-2.5 px-3 ${
+        darkMode
+          ? `hover:bg-gray-700 ${isCurrent ? 'bg-gray-700' : 'bg-gray-800'}`
+          : `hover:bg-gray-100 ${isCurrent ? 'bg-gray-200' : ''}`
+      } cursor-pointer flex items-center justify-between ${isSidebarCollapsed ? 'justify-center' : ''} rounded-md mx-2 my-1 group transition-colors duration-200`}
+      onClick={() => {
+        if (!isEditing && loadConversation) {
+          loadConversation(conversation.id);
+        }
+      }}
+    >
+      {isEditing ? (
+        <div className="flex items-center w-full">
+          <input
+            ref={inputRef}
+            value={localRenamedTitle}
+            onChange={(e) => setLocalRenamedTitle(e.target.value)}
+            onKeyPress={handleInputKeyPress}
+            className={`flex-grow mr-2 p-1.5 border rounded text-sm ${
+              darkMode ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500' : 'focus:border-blue-500 focus:ring-blue-500'
+            } focus:outline-none focus:ring-1`}
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={handleSaveEdit}
+            className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1.5 transition-colors duration-200`}
+            title="Save changes"
+          >
+            <Check size={16} />
+          </button>
+          <button
+            onClick={handleCancelEdit}
+            className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1.5 transition-colors duration-200`}
+            title="Cancel"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <>
+          {!isSidebarCollapsed && (
+            <div className="flex items-center flex-grow truncate">
+              <div className={`flex items-center justify-center ${darkMode ? 'text-gray-400' : 'text-gray-500'} mr-2`}>
+                <MessageSquare size={16} />
+              </div>
+              <span className={`truncate text-sm ${darkMode ? 'text-gray-300' : ''} font-medium`}>
                 {conversation.title}
               </span>
-            )}
-            <div className={`flex items-center ${isSidebarCollapsed ? '' : 'ml-2'}`}>
-              {!isSidebarCollapsed && (
-                <div className='flex items-center'>
-                  <button
-                    onClick={handleStartEditing}
-                    className={darkMode ? 'mr-2 text-gray-400 hover:text-white' : 'mr-2 text-gray-500 hover:text-gray-700'}
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={handleShareConversation}
-                    className={darkMode ? 'mr-2 text-gray-400 hover:text-white' : 'mr-2 text-gray-500 hover:text-gray-700'}
-                    >
-                      <Share size={16} />
-                    </button>
-                  </div>
-              )}
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleStar(conversation.id);
-                }}
-                className={
-                  isStarred
-                    ? 'text-yellow-500'
-                    : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
-                }
-              >
-                <Star size={16} />
-              </button>
             </div>
-          </>
-        )}
-      </div>
-    );
+          )}
+          <div className={`flex items-center ${isSidebarCollapsed ? '' : 'ml-2'}`}>
+            {!isSidebarCollapsed && (
+              <div className={`flex items-center ${darkMode ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                <button
+                  onClick={handleStartEditing}
+                  className={`mr-2 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+                  title="Rename"
+                >
+                  <Edit2 size={14} />
+                </button>
+                <button
+                  onClick={handleShareConversation}
+                  className={`mr-2 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+                  title="Share"
+                >
+                  <Share size={14} />
+                </button>
+              </div>
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStar(conversation.id);
+              }}
+              className={`${
+                isStarred
+                  ? 'text-yellow-500 hover:text-yellow-600'
+                  : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+              } p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+              title={isStarred ? "Unstar conversation" : "Star conversation"}
+            >
+              <Star size={14} />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 };
 
 const ChatComponent = ({
@@ -388,87 +519,87 @@ const ChatComponent = ({
 
   return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      <div className={`flex flex-col ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-width duration-300 ease-in-out ${
+      <div className={`flex flex-col ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'w-16 items-center' : 'w-64'
-      }`}>
-        <br />
-        <br />
-        <div className={`flex items-center p-4 ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-          {!isSidebarCollapsed && (
+      } shadow-md`}>
+        <div className="py-6 px-4">
+          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
+            {!isSidebarCollapsed && (
+              <button
+                onClick={startNewConversation}
+                className={`p-2 ${darkMode ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg flex items-center flex-grow justify-center transition-colors duration-200 shadow-sm`}
+              >
+                <MessageSquare className={`${isSidebarCollapsed ? '' : 'mr-2'}`} size={18} />
+                {!isSidebarCollapsed && <span className="font-medium">New Chat</span>}
+              </button>
+            )}
             <button
-              onClick={startNewConversation}
-              className={`p-2 ${darkMode ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg flex items-center flex-grow justify-center`}
+              onClick={toggleSidebar}
+              className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200'} ${isSidebarCollapsed ? 'ml-0 mt-4' : 'ml-4'} transition-colors duration-200`}
+              title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
             >
-              <MessageSquare className={`${isSidebarCollapsed ? '' : 'mr-2'}`} />
-              {!isSidebarCollapsed && 'New Chat'}
+              {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
             </button>
-          )}
-          <button
-            onClick={toggleSidebar}
-            className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} ${isSidebarCollapsed ? 'ml-0' : 'ml-4'}`}
-            title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isSidebarCollapsed ? <ChevronRight size={20} className={darkMode ? 'text-gray-300' : ''} /> : <ChevronLeft size={20} className={darkMode ? 'text-gray-300' : ''} />}
-          </button>
+          </div>
         </div>
   
-        <div className="flex-grow overflow-y-auto">
+        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
           {isConversationsLoading ? (
-            <div className={`flex justify-center items-center ${isSidebarCollapsed ? 'h-full' : 'h-auto'}`}>
+            <div className={`flex justify-center items-center ${isSidebarCollapsed ? 'h-full' : 'h-auto'} py-8`}>
               <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : ''}`} />
             </div>
           ) : (
             <>
               {starredChats.length > 0 && (
-  <>
-    {!isSidebarCollapsed && (
-      <div className={`px-3 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
-        Starred
-      </div>
-    )}
-    {starredChats.map(conversation => (
-      <ConversationItem
-        key={conversation.id}
-        conversation={conversation}
-        currentConversationId={currentConversationId}
-        darkMode={darkMode}
-        loadConversation={loadConversation}
-        onConversationRenamed={onConversationRenamed}
-        onToggleStar={onToggleStar}
-        starredConversations={starredConversations}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onConversationShare={shareConversation}
-      />
-    ))}
-    {starredChats.length > 0 && nonStarredChats.length > 0 && !isSidebarCollapsed && (
-      <div className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} my-2`}></div>
-    )}
-  </>
-    )}
-
-    {nonStarredChats.length > 0 && (
-      <>
-        {!isSidebarCollapsed && (
-          <div className={`px-3 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
-            Chats
-          </div>
-        )}
-        {nonStarredChats.map(conversation => (
-          <ConversationItem
-            key={conversation.id}
-            conversation={conversation}
-            currentConversationId={currentConversationId}
-            darkMode={darkMode}
-            loadConversation={loadConversation}
-            onConversationRenamed={onConversationRenamed}
-            onToggleStar={onToggleStar}
-            starredConversations={starredConversations}
-            isSidebarCollapsed={isSidebarCollapsed}
-            onConversationShare={shareConversation}
-          />
-        ))}
-      </>
-    )}
+                <>
+                  {!isSidebarCollapsed && (
+                    <div className={`px-4 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold tracking-wider ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
+                      Starred
+                    </div>
+                  )}
+                  {starredChats.map(conversation => (
+                    <ConversationItem
+                      key={conversation.id}
+                      conversation={conversation}
+                      currentConversationId={currentConversationId}
+                      darkMode={darkMode}
+                      loadConversation={loadConversation}
+                      onConversationRenamed={onConversationRenamed}
+                      onToggleStar={onToggleStar}
+                      starredConversations={starredConversations}
+                      isSidebarCollapsed={isSidebarCollapsed}
+                      onConversationShare={shareConversation}
+                    />
+                  ))}
+                  {starredChats.length > 0 && nonStarredChats.length > 0 && !isSidebarCollapsed && (
+                    <div className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} my-2`}></div>
+                  )}
+                </>
+              )}
+  
+              {nonStarredChats.length > 0 && (
+                <>
+                  {!isSidebarCollapsed && (
+                    <div className={`px-4 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold tracking-wider ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
+                      Chats
+                    </div>
+                  )}
+                  {nonStarredChats.map(conversation => (
+                    <ConversationItem
+                      key={conversation.id}
+                      conversation={conversation}
+                      currentConversationId={currentConversationId}
+                      darkMode={darkMode}
+                      loadConversation={loadConversation}
+                      onConversationRenamed={onConversationRenamed}
+                      onToggleStar={onToggleStar}
+                      starredConversations={starredConversations}
+                      isSidebarCollapsed={isSidebarCollapsed}
+                      onConversationShare={shareConversation}
+                    />
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
@@ -476,7 +607,7 @@ const ChatComponent = ({
         <div className={`p-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-t ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
           <button
             onClick={logout}
-            className={`p-2 text-left ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100'} rounded ${isSidebarCollapsed ? 'w-auto' : 'w-full'}`}
+            className={`p-2 text-left ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100'} rounded-lg transition-colors duration-200 ${isSidebarCollapsed ? 'w-auto' : 'w-full'}`}
             title={isSidebarCollapsed ? 'Logout' : ''}
           >
             <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : ''}`}>
@@ -487,28 +618,29 @@ const ChatComponent = ({
                   <path d="M21 12H9"/>
                 </svg>
               </span>
-              {!isSidebarCollapsed && <span className={darkMode ? 'text-gray-300' : ''}>Logout</span>}
+              {!isSidebarCollapsed && <span className={`${darkMode ? 'text-gray-300' : ''} font-medium`}>Logout</span>}
             </div>
           </button>
         </div>
       </div>
   
       <div className={`flex-grow flex flex-col ${darkMode ? 'bg-gray-900' : ''}`}>
-        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200'} border-b flex justify-between items-center`}>
+        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-b flex justify-between items-center shadow-sm`}>
           <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : ''}`}>
             {conversations.find(c => c.id === currentConversationId)?.title || 'New Chat'}
           </h2>
           {currentConversationId && (
             <button
               onClick={() => shareConversation(currentConversationId)}
-              className={darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-700'}
+              className={`${darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-2 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors duration-200`}
+              title="Share conversation"
             >
               <Share size={20} />
             </button>
           )}
         </div>
   
-        <div className={`flex-grow overflow-y-auto p-4 space-y-4 ${darkMode ? 'bg-gray-900' : ''}`}>
+        <div className={`flex-grow overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
           {messages.map((message, index) => (
             <div
               key={index}
@@ -519,11 +651,11 @@ const ChatComponent = ({
               onMouseLeave={() => setHoveredMessageIndex(null)}
             >
               <div
-                className={`max-w-2xl px-3 py-2 rounded-lg relative ${
+                className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
                   message.role === 'user'
-                    ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'
-                    : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black'
-                }`}
+                    ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                    : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
+                } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
               >
                 {editingMessageIndex === index ? (
                   <div className="flex flex-col">
@@ -561,7 +693,7 @@ const ChatComponent = ({
                     {hoveredMessageIndex === index && message.role === 'user' && (
                       <button
                         onClick={() => handleStartEditingMessage(index, message.content)}
-                        className={`absolute bottom-1 right-1 p-1 rounded-full ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                        className={`absolute bottom-1 right-1 p-1.5 rounded-full ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} opacity-0 group-hover:opacity-100 transition-opacity shadow-sm`}
                         title="Edit message"
                       >
                         <Edit2 size={14} />
@@ -574,15 +706,17 @@ const ChatComponent = ({
           ))}
           {isLoading && (
             <div className="flex justify-start">
-              <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
-                <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : ''}`} />
+              <div className={`flex items-center space-x-1 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} shadow-sm`}>
+                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.1s' }}></span>
+                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.2s' }}></span>
+                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.3s' }}></span>
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
   
-        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200'} border-t`}>
+        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t shadow-md`}>
           <div className="flex items-end">
             <textarea
               ref={inputRef}
@@ -590,8 +724,10 @@ const ChatComponent = ({
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Send a message..."
-              className={`flex-grow p-2 border rounded-lg mr-2 resize-none max-h-40 ${
-                darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : ''
+              className={`flex-grow p-3 border rounded-lg mr-2 resize-none max-h-40 focus:outline-none focus:ring-2 ${
+                darkMode 
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-orange-500' 
+                  : 'focus:ring-blue-300 focus:border-blue-300'
               }`}
               rows={1}
               style={{ overflow: 'auto' }}
@@ -599,9 +735,13 @@ const ChatComponent = ({
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim()}
-              className={`${darkMode ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'} text-white p-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`${
+                darkMode 
+                  ? 'bg-orange-500 hover:bg-orange-600' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white p-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm`}
             >
-              Send
+              <ArrowBigUp />
             </button>
           </div>
         </div>

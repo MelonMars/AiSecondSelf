@@ -101,12 +101,15 @@ export default function App() {
            localStorage.setItem("userEmail", user.email || "");
 
            console.log("Firebase auth state changed. User logged in.");
-           fetchConversations();
-           if (graphData === null) {
+           setIsLoading(false);
+
+           setTimeout(() => {
+             fetchConversations();
+             if (graphData === null) {
                fetchUserData(idToken);
                fetchUserPrefs(idToken);
-           }
-           setIsLoading(false);
+             }
+           }, 0);
         }).catch(error => {
              console.error("Failed to get ID token:", error);
              setIsLoading(false);
@@ -131,7 +134,6 @@ export default function App() {
         console.log("Firebase auth state changed. User logged out.");
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -616,8 +618,6 @@ export default function App() {
       );
   };
 
-
-
   const fetchUserPrefs = async (token) => {
     if (!token) return;
     try {
@@ -1036,12 +1036,6 @@ export default function App() {
       </div>
 
       <div className="flex-1 overflow-hidden relative">
-          {isLoading && (
-             <div className={`absolute inset-0 flex items-center justify-center ${darkMode ? 'bg-gray-800' : 'bg-gray-100'} bg-opacity-75 z-10`}>
-               <Loader size={40} className="animate-spin text-blue-600" />
-             </div>
-           )}
-
          {tab === "chat" && (
              <ChatComponent
                  messages={messages}
@@ -1115,27 +1109,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* <style jsx global>{`
-        body {
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-in-out;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-         .prose-invert {
-            color: white;
-         }
-
-      `}</style> */}
     </div>
   );
 }
