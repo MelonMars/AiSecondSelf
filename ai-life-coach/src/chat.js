@@ -51,7 +51,7 @@ const ChatMessage = memo(({ content, darkMode }) => {
 
     if (last < start) {
       parts.push(
-        <div key={`t-${idx++}`} className={`${darkMode ? 'text-white' : 'text-black'} m-0 p-0`}>
+        <div key={`t-${idx++}`} className={`m-0 p-0 prose ${darkMode ? 'dark:prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}>
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
             rehypePlugins={[rehypeKatex]}
@@ -75,7 +75,7 @@ const ChatMessage = memo(({ content, darkMode }) => {
 
   if (last < content.length) {
     parts.push(
-      <div key={`t-${idx++}`} className={`${darkMode ? 'text-white' : 'text-black'} m-0 p-0`}>
+      <div key={`t-${idx++}`} className={`m-0 p-0 prose ${darkMode ? 'dark:prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}>
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
           rehypePlugins={[rehypeKatex]}
