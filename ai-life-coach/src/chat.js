@@ -519,7 +519,7 @@ const ChatComponent = ({
 
   return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      <div className={`flex flex-col ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
+      <div className={`flex flex-col mt-10 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'w-16 items-center' : 'w-64'
       } shadow-md`}>
         <div className="py-6 px-4">
