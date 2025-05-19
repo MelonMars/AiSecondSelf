@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp } from 'lucide-react';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -389,6 +389,8 @@ const ChatComponent = ({
   shareConversation,
   darkMode,
   updateMessages,
+  handleLikeMessage,
+  handleDislikeMessage
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -516,7 +518,6 @@ const ChatComponent = ({
     }
   };
 
-
   return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
       <div className={`flex flex-col mt-10 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
@@ -641,69 +642,102 @@ const ChatComponent = ({
         </div>
   
         <div className={`flex-grow overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
-          {messages.map((message, index) => (
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`flex flex-col group ${
+              message.role === 'user' ? 'justify-end items-end' : 'justify-start items-start' 
+            }`}
+            onMouseEnter={() => setHoveredMessageIndex(index)}
+            onMouseLeave={() => setHoveredMessageIndex(null)}
+          >
             <div
-              key={index}
-              className={`flex group ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-              onMouseEnter={() => setHoveredMessageIndex(index)}
-              onMouseLeave={() => setHoveredMessageIndex(null)}
+              className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
+                message.role === 'user'
+                  ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                  : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
+              } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
             >
-              <div
-                className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
-                  message.role === 'user'
-                    ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
-                    : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
-                } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
-              >
-                {editingMessageIndex === index ? (
-                  <div className="flex flex-col">
-                    <textarea
-                      ref={editTextareaRef}
-                      value={editMessageContent}
-                      onChange={(e) => {
-                        setEditMessageContent(e.target.value);
-                        adjustTextareaHeight(e.target);
-                      }}
-                      className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
-                        darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
-                      }`}
-                      rows={1}
-                      style={{ overflow: 'hidden' }}
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => handleSaveEditMessage(index)}
-                        className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
+              {editingMessageIndex === index ? (
+                <div className="flex flex-col">
+                  <textarea
+                    ref={editTextareaRef}
+                    value={editMessageContent}
+                    onChange={(e) => {
+                      setEditMessageContent(e.target.value);
+                      adjustTextareaHeight(e.target);
+                    }}
+                    className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
+                      darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                    }`}
+                    rows={1}
+                    style={{ overflow: 'hidden' }}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => handleSaveEditMessage(index)}
+                      className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
+                    >
+                      <Check size={16} />
+                    </button>
+                    <button
+                      onClick={handleCancelEditMessage}
+                      className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <ChatMessage content={message.content} darkMode={darkMode}/>
+              )}
+            </div>
+
+            <div className={`flex mt-1 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
+                 hoveredMessageIndex === index && message.role === 'user'
+                   ? 'opacity-100 group-hover:opacity-100'
+                   : 'opacity-0 group-hover:opacity-0'
+                } transition-opacity text-sm`
+             }
+            >
+                {message.role === 'user' && (
+                    <button
+                      onClick={() => handleStartEditingMessage(index, message.content)}
+                      className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                      title="Edit message"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                )}
+            </div>
+            <div className={`flex mt-1 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
+                 hoveredMessageIndex === index && message.role !== 'user'
+                   ? 'opacity-100 group-hover:opacity-100'
+                   : 'opacity-0 group-hover:opacity-0'
+                } transition-opacity text-sm`
+             }
+            >
+                {message.role !== 'user' && (
+                  <div>
+                    <button
+                      onClick={() => handleLikeMessage(index, message.content)}
+                      className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                      title="Like message"
                       >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        onClick={handleCancelEditMessage}
-                        className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
-                      >
-                        <X size={16} />
+                        <ThumbsUp size={14} />
+                    </button>
+                    <button
+                        onClick={() => handleDislikeMessage(index, message.content)}
+                        className={`p-1.5 rounded-full ml-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                        title="Like message"
+                        >
+                          <ThumbsDown size={14} />
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <ChatMessage content={message.content} darkMode={darkMode}/>
-                    {hoveredMessageIndex === index && message.role === 'user' && (
-                      <button
-                        onClick={() => handleStartEditingMessage(index, message.content)}
-                        className={`absolute bottom-1 right-1 p-1.5 rounded-full ${darkMode ? 'bg-gray-600 hover:bg-gray-500 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} opacity-0 group-hover:opacity-100 transition-opacity shadow-sm`}
-                        title="Edit message"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    )}
-                  </>
                 )}
-              </div>
             </div>
-          ))}
+          </div>
+        ))}
           {isLoading && (
             <div className="flex justify-start">
               <div className={`flex items-center space-x-1 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} shadow-sm`}>

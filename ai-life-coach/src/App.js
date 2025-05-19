@@ -966,6 +966,43 @@ export default function App() {
     }
   };
 
+  const handleLikeMessage = (index, content) => {
+    console.log("Liked message: ", index);
+    handlePrefMessage(content, "liked");
+  }
+
+  const handleDislikeMessage = (index, content) => {
+    console.log("Disliked message: ", index);
+    handlePrefMessage(content, "disliked");
+  }
+
+  const handlePrefMessage = async (content, pref) => {
+    const headers = {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json"
+    }
+    const requestBody = {
+      targetMessage: content,
+      convoHistory: messages,
+      pref: pref
+    };
+    const res = await fetch("http://127.0.0.1:8000/update_prefs_from_message", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody)
+    }); 
+    if (!res.ok) {
+      if (res.status === 401) {
+        setAuthError("Authentication failed. Please log in again.");
+        setShowAuthModal(true);
+        logout();
+      }
+      throw new Error(`Server error: ${res.status}`);
+    }
+    const data = await res.json();
+    console.log("Preference message response:", data);
+  }
+
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
@@ -1055,6 +1092,8 @@ export default function App() {
                  darkMode={darkMode}
                  updateMessages={updateMessages}
                  shareConversation={shareConversation}
+                 handleLikeMessage={handleLikeMessage}
+                 handleDislikeMessage={handleDislikeMessage}
              />
          )}
          {tab === "graph" && (<GraphView 
