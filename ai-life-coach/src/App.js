@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X } from "lucide-react";
 import GraphView from "./GraphView";
-import { signInWithEmailAndPassword, getAuth, onAuthStateChanged } from "firebase/auth";
-import { auth } from "./firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
+import { auth, googleProvider } from "./firebase";
 import ChatComponent from "./chat";
 import ProfileComponent from "./Profile";
 import SharedComponent from "./Shared";
@@ -64,6 +64,7 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [authError, setAuthError] = useState("");
+  const [linkError, setLinkError] = useState(""); 
 
   const [graphData, setGraphData] = useState(null);
   const [chatPrefs, setChatPrefs] = useState("");
@@ -85,6 +86,28 @@ export default function App() {
 
   const inputRef = useRef(null);
 
+  const signInWithGoogle = async () => {
+    setIsLoading(true);
+    setAuthError("");
+    setLinkError("");
+
+    try {
+        const result = await signInWithPopup(auth, googleProvider);
+        console.log("Google sign-in successful:", result.user);
+        setShowAuthModal(false);
+    } catch (error) {
+        console.error("Google sign-in error:", error);
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            const email = error.customData.email;
+            setAuthError(`An account with this email (${email}) already exists. Please log in with your email and password first, then link your Google account.`);
+        } else {
+            setAuthError(error.message);
+        }
+    } finally {
+        setIsLoading(false);
+        fetchConversations();
+    }
+};
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -103,7 +126,6 @@ export default function App() {
            setIsLoading(false);
 
            setTimeout(() => {
-             fetchConversations();
              if (graphData === null) {
                fetchUserData(idToken);
                fetchUserPrefs(idToken);
@@ -135,6 +157,14 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (authToken) {
+      fetchConversations();
+    } else {
+      setConversations([]);
+    }
+  }, [authToken]);
 
 
   useEffect(() => {
@@ -511,109 +541,134 @@ export default function App() {
   const renderAuthModal = () => {
      if (!showAuthModal) return null;
       return (
-          <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-black'} bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn`}>
-          <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-lg p-6 w-full max-w-md`}>
-            <h2 className="text-2xl font-medium mb-4">
-          {authMode === "login" ? "Log in" : "Sign up"}
-            </h2>
+        <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-black'} bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn`}>
+            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-lg p-6 w-full max-w-md`}>
+                <h2 className="text-2xl font-medium mb-4">
+                    {authMode === "login" ? "Log in" : "Sign up"}
+                </h2>
 
-            {authError && (
-          <div className={`mb-4 p-3 ${darkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'} rounded-md text-sm`}>
-            {authError}
-          </div>
-            )}
+                {authError && (
+                    <div className={`mb-4 p-3 ${darkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'} rounded-md text-sm`}>
+                        {authError}
+                    </div>
+                )}
+                {linkError && (
+                    <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-100 text-yellow-700'} rounded-md text-sm`}>
+                        {linkError}
+                    </div>
+                )}
 
-            <div className="space-y-4">
-          {authMode === "signup" && (
-            <div>
-              <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
-              <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            placeholder="Your name"
-              />
+                <div className="space-y-4">
+                    {authMode === "signup" && (
+                        <div>
+                            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                                placeholder="Your name"
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            placeholder="your@email.com"
+                        />
+                    </div>
+
+                    <div>
+                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Password</label>
+                        <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            placeholder="••••••••"
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <button
+                        onClick={authMode === "login" ? login : signup}
+                        disabled={isLoading}
+                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                    >
+                        {isLoading ? (
+                            <Loader size={20} className="animate-spin" />
+                        ) : (
+                            authMode === "login" ? "Log in" : "Sign up"
+                        )}
+                    </button>
+                </div>
+
+                <div className="mt-4 text-center">
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Or
+                    </p>
+                    <button
+                        onClick={signInWithGoogle}
+                        disabled={isLoading}
+                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-gray-800 ${darkMode ? 'bg-white hover:bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'} mt-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
+                    >
+                        {isLoading ? (
+                            <Loader size={20} className="mr-2 animate-spin" />
+                        ) : (
+                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" className="w-5 h-5 mr-2" />
+                        )}
+                        Sign in with Google
+                    </button>
+                </div>
+
+                <div className="mt-4 text-center">
+                    {authMode === "login" ? (
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Don't have an account?{" "}
+                            <button
+                                onClick={() => {
+                                    setAuthMode("signup");
+                                    setAuthError("");
+                                    setLinkError("");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 focus:outline-none"
+                            >
+                                Sign up
+                            </button>
+                        </p>
+                    ) : (
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Already have an account?{" "}
+                            <button
+                                onClick={() => {
+                                    setAuthMode("login");
+                                    setAuthError("");
+                                    setLinkError("");
+                                }}
+                                className="text-blue-600 hover:text-blue-800 focus:outline-none"
+                            >
+                                Log in
+                            </button>
+                        </p>
+                    )}
+                </div>
+
+                <div className="mt-4 text-center">
+                    <button
+                        onClick={() => setShowAuthModal(false)}
+                        className={`text-sm ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} focus:outline-none`}
+                    >
+                        Cancel
+                    </button>
+                </div>
             </div>
-          )}
-
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              placeholder="your@email.com"
-            />
-          </div>
-
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              placeholder="••••••••"
-            />
-          </div>
-            </div>
-
-            <div className="mt-6">
-          <button
-            onClick={authMode === "login" ? login : signup}
-            disabled={isLoading}
-            className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-          >
-            {isLoading ? (
-              <Loader size={20} className="animate-spin" />
-            ) : (
-              authMode === "login" ? "Log in" : "Sign up"
-            )}
-          </button>
-            </div>
-
-            <div className="mt-4 text-center">
-          {authMode === "login" ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Don't have an account?{" "}
-              <button
-            onClick={() => {
-              setAuthMode("signup");
-              setAuthError("");
-            }}
-            className="text-blue-600 hover:text-blue-800 focus:outline-none"
-              >
-            Sign up
-              </button>
-            </p>
-          ) : (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Already have an account?{" "}
-              <button
-            onClick={() => {
-              setAuthMode("login");
-              setAuthError("");
-            }}
-            className="text-blue-600 hover:text-blue-800 focus:outline-none"
-              >
-            Log in
-              </button>
-            </p>
-          )}
-            </div>
-
-            <div className="mt-4 text-center">
-          <button
-            onClick={() => setShowAuthModal(false)}
-            className={`text-sm ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} focus:outline-none`}
-          >
-            Cancel
-          </button>
-            </div>
-          </div>
-          </div>
+        </div>
       );
   };
 
@@ -744,24 +799,36 @@ export default function App() {
     };
 
     const login = async () => {
-      setAuthError("");
-      if (!email || !password) {
-        setAuthError("Email and password are required");
-        return;
-      }
-  
       setIsLoading(true);
+      setAuthError("");
+      setLinkError("");
+
       try {
-        await signInWithEmailAndPassword(auth, email, password);
-        setShowAuthModal(false);
-        setEmail("");
-        setPassword("");
-  
+          console.log("Signing in with email:", email, "and password:", password);
+          await signInWithEmailAndPassword(auth, email, password);
+          console.log("Email/Password login successful!");
+          setShowAuthModal(false);
       } catch (error) {
-        setAuthError(error.message);
-        console.error("Login error:", error);
-      } finally {}
-    };
+          console.error("Login error:", error);
+          if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+            try {
+              const signInMethods = await fetchSignInMethodsForEmail(auth, email);
+
+              if (signInMethods.includes(googleProvider.providerId)) {
+                setAuthError("This email is registered with a Google account. Please log in with that instead.")
+              } else {
+                console.log("Sign in methods for email:", signInMethods);
+                setAuthError("Invalid email or password. Please try again.");
+              }
+            } catch (e) {
+              console.error("Error fetching sign-in methods:", e);
+              setAuthError("Login failed. Please check your network connection and try again.");
+            }
+          }
+      } finally {
+          setIsLoading(false);
+      }
+  };
 
     const signup = async () => {
       setAuthError("");
@@ -813,6 +880,18 @@ export default function App() {
        } finally {
           setIsLoading(false);
        }
+    };
+
+    const handleGoogleLinkAfterEmailLogin = async (googleCredential) => {
+      setLinkError("");
+      try {
+          await linkWithCredential(auth.currentUser, googleCredential);
+          console.log("Google account linked successfully!");
+          setShowAuthModal(false);
+      } catch (error) {
+          console.error("Error linking Google account:", error);
+          setLinkError("Failed to link Google account. " + error.message);
+      }
     };
 
     const sendMessageWithDoc = async (file) => {
