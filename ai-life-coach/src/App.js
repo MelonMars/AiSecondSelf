@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X } from "lucide-react";
 import GraphView from "./GraphView";
-import { signInWithEmailAndPassword, getAuth } from "firebase/auth";
+import { signInWithEmailAndPassword, getAuth, onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase";
-import { onAuthStateChanged } from "firebase/auth";
 import ChatComponent from "./chat";
 import ProfileComponent from "./Profile";
 import SharedComponent from "./Shared";
