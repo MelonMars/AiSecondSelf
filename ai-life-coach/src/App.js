@@ -1038,7 +1038,14 @@ export default function App() {
   const copySharedURL = async () => {
     try {
       await navigator.clipboard.writeText(sharedURL);
-      alert("URL copied to clipboard!");
+      console.log("Shared URL copied to clipboard:", sharedURL);
+      const copyButton = document.getElementById("copy-button");
+      if (copyButton) {
+        copyButton.classList.add("bg-green-500", "text-white");
+        setTimeout(() => {
+          copyButton.classList.remove("bg-green-500", "text-white");
+        }, 2000);
+      }
     } catch (err) {
       console.error("Failed to copy URL: ", err);
       alert("Failed to copy URL.");
@@ -1212,6 +1219,7 @@ export default function App() {
                 onClick={copySharedURL}
                 className={`px-4 py-2 text-sm font-medium rounded-r-md transition-colors ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
                 aria-label="Copy URL to clipboard"
+                id="copy-button"
               >
                 <Copy size={16} />
               </button>
