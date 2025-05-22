@@ -80,6 +80,7 @@ export default function App() {
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [starredConversations, setStarredConversations] = useState([]);
   const [darkMode, setDarkMode] = useState(true);
+  const [currentConversationBranchInfo, setCurrentConversationBranchInfo] = useState(null);
 
 
   const messagesEndRef = useRef(null);
@@ -304,44 +305,62 @@ export default function App() {
   }
 
   const loadConversation = async (conversationId) => {
-      if (!authToken || conversationId === currentConversationId) {
-           return;
-      }
+    if (isLoading) return;
+    setIsLoading(true);
+    setAuthError(null);
+    try {
+        const headers = {
+            "Authorization": `Bearer ${authToken}`,
+        };
+        const res = await fetch(`http://127.0.1:8000/conversations/${uid}/${conversationId}`, {
+            headers: headers
+        });
 
-      setIsLoading(true);
-      setCurrentConversationId(conversationId); 
-      setMessages([]);
-
-      try {
-           const headers = { "Authorization": `Bearer ${authToken}` };
-           const res = await fetch(`http://127.0.0.1:8000/conversations/${uid}/${conversationId}`, { headers });
-
-           if (!res.ok) {
-               if (res.status === 401) {
-                   setAuthError("Authentication failed. Please log in again.");
-                   setShowAuthModal(true);
-                   logout();
-               } else if (res.status === 404) {
-                    console.warn(`Conversation ${conversationId} not found. Starting a new chat.`);
-                    startNewConversation(); 
-                    setMessages([{ role: "assistant", content: "Conversation not found. Starting a new chat." }]);
-               } else {
-                    throw new Error(`Server error: ${res.status}`);
-               }
-               return;
-           }
-
-           const data = await res.json();
-           setMessages(data.messages);
-           console.log("Loaded conversation:", conversationId);
-
-        } catch (error) {
-            console.error(`Error loading conversation ${conversationId}:`, error);
-            setMessages([{ role: "assistant", content: "Failed to load conversation." }]);
-        } finally {
-            setIsLoading(false); 
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`Server error ${res.status} fetching conversation:`, errorText);
+            if (res.status === 401) {
+                setAuthError("Authentication failed. Please log in again.");
+                setShowAuthModal(true);
+                logout();
+            } else if (res.status === 403 || res.status === 404) {
+                 setMessages([{ role: "assistant", content: "Conversation not found or unauthorized access." }]);
+                 setCurrentConversationId(null);
+                 setCurrentConversationBranchInfo(null);
+                 return;
+            }
+            setMessages([{
+                role: "assistant",
+                content: `Error loading conversation: ${res.status}. Details: ${errorText.substring(0, 150)}...`
+            }]);
+            return;
         }
-  };
+
+        const data = await res.json();
+        console.log("Loaded conversation data:", data);
+
+        setMessages(data.messages);
+        setCurrentConversationId(data.id);
+
+        setCurrentConversationBranchInfo({
+            id: data.id,
+            parent_conversation_id: data.parent_conversation_id,
+            branch_from_message_index: data.branch_from_message_index,
+            children_branches: data.children_branches || []
+        });
+
+    } catch (error) {
+        console.error("Network or processing error loading conversation:", error);
+        setMessages([{
+            role: "assistant",
+            content: "Sorry, there was a connection or processing error loading this conversation."
+        }]);
+    } finally {
+        setIsLoading(false);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+};
+
 
   const sendMessage = async (messageInput) => {
     console.log("Attempting to send message in App.js"); 
@@ -529,6 +548,100 @@ export default function App() {
       setIsLoading(false);
     }
   }
+
+  const handleSaveEditMessage = async (index, editMessageContent, setEditMessageContent, setEditingMessageIndex) => {
+  if (editMessageContent.trim()) {
+    const updatedMessages = messages.slice(0, index + 1).map((msg, i) => {
+      if (i === index) {
+        return {
+          ...msg,
+          content: editMessageContent.trim()
+        };
+      }
+      return msg;
+    });
+
+    const messageToEdit = messages[index];
+    if (messageToEdit.role !== 'user') {
+      console.warn("Attempting to edit a non-user message. Only user messages can be branched from at this time.");
+      setEditingMessageIndex(null);
+      setEditMessageContent('');
+      return;
+    }
+
+
+    setIsLoading(true);
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      };
+      const bulletProse = graphData ? JSON.stringify(graphData) : null;
+
+      const editRequestBody = {
+        conversation_id: currentConversationId,
+        message_index: index,
+        new_message_content: editMessageContent.trim(),
+        bulletProse: bulletProse
+      };
+
+      const res = await fetch("http://127.0.1:8000/edit", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(editRequestBody)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status} from /edit:`, errorText);
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `Error branching conversation: ${res.status}. Details: ${errorText.substring(0, 150)}...`
+        }]);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("AI response data from App.js (edit endpoint):", data);
+
+      if (data && data.reply) {
+        const aiMessage = { role: "assistant", content: data.reply };
+
+        const newBranchMessages = [...updatedMessages, aiMessage];
+        setMessages(newBranchMessages);
+
+        if (data.conversation_id) {
+          console.log("Backend created new conversation branch with ID:", data.conversation_id);
+          setCurrentConversationId(data.conversation_id);
+          fetchConversations();
+        } else {
+          console.warn("AI response from /edit missing 'conversation_id' field:", data);
+        }
+      } else {
+        console.warn("AI response data missing 'reply' field from /edit:", data);
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "Received unexpected response from AI for edit operation. Response data:",
+        }]);
+      }
+    } catch (error) {
+      console.error("Network or processing error in App.js handleSaveEditMessage:", error);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "Sorry, there was a connection or processing error during edit. Please try again later."
+      }]);
+    } finally {
+      setIsLoading(false);
+      setEditingMessageIndex(null);
+      setEditMessageContent('');
+    }
+  }
+  };
 
   const startNewConversation = () => {
       console.log("Starting new conversation in App.js");
@@ -1180,6 +1293,8 @@ export default function App() {
                  shareConversation={shareConversation}
                  handleLikeMessage={handleLikeMessage}
                  handleDislikeMessage={handleDislikeMessage}
+                 handleSaveEditMessage={handleSaveEditMessage}
+                 currentConversationBranchInfo={currentConversationBranchInfo}
              />
          )}
          {tab === "graph" && (<GraphView 

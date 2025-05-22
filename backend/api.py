@@ -81,9 +81,6 @@ class ChatRequest(BaseModel):
     messages: List[Message]
     bulletProse: str
 
-class ChatResponse(BaseModel):
-    reply: str
-
 class UserRegistration(BaseModel):
     email: str
     password: str
@@ -120,6 +117,11 @@ class Conversation(BaseModel):
     created_at: datetime.datetime
     last_updated: datetime.datetime
     starred: bool
+    shared: bool
+    parent_conversation_id: Optional[str] = None
+    branch_from_message_index: Optional[int] = None
+    forked_from_message_id: Optional[str] = None
+    children_branches: Optional[List[dict]] = []
 
 class ChatRequest(BaseModel):
     messages: List[dict]
@@ -129,6 +131,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     conversation_id: Optional[str] = None 
+
+class EditRequest(BaseModel):
+    conversation_id: str
+    message_index: int
+    new_message_content: str
+    bulletProse: str = ""
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -144,6 +152,8 @@ async def list_conversations(user_info: dict = Depends(verify_token)):
         summaries: List[ConversationSummary] = []
         for doc in docs:
             data = doc.to_dict()
+            if data.get("parent_conversation_id") is not None:
+                continue
             summary = ConversationSummary(
                 id=doc.id,
                 title=data.get("title", "Untitled Conversation"),
@@ -169,6 +179,8 @@ async def get_conversation(
 
     conversation_ref = db.collection("users").document(owner_id).collection("conversations").document(conversation_id)
 
+    user_ref = db.collection("users").document(owner_id)
+
     try:
         doc = conversation_ref.get()
 
@@ -193,13 +205,16 @@ async def get_conversation(
 
         conversation = Conversation(
             id=doc.id,
-            user_id=conversation_owner_uid, 
+            user_id=conversation_owner_uid,
             title=data.get("title", "Untitled Conversation"),
             messages=messages,
             created_at=data.get("created_at", data.get('_createdAt', datetime.datetime.min)),
             last_updated=data.get("last_updated", data.get('_updatedAt', datetime.datetime.min)),
             starred=data.get("starred", False),
-            shared=is_shared
+            shared=is_shared,
+            parent_conversation_id=data.get("parent_conversation_id"),
+            branch_from_message_index=data.get("branch_from_message_index"),
+            forked_from_message_id=data.get("forked_from_message_id"),
         )
 
         if conversation_owner_uid == caller_uid:
@@ -208,7 +223,19 @@ async def get_conversation(
              logger.info(f"User {caller_uid} retrieved shared conversation {conversation_id} owned by {conversation_owner_uid}.")
 
 
+        children_snapshot = user_ref.collection("conversations").where("parent_conversation_id", "==", conversation_id).get()
+        conversation.children_branches = []
+        for child_doc in children_snapshot:
+            child_data = child_doc.to_dict()
+            conversation.children_branches.append({
+                "id": child_doc.id,
+                "title": child_data.get("title", "Untitled Branch"),
+                "branch_from_message_index": child_data.get("branch_from_message_index")
+            })
+        logger.info(f"Found {len(conversation.children_branches)} child branches for conversation {conversation_id}.")
+
         return conversation
+
 
     except HTTPException:
         raise
@@ -490,6 +517,261 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
             logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
 
         return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
+
+@app.post("/edit", response_model=ChatResponse)
+async def edit_conversation(request: EditRequest, user_info: dict = Depends(verify_token)):
+    user_uid = user_info["uid"]
+    user_ref = db.collection("users").document(user_uid)
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    original_conversation_ref = user_ref.collection("conversations").document(request.conversation_id)
+    original_conversation_doc = original_conversation_ref.get()
+
+    if not original_conversation_doc.exists:
+        logger.warning(f"Original conversation ID {request.conversation_id} not found for user {user_uid}. Cannot branch.")
+        raise HTTPException(status_code=404, detail="Original conversation not found.")
+
+    original_data = original_conversation_doc.to_dict()
+    original_messages_raw = original_data.get("messages", [])
+
+    if not (0 <= request.message_index < len(original_messages_raw)):
+        logger.warning(f"Invalid message index {request.message_index} for conversation {request.conversation_id}.")
+        raise HTTPException(status_code=400, detail="Invalid message index.")
+
+    parent_conversation_id = request.conversation_id
+    branch_from_message_index = request.message_index
+    edited_message = original_messages_raw[request.message_index]
+
+    if "parent_conversation_id" in original_data and original_data["parent_conversation_id"] is not None:
+        if (
+            "branch_from_message_index" in original_data
+            and original_data["branch_from_message_index"] == request.message_index
+        ):
+            parent_conversation_id = original_data["parent_conversation_id"]
+            branch_from_message_index = original_data["branch_from_message_index"]
+            logger.info(
+                f"Editing a message that is already a branch (parent: {parent_conversation_id}, index: {branch_from_message_index}). "
+                "Setting new branch parent to previous parent."
+            )
+
+    new_conversation_ref = user_ref.collection("conversations").document()
+    new_conversation_id = new_conversation_ref.id
+
+    messages_for_new_branch = [
+        Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', now))
+        for msg in original_messages_raw[:request.message_index + 1]
+    ]
+
+    edited_message_obj = messages_for_new_branch[-1]
+    if edited_message_obj.role == "user":
+        edited_message_obj.content = request.new_message_content
+        edited_message_obj.timestamp = now
+    else:
+        logger.warning(f"Attempted to edit non-user message at index {request.message_index}. Proceeding with user message content replacement.")
+        messages_for_new_branch[-1] = Message(role="user", content=request.new_message_content, timestamp=now)
+
+    new_conversation_ref.set({
+        "user_id": user_uid,
+        "created_at": now,
+        "last_updated": now,
+        "messages": [msg.model_dump() for msg in messages_for_new_branch],
+        "title": original_data.get("title", "New Conversation Branch") + f" (Branch from message {request.message_index + 1})",
+        "parent_conversation_id": parent_conversation_id,
+        "branch_from_message_index": branch_from_message_index,
+    })
+    logger.info(f"Created new conversation branch {new_conversation_id} from {parent_conversation_id}.")
+
+    original_children_branches = original_data.get("children_branches", [])
+    original_children_branches.append({
+        "id": new_conversation_id,
+        "title": original_data.get("title", "Unnamed Branch") + f" (Branch from message {request.message_index + 1})",
+        "branch_from_message_index": request.message_index
+    })
+
+    original_conversation_ref.update({
+        "children_branches": original_children_branches,
+        "last_updated": now
+    })
+
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
+    username = user_data.get("name", "User")
+    user_prefs = user_data.get("ChatPreferences", "")
+
+    try:
+        with open("prompt.txt", "r") as f:
+            prompt_template = f.read()
+    except FileNotFoundError:
+        logger.error("prompt.txt not found")
+        raise HTTPException(status_code=500, detail="Server error: Prompt file not found.")
+
+    current_date = datetime.date.today().strftime("%Y-%m-%d")
+    current_time = datetime.datetime.now().strftime("%H:%M:%S")
+
+    prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    prompt = prompt.replace("{name}", user_data.get("name", "User"))
+    prompt = prompt.replace("{date}", current_date)
+    prompt = prompt.replace("{time}", current_time)
+    prompt = prompt.replace("{location}", "NYC")
+    prompt = prompt.replace("{user}", username)
+    prompt = prompt.replace("{instructionSet}", user_prefs)
+
+    system_message = {"role": "system", "content": prompt}
+
+    MAX_WORDS = 120000
+    messages_for_ai = []
+    total_length = 0
+
+    messages_for_ai.append(system_message)
+    total_length += len(system_message["content"].split())
+
+    truncated_history_messages = []
+    for msg in messages_for_new_branch:
+        message_content = msg.content
+        message_words = message_content.split()
+        if total_length + len(message_words) > MAX_WORDS:
+            remaining_words = MAX_WORDS - total_length
+            if remaining_words > 0:
+                truncated_content = ' '.join(message_words[:remaining_words])
+                truncated_history_messages.append({"role": msg.role, "content": truncated_content})
+                total_length += len(truncated_content.split())
+            break
+        else:
+            truncated_history_messages.append({"role": msg.role, "content": message_content})
+            total_length += len(message_words)
+
+    messages_for_ai.extend(truncated_history_messages)
+
+    if total_length >= MAX_WORDS:
+        logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {new_conversation_id})")
+
+    print("Messages sent to AI for new branch:", messages_for_ai)
+
+    url = "https://ai.hackclub.com/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    data_to_send = {
+        "messages": messages_for_ai,
+        "model": "llama-3.3-70b-versatile"
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=data_to_send)
+        response.raise_for_status()
+
+        response_data = response.json()
+
+        ai_reply_content = "No valid response from AI"
+        if "choices" in response_data and len(response_data["choices"]) > 0:
+            ai_reply_content = response_data["choices"][0]["message"]["content"]
+            logger.info(f"Received AI reply for new conversation branch {new_conversation_id}")
+            ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
+            messages_for_new_branch.append(ai_message)
+
+            graph_string = None
+            if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+                try:
+                    start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
+                    end_index = ai_reply_content.find("</GRAPH>", start_index)
+                    if end_index != -1:
+                        graph_string = ai_reply_content[start_index:end_index]
+                        graph_data = json.loads(graph_string)
+                        user_ref.update({
+                            "edges": graph_data.get("edges", []),
+                            "nodes": graph_data.get("nodes", [])
+                        })
+                        logger.info(f"Graph data updated in Firestore for user {user_uid}")
+                        ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
+                    else:
+                        logger.warning("Mismatched <GRAPH> tags in AI response.")
+                        ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)"
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error decoding JSON graph data from AI: {e}")
+                    ai_reply_content += "\n\n(Error processing graph data)"
+                except Exception as e:
+                    logger.error(f"Unexpected error processing graph data: {e}")
+                    ai_reply_content += "\n\n(Error processing graph data)"
+
+            pref = None
+            if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+                try:
+                    start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
+                    end_index = ai_reply_content.find("</PREF>", start_index)
+                    if end_index != -1:
+                        pref = ai_reply_content[start_index:end_index]
+                        user_ref.update({
+                            "ChatPreferences": pref
+                        })
+                        logger.info(f"User preferences updated in Firestore for user {user_uid}")
+                        ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
+                    else:
+                        logger.warning("Mismatched <PREF> tags in AI response.")
+                        ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
+                except Exception as e:
+                    logger.error(f"Unexpected error processing user preferences: {e}")
+                    ai_reply_content += "\n\n(Error processing user preferences)"
+
+            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+
+            new_conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore with {len(messages_for_new_branch)} messages.")
+
+            return ChatResponse(reply=ai_reply_content.strip(), conversation_id=new_conversation_id)
+
+        else:
+            logger.error("No choices found in the AI response payload for new branch.")
+            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+            new_conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after AI error.")
+            return ChatResponse(reply="No valid response from AI", conversation_id=new_conversation_id)
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error from AI API for new branch: {e.response.status_code} - {e.response.text}")
+        try:
+            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+            new_conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after HTTP error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history for new branch after HTTP error: {db_e}")
+        raise HTTPException(status_code=e.response.status_code, detail=f"Error communicating with AI: {e.response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error communicating with AI API for new branch: {e}")
+        try:
+            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+            new_conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after network error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history for new branch after network error: {db_e}")
+        raise HTTPException(status_code=500, detail="Network error communicating with AI")
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in /edit: {e}", exc_info=True)
+        try:
+            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+            new_conversation_ref.update({
+                "messages": messages_to_store,
+                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+            })
+            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after unexpected error.")
+        except Exception as db_e:
+            logger.error(f"Failed to save conversation history for new branch after unexpected error: {db_e}")
+        raise HTTPException(status_code=500, detail="An unexpected server error occurred")
+
+    return {"message": "Conversation updated successfully"}
 
 @app.post("/update_graph_with_doc", response_model=ChatResponse)
 async def update_graph_with_doc(
