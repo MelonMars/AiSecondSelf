@@ -1190,6 +1190,53 @@ async def update_prefs_from_message(user_info: dict = Depends(verify_token), bod
             detail="An unexpected error occurred"
         )
 
+@app.post("/update_picture")
+async def update_picture(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    picture_url = body.get("pictureUrl")
+    avatarType = body.get("avatarType")
+    if not picture_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Picture URL is required"
+        )
+
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_ref.update({
+            avatarType: picture_url
+        })
+        return {"message": "Profile picture updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating profile picture: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating profile picture: {str(e)}"
+        )
+
+@app.get("/pictures")
+async def get_pictures(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        pictures = {
+            "userAvatarUrl": user_data.get("userAvatarUrl", ""),
+            "aiAvatarUrl": user_data.get("aiAvatarUrl", "")
+        }
+        return pictures
+    except Exception as e:
+        logger.error(f"Error retrieving profile pictures: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving profile pictures: {str(e)}"
+        )
 
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True, log_level="info")

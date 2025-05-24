@@ -396,7 +396,9 @@ const ChatComponent = ({
   handleLikeMessage,
   handleDislikeMessage,
   handleSaveEditMessage,
-  currentConversationBranchInfo
+  currentConversationBranchInfo,
+  aiPicture,
+  userPicture,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -634,45 +636,61 @@ return (
             onMouseEnter={() => setHoveredMessageIndex(index)}
             onMouseLeave={() => setHoveredMessageIndex(null)}
           >
-            <div
-              className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
-                message.role === 'user'
-                  ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
-                  : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
-              } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
-            >
-              {editingMessageIndex === index ? (
-                                <div className="flex flex-col">
-                      <textarea
-                        ref={editTextareaRef}
-                        value={editMessageContent}
-                        onChange={(e) => {
-                          setEditMessageContent(e.target.value);
-                          adjustTextareaHeight(e.target);
-                        }}
-                        className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
-                          darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
-                        }`}
-                        rows={1}
-                        style={{ overflow: 'hidden' }}
-                      />
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
-                          className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          onClick={handleCancelEditMessage}
-                          className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
-                        >
-                          <X size={16} />
-                        </button>
+            <div className="flex items-end">
+              {message.role !== 'user' && (
+                <img
+                  src={aiPicture}
+                  alt="AI Avatar"
+                  className="w-8 h-8 rounded-full mr-2"
+                />
+              )}
+              <div
+                className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
+                  message.role === 'user'
+                    ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                    : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
+                } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
+              >
+                {editingMessageIndex === index ? (
+                                  <div className="flex flex-col">
+                        <textarea
+                          ref={editTextareaRef}
+                          value={editMessageContent}
+                          onChange={(e) => {
+                            setEditMessageContent(e.target.value);
+                            adjustTextareaHeight(e.target);
+                          }}
+                          className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
+                            darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                          }`}
+                          rows={1}
+                          style={{ overflow: 'hidden' }}
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
+                            className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button
+                            onClick={handleCancelEditMessage}
+                            className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-              ) : (
-                <ChatMessage content={message.content} darkMode={darkMode}/>
+                ) : (
+                  <ChatMessage content={message.content} darkMode={darkMode}/>
+                )}
+              </div>
+              {message.role === 'user' && (
+                <img
+                  src={userPicture}
+                  alt="User Avatar"
+                  className="w-8 h-8 rounded-full ml-2"
+                />
               )}
             </div>
 

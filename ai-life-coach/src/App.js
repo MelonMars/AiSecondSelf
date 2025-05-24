@@ -6,6 +6,9 @@ import { auth, googleProvider } from "./firebase";
 import ChatComponent from "./chat";
 import ProfileComponent from "./Profile";
 import SharedComponent from "./Shared";
+import { Cloudinary } from '@cloudinary/url-gen';
+import { auto } from '@cloudinary/url-gen/actions/resize';
+import { autoGravity } from '@cloudinary/url-gen/qualifiers/gravity';
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
@@ -82,10 +85,17 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [currentConversationBranchInfo, setCurrentConversationBranchInfo] = useState(null);
 
-
   const messagesEndRef = useRef(null);
 
   const inputRef = useRef(null);
+
+  const [userAvatarUrl, setUserAvatarUrl] = useState('');
+  const [aiAvatarUrl, setAiAvatarUrl] = useState('');
+
+  const [userAvatarImage, setAvatarImage] = useState(null);
+  const [aiAvatarImage, setAiAvatarImage] = useState(null);
+
+  const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
 
   const signInWithGoogle = async () => {
     setIsLoading(true);
@@ -174,7 +184,6 @@ export default function App() {
       inputRef.current?.focus();
     }
   }, [tab]);
-
 
   const fetchConversations = async () => {
     if (!authToken) {
@@ -652,13 +661,77 @@ export default function App() {
       inputRef.current?.focus();
   };
 
+  const handleUserAvatarUpload = (file) => {
+    uploadAvatarAndSaveUrl(file, 'userAvatarUrl');
+  };
+
+  const handleAIAvatarUpload = (file) => {
+    uploadAvatarAndSaveUrl(file, 'aiAvatarUrl');
+  };
+
+  const uploadAvatarAndSaveUrl = async (file, avatarType) => {
+    if (!file || !auth.currentUser) return;
+
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'profile-picture');
+
+      const cloudinaryUploadRes = await fetch(
+          `https://api.cloudinary.com/v1_1/dy78nlcso/image/upload`,
+          {
+              method: 'POST',
+              body: formData,
+          }
+      );
+
+      if (!cloudinaryUploadRes.ok) {
+        const errorData = await cloudinaryUploadRes.json();
+        throw new Error(`Cloudinary upload failed: ${errorData.error.message}`);
+      }
+
+      const cloudinaryData = await cloudinaryUploadRes.json();
+      const imgUrl = cloudinaryData.secure_url;
+      
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      }
+
+      const res = await fetch("http://127.0.0.1:8000/update_picture", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ pictureUrl: imgUrl, avatarType: avatarType })
+      })
+
+      if (avatarType === 'userAvatarUrl') {
+        setUserAvatarUrl(imgUrl);
+        setAvatarImage(imgUrl);
+      } else if (avatarType === 'aiAvatarUrl') {
+        setAiAvatarUrl(imgUrl);
+        setAiAvatarImage(imgUrl);
+      }
+
+      console.log(`${avatarType} uploaded and URL saved:`, imgUrl);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderAuthModal = () => {
      if (!showAuthModal) return null;
      let storedMethod;
     storedMethod = localStorage.getItem('lastUsedLoginMethod');
      const highlightClass = (method) => {
       if (storedMethod === method) {
-          return darkMode ? 'ring-2 ring-offset-2 ring-purple-400' : 'ring-2 ring-offset-2 ring-purple-600';
+          return darkMode ? 'ring-2 ring-offset-2 ring-orange-400' : 'ring-2 ring-offset-2 ring-orange-600';
       }
       return '';
   };
@@ -825,7 +898,6 @@ export default function App() {
     }
   };
 
-
     const fetchUserData = async (token) => {
       if (!token) {
           setGraphData({ nodes: [], edges: [] });
@@ -875,6 +947,38 @@ export default function App() {
               console.error("Failed to fetch user data", response.status);
               setGraphData({ nodes: [], edges: [] }); 
            }
+        }
+
+        const res = await fetch("http://127.0.0.1:8000/pictures", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.userAvatarUrl) {
+            setUserAvatarUrl(data.userAvatarUrl);
+            const userImage = await fetch(data.userAvatarUrl);
+            const userImageBlob = await userImage.blob();
+            const userImageUrl = URL.createObjectURL(userImageBlob);
+            setAvatarImage(userImageUrl);
+          }
+          if (data && data.aiAvatarUrl) {
+            setAiAvatarUrl(data.aiAvatarUrl);
+            const aiImage = await fetch(data.aiAvatarUrl);
+            const aiImageBlob = await aiImage.blob();
+            const aiImageUrl = URL.createObjectURL(aiImageBlob);
+            setAiAvatarImage(aiImageUrl);
+          }
+        }
+        else {
+          if (res.status === 401) {
+            console.error("Auth failed fetching user pictures. Logging out.");
+            logout();
+          } else {
+            console.error("Failed to fetch user pictures", res.status);
+          }
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -1305,6 +1409,8 @@ export default function App() {
                  handleDislikeMessage={handleDislikeMessage}
                  handleSaveEditMessage={handleSaveEditMessage}
                  currentConversationBranchInfo={currentConversationBranchInfo}
+                 aiPicture={aiAvatarImage}
+                 userPicture={userAvatarImage}
              />
          )}
          {tab === "graph" && (<GraphView 
@@ -1320,7 +1426,11 @@ export default function App() {
                     sendMessageWithDoc={sendMessageWithDoc}
                     isLoading={isLoading}
                     darkMode={darkMode}
-                    setDarkMode={setDarkMode}/>)}
+                    setDarkMode={setDarkMode}
+                    handleUserAvatarUpload={handleUserAvatarUpload}
+                    handleAIAvatarUpload={handleAIAvatarUpload}
+                    aiAvatarUrl={aiAvatarImage}
+                    userAvatarUrl={userAvatarImage}/>)}
          {tab === "shared" && (<SharedComponent 
                                darkMode={darkMode}
                                authToken={authToken}/>)}
