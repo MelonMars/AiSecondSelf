@@ -164,6 +164,7 @@ export default function GraphView({ data, onDataChange, darkMode }) {
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
 
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 0, y: 0 });
   const zoomStep = 0.1;
   const minZoom = 0.5;
   const maxZoom = 2.0;
@@ -229,6 +230,34 @@ export default function GraphView({ data, onDataChange, darkMode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [contextMenu]);
 
+  const handleWheel = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const svgRect = svgRef.current.getBoundingClientRect();
+    const mouseX = event.clientX - svgRect.left;
+    const mouseY = event.clientY - svgRect.top;
+    setZoomOrigin({ x: mouseX, y: mouseY });
+    
+    const delta = event.deltaY > 0 ? -zoomStep : zoomStep;
+    setZoomLevel(prev => Math.max(minZoom, Math.min(maxZoom, prev + delta)));
+  };
+
+  useEffect(() => {
+    const svgElement = svgRef.current;
+    if (!svgElement) return;
+
+    const wheelHandler = (event) => {
+        event.preventDefault();
+        handleWheel(event);
+    };
+
+    svgElement.addEventListener('wheel', wheelHandler, { passive: false });
+    
+    return () => {
+        svgElement.removeEventListener('wheel', wheelHandler);
+    };
+  }, [handleWheel]);
 
   const handleMouseDown = (event) => {
     if (event.button !== 0 || contextMenu.visible || nodeForm.visible || edgeForm.visible) return; 
@@ -268,14 +297,25 @@ export default function GraphView({ data, onDataChange, darkMode }) {
   };
 
 
-  const handleZoomIn = () => {
-      setZoomLevel(prev => Math.min(maxZoom, prev + zoomStep));
+  const handleZoomIn = (event) => {
+    if (event) {
+        const svgRect = svgRef.current.getBoundingClientRect();
+        const mouseX = event.clientX - svgRect.left;
+        const mouseY = event.clientY - svgRect.top;
+        setZoomOrigin({ x: mouseX, y: mouseY });
+    }
+    setZoomLevel(prev => Math.min(maxZoom, prev + zoomStep));
   };
 
-  const handleZoomOut = () => {
-      setZoomLevel(prev => Math.max(minZoom, prev - zoomStep));
+const handleZoomOut = (event) => {
+    if (event) {
+        const svgRect = svgRef.current.getBoundingClientRect();
+        const mouseX = event.clientX - svgRect.left;
+        const mouseY = event.clientY - svgRect.top;
+        setZoomOrigin({ x: mouseX, y: mouseY });
+    }
+    setZoomLevel(prev => Math.max(minZoom, prev - zoomStep));
   };
-
 
   const handleRightClick = (event) => {
     event.preventDefault();
@@ -489,12 +529,32 @@ export default function GraphView({ data, onDataChange, darkMode }) {
        return layoutNodes.find(n => n.id === nodeId);
    };
 
-  const getEdgePath = (sourceId, targetId) => {
-      const source = getNodeLayoutPosition(sourceId);
-      const target = getNodeLayoutPosition(targetId);
-      if (!source || !target) return "";
-      return `M${source.x},${source.y} L${target.x},${target.y}`;
-  };
+   const getEdgePath = (sourceId, targetId) => {
+    const source = getNodeLayoutPosition(sourceId);
+    const target = getNodeLayoutPosition(targetId);
+    if (!source || !target) return "";
+    
+    const isSourceYou = source.id === "1" || source.label.toLowerCase() === "you";
+    const isTargetYou = target.id === "1" || target.label.toLowerCase() === "you";
+    const sourceRadius = (isSourceYou ? 32 : 28) / Math.sqrt(zoomLevel);
+    const targetRadius = (isTargetYou ? 32 : 28) / Math.sqrt(zoomLevel);
+    
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance === 0) return "";
+    
+    const unitX = dx / distance;
+    const unitY = dy / distance;
+    
+    const startX = source.x + unitX * sourceRadius;
+    const startY = source.y + unitY * sourceRadius;
+    const endX = target.x - unitX * targetRadius;
+    const endY = target.y - unitY * targetRadius;
+    
+    return `M${startX},${startY} L${endX},${endY}`;
+};
 
   const getLabelPosition = (sourceId, targetId) => {
     const source = getNodeLayoutPosition(sourceId);
@@ -507,22 +567,25 @@ export default function GraphView({ data, onDataChange, darkMode }) {
   };
 
   const handleNodeHover = (layoutNode, event) => {
-      if (layoutNode) {
-          const svgRect = svgRef.current?.getBoundingClientRect();
-          if (!svgRect) return;
+    if (layoutNode) {
+        const svgRect = svgRef.current?.getBoundingClientRect();
+        if (!svgRect) return;
 
-          const nodeScreenX = layoutNode.x * zoomLevel + panOffset.x + svgRect.left;
-          const nodeScreenY = layoutNode.y * zoomLevel + panOffset.y + svgRect.top;
+        const transformedX = (layoutNode.x * zoomLevel) + panOffset.x + zoomOrigin.x * (1 - zoomLevel);
+        const transformedY = (layoutNode.y * zoomLevel) + panOffset.y + zoomOrigin.y * (1 - zoomLevel);
+        
+        const nodeScreenX = transformedX + svgRect.left;
+        const nodeScreenY = transformedY + svgRect.top;
 
-          setTooltipPosition({
-              x: nodeScreenX + 40,
-              y: nodeScreenY - 40
-          });
-          setHoveredNode(layoutNode);
-      } else {
-          setHoveredNode(null);
-      }
-  };
+        setTooltipPosition({
+            x: nodeScreenX + 40,
+            y: nodeScreenY - 40
+        });
+        setHoveredNode(layoutNode);
+    } else {
+        setHoveredNode(null);
+    }
+};
 
   const NodeTooltip = () => {
     if (!hoveredNode) return null;
@@ -595,25 +658,42 @@ export default function GraphView({ data, onDataChange, darkMode }) {
       <svg
         ref={svgRef}
         width="100%"
-        height="600px" 
+        height="90%"
         className={`rounded-lg shadow-inner cursor-grab active:cursor-grabbing ${darkMode ? "bg-gray-700" : "bg-white"}`}
         onContextMenu={handleRightClick}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave} 
+        onMouseLeave={handleMouseLeave}
+        onWheel={handleWheel}
+        style={{ touchAction: 'none' }}
       >
-        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path
-            d="M 20 0 L 0 0 0 20"
-            fill="none"
-            stroke={darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
-            strokeWidth="1"
-          />
-        </pattern>
+        <defs>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path
+              d="M 20 0 L 0 0 0 20"
+              fill="none"
+              stroke={darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
+              strokeWidth="1"
+            />
+          </pattern>
+          <marker
+            id="arrowhead"
+            markerWidth="10"
+            markerHeight="7"
+            refX="9"
+            refY="3.5"
+            orient="auto"
+          >
+            <polygon
+              points="0 0, 10 3.5, 0 7"
+              fill={darkMode ? "#999" : "#666"}
+            />
+          </marker>
+        </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
   
-        <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
+        <g transform={`translate(${panOffset.x + zoomOrigin.x * (1 - zoomLevel)}, ${panOffset.y + zoomOrigin.y * (1 - zoomLevel)}) scale(${zoomLevel})`}>
           {structuralEdges.map((edge, i) => {
             const source = getNodeLayoutPosition(edge.source);
             const target = getNodeLayoutPosition(edge.target);
