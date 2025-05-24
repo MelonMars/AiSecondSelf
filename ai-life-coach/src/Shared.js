@@ -5,6 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import * as Babel from "@babel/standalone";
+import { useParams, useLocation } from 'react-router-dom';
 
 function DynamicWidget({ payload }) {
   const containerRef = useRef(null);
@@ -122,79 +123,62 @@ const ChatMessage = memo(({ content, darkMode }) => {
   return <div className="max-w-full">{parts}</div>;
 });
 
-const SharedComponent = ({ darkMode = false, authToken }) => {
+const SharedComponent = () => {
   const [conversation, setConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [sharedUrlInput, setSharedUrlInput] = useState('');
   const [ownerId, setOwnerId] = useState(null);
   const [conversationId, setConversationId] = useState(null);
+  const [authToken, setAuthToken] = useState(localStorage.getItem('authToken') || null);
+  const [darkMode, setDarkMode] = useState(localStorage.getItem('darkMode') === 'true' || false);
+  const { ownerId: urlOwnerId, conversationId: urlConversationId } = useParams();
+  const location = useLocation();
 
-  const handleUrlInputChange = (e) => {
-    setSharedUrlInput(e.target.value);
-  };
+  useEffect(() => {
+    setOwnerId(urlOwnerId);
+    setConversationId(urlConversationId);
 
-  const handleLoadSharedUrl = async () => {
-
-    if (!sharedUrlInput.trim()) {
-        setError("Please enter a URL.");
-        setConversation(null);
-        setOwnerId(null);
-        setConversationId(null);
-        return;
+    if (urlOwnerId && urlConversationId) {
+      handleLoadSharedUrlFromParams(urlOwnerId, urlConversationId);
+    } else {
+        setError("Invalid shared URL. Owner ID and Conversation ID are missing.");
     }
+  }, [urlOwnerId, urlConversationId, authToken]); 
 
-    setIsLoading(true); 
-    setError(null); 
-    setConversation(null); 
-    setOwnerId(null);
-    setConversationId(null);
+  const handleLoadSharedUrlFromParams = async (currentOwnerId, currentConversationId) => {
+    setIsLoading(true);
+    setError(null);
+    setConversation(null);
 
     try {
-      const url = new URL(sharedUrlInput);
+      const url = `http://127.0.0.1:8000/conversations/${currentOwnerId}/${currentConversationId}`;
 
-      try {
-          const headers = { "Authorization": `Bearer ${authToken}` };
-          const res = await fetch(url, { headers });
+      const res = await fetch(url, {headers: {
+        'Authorization': `Bearer ${authToken}`,
+      }});
 
-          if (!res.ok) {
-            let errorMessage = `Server error: ${res.status}`;
-            if (res.status === 401) {
-                errorMessage = "Authentication failed. Please log in again.";
-            } else if (res.status === 404) {
-                 errorMessage = "Conversation not found.";
-            } else {
-                 const errorData = await res.json();
-                 errorMessage = errorData.message || errorMessage;
-            }
-            throw new Error(errorMessage);
+      if (!res.ok) {
+        let errorMessage = `Server error: ${res.status}`;
+        if (res.status === 401) {
+          errorMessage = "Authentication failed. Please log in again.";
+        } else if (res.status === 404) {
+          errorMessage = "Conversation not found.";
+        } else {
+          const errorData = await res.json();
+          errorMessage = errorData.message || errorMessage;
         }
-
-        const data = await res.json();
-        setConversation(data);
-      } catch (e) {
-          console.error("Error fetching conversation:", e);
-          setError(e.message || "Failed to load conversation.");
-      } finally {
-          setIsLoading(false);
+        throw new Error(errorMessage);
       }
+
+      const data = await res.json();
+      setConversation(data);
     } catch (e) {
-      console.error("Error parsing input URL:", e);
-      setError("Invalid URL provided.");
-      setConversation(null);
-      setOwnerId(null);
-      setConversationId(null);
+      console.error("Error fetching conversation:", e);
+      setError(e.message || "Failed to load conversation.");
+    } finally {
       setIsLoading(false);
     }
   };
-
-  const handleInputKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleLoadSharedUrl();
-    }
-  };
-
 
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-black'}`}>
@@ -203,7 +187,6 @@ const SharedComponent = ({ darkMode = false, authToken }) => {
         <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : ''}`}>
           Shared Conversation{conversation?.title ? `: ${conversation.title}` : ''}
         </h1>
-
       </div>
 
       <div className="flex-grow overflow-y-auto p-4 space-y-4">
@@ -215,7 +198,7 @@ const SharedComponent = ({ darkMode = false, authToken }) => {
 
         {error && !isLoading && (
           <div className="flex justify-center items-center h-full">
-            <div className={`text-red-500 font-semibold p-4 border ${darkMode ? 'border-red-700 bg-red-900' : 'border-red-300 bg-red-100'} rounded-lg`}>
+            <div className={`text-red-500 font-semibold p-4 border ${darkMode ? 'border-red-700 bg-red-900' : 'border-red-100 bg-red-100'} rounded-lg`}>
               {error}
             </div>
           </div>
@@ -224,7 +207,7 @@ const SharedComponent = ({ darkMode = false, authToken }) => {
         {!isLoading && !error && !conversation && (
              <div className="flex justify-center items-center h-full text-center">
                  <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                     Welcome! Enter a shared conversation URL in the bar below to view it.
+                     Loading conversation...
                  </p>
              </div>
         )}
@@ -260,7 +243,7 @@ const SharedComponent = ({ darkMode = false, authToken }) => {
           <div ref={useRef(null)} />
       </div>
 
-      <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t shadow-sm`}>
+      {/* <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t shadow-sm`}>
         <div className="flex items-center">
           <input
             type="text"
@@ -280,7 +263,7 @@ const SharedComponent = ({ darkMode = false, authToken }) => {
             {isLoading ? 'Loading...' : 'Load'}
           </button>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };

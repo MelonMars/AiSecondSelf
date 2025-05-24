@@ -5,7 +5,6 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithP
 import { auth, googleProvider } from "./firebase";
 import ChatComponent from "./chat";
 import ProfileComponent from "./Profile";
-import SharedComponent from "./Shared";
 import { Cloudinary } from '@cloudinary/url-gen';
 import { auto } from '@cloudinary/url-gen/actions/resize';
 import { autoGravity } from '@cloudinary/url-gen/qualifiers/gravity';
@@ -14,7 +13,6 @@ const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
   { id: "graph", label: "Graph", icon: Network },
   { id: "profile", label: "Profile", icon: User },
-  { id: "shared", label: "Shared", icon: Share}
 ];
 
 const saveGraphData = async (graphData) => {
@@ -1252,7 +1250,10 @@ export default function App() {
       const data = await res.json();
       if (data.conversation_url) {
         console.log("Conversation shared successfully. URL:", data.conversation_url);
-        setSharedURL(data.conversation_url);
+        var sharedURL = data.conversation_url;
+
+        sharedURL = sharedURL.replace(/\/conversations/g, "/shared").replace(/:8000/g, ":3000");
+        setSharedURL(sharedURL);
         setShowSharedModal(true);
       } else {
         console.warn("No conversation URL returned from backend.");
@@ -1431,10 +1432,6 @@ export default function App() {
                     handleAIAvatarUpload={handleAIAvatarUpload}
                     aiAvatarUrl={aiAvatarImage}
                     userAvatarUrl={userAvatarImage}/>)}
-         {tab === "shared" && (<SharedComponent 
-                               darkMode={darkMode}
-                               authToken={authToken}/>)}
-
       </div>
 
       {renderAuthModal()}
