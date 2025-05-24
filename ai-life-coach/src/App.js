@@ -96,6 +96,7 @@ export default function App() {
         const result = await signInWithPopup(auth, googleProvider);
         console.log("Google sign-in successful:", result.user);
         setShowAuthModal(false);
+        localStorage.setItem("lastUsedLoginMethod", "google");
     } catch (error) {
         console.error("Google sign-in error:", error);
         if (error.code === 'auth/account-exists-with-different-credential') {
@@ -653,6 +654,14 @@ export default function App() {
 
   const renderAuthModal = () => {
      if (!showAuthModal) return null;
+     let storedMethod;
+    storedMethod = localStorage.getItem('lastUsedLoginMethod');
+     const highlightClass = (method) => {
+      if (storedMethod === method) {
+          return darkMode ? 'ring-2 ring-offset-2 ring-purple-400' : 'ring-2 ring-offset-2 ring-purple-600';
+      }
+      return '';
+  };
       return (
         <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-black'} bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn`}>
             <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-lg p-6 w-full max-w-md`}>
@@ -686,7 +695,7 @@ export default function App() {
                     )}
 
                     <div>
-                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
+                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${highlightClass('email')}`}>Email</label>
                         <input
                             type="email"
                             value={email}
@@ -697,7 +706,7 @@ export default function App() {
                     </div>
 
                     <div>
-                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Password</label>
+                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${highlightClass('email')}`}>Password</label>
                         <input
                             type="password"
                             value={password}
@@ -729,8 +738,8 @@ export default function App() {
                     <button
                         onClick={signInWithGoogle}
                         disabled={isLoading}
-                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-gray-800 ${darkMode ? 'bg-white hover:bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'} mt-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500`}
-                    >
+                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-gray-800 ${darkMode ? 'bg-white hover:bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'} mt-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 ${
+                          highlightClass('google')}`}>
                         {isLoading ? (
                             <Loader size={20} className="mr-2 animate-spin" />
                         ) : (
@@ -921,6 +930,7 @@ export default function App() {
           await signInWithEmailAndPassword(auth, email, password);
           console.log("Email/Password login successful!");
           setShowAuthModal(false);
+          localStorage.setItem("lastUsedLoginMethod", "email");
       } catch (error) {
           console.error("Login error:", error);
           if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
