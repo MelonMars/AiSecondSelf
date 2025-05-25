@@ -374,112 +374,113 @@ export default function App() {
 };
 
 
-  const sendMessage = async (messageInput) => {
-    console.log("Attempting to send message in App.js"); 
-    console.log("Input state:", messageInput, "AuthToken exists:", !!authToken, "IsLoading state:", isLoading); 
+const sendMessage = async (messageInput) => {
+  console.log("Attempting to send message in App.js");
+  console.log("Input state:", messageInput, "AuthToken exists:", !!authToken, "IsLoading state:", isLoading);
 
-    if (!messageInput.trim()) {
-      console.log("Input is empty, returning.");
-      return;
-    }
-    if (!authToken) {
-      console.log("Auth token missing, cannot send.");
-      setAuthError("Please log in to send messages.");
-      setShowAuthModal(true);
-      return;
-    }
-    if (isLoading) {
-      console.log("Already loading, ignoring send.");
-      return;
-    }
+  if (!messageInput.trim()) {
+    console.log("Input is empty, returning.");
+    return;
+  }
+  if (!authToken) {
+    console.log("Auth token missing, cannot send.");
+    setAuthError("Please log in to send messages.");
+    setShowAuthModal(true);
+    return;
+  }
+  if (isLoading) {
+    console.log("Already loading, ignoring send.");
+    return;
+  }
 
-    const userMessageContent = messageInput;
-    const userMessage = { role: "user", content: userMessageContent };
+  const userMessage = { role: "user", content: messageInput };
+  const bulletProse = graphData ? JSON.stringify(graphData) : null;
 
-    const bulletProse = graphData ? JSON.stringify(graphData) : null;
+  const messagesForApi = [...messages, userMessage];
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+  const placeholderAiMessage = { role: "assistant", content: "" };
+  setMessages(prev => [...prev, userMessage, placeholderAiMessage]);
 
-    console.log("c:", [...messages, userMessage]);
-    try {
-      const headers = {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${authToken}`,
-      };
+  setInput("");
+  setIsLoading(true);
 
-      console.log("Bullet Prose is:", bulletProse);
+  try {
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${authToken}`,
+    };
 
-      const requestBody = {
-        messages: [...messages, userMessage],
-        conversation_id: currentConversationId,
-        bulletProse: bulletProse
-      };
+    const requestBody = {
+      messages: messagesForApi, 
+      conversation_id: currentConversationId,
+      bulletProse: bulletProse
+    };
 
-      console.log("Sending message to server from App.js:", requestBody);
+    console.log("Sending message to streaming server from App.js:", requestBody);
 
-      const res = await fetch("http://127.0.0.1:8000/chat", {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(requestBody)
-      });
+    const res = await fetch("http://127.0.0.1:8000/chat-stream", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody)
+    });
 
-      console.log("Got response from server in App.js:", res.ok, res.status); 
+    console.log("Got response from server in App.js:", res.ok, res.status);
 
-      if (!res.ok) {
-        const errorText = await res.text(); 
-        console.error(`Server error ${res.status}:`, errorText);
-
-        if (res.status === 401) {
-          setAuthError("Authentication failed. Please log in again.");
-          setShowAuthModal(true);
-          logout();
-        }
-        setMessages((prev) => [...prev, {
-          role: "assistant",
-          content: `Error from server: ${res.status}. Details: ${errorText.substring(0, 150)}...`
-        }]);
-        return; 
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Server error ${res.status}:`, errorText);
+      if (res.status === 401) {
+        setAuthError("Authentication failed. Please log in again.");
+        setShowAuthModal(true);
+        logout();
       }
-
-      const data = await res.json();
-      console.log("AI response data from App.js:", data);
-
-      if (data && data.reply) {
-        const aiMessage = { role: "assistant", content: data.reply };
-        setMessages((prev) => [...prev, aiMessage]);
-
-        if (data.conversation_id && data.conversation_id !== currentConversationId) {
-          console.log("Backend created new conversation with ID:", data.conversation_id);
-          setCurrentConversationId(data.conversation_id); 
-          fetchConversations();
-        } else if (currentConversationId) {
-          fetchConversations();
-        } else if (data.conversation_id && !currentConversationId) {
-          setCurrentConversationId(data.conversation_id);
-          fetchConversations();
-        }
-
-      } else {
-        console.warn("AI response data missing 'reply' field in App.js:", data);
-        setMessages((prev) => [...prev, {
-          role: "assistant",
-          content: "Received unexpected response from AI. Response data:",
-        }]);
-      }
-
-    } catch (error) { 
-      console.error("Network or processing error in App.js sendMessage:", error);
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: "Sorry, there was a connection or processing error. Please try again later."
-      }]);
-    } finally {
-      console.log("sendMessage finally block reached in App.js");
-      setIsLoading(false); 
+      setMessages(prev => prev.map((msg, index) => 
+        index === prev.length - 1 
+        ? { ...msg, content: `Error from server: ${res.status}. ${errorText.substring(0, 150)}...` } 
+        : msg
+      ));
+      return;
     }
-  };
+
+    const newConvId = res.headers.get('X-Conversation-Id');
+    if (newConvId && newConvId !== currentConversationId) {
+        console.log("Received new conversation ID from header:", newConvId);
+        setCurrentConversationId(newConvId);
+    }
+    
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedResponse = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break; 
+
+      const chunk = decoder.decode(value, { stream: true });
+      accumulatedResponse += chunk;
+
+      console.log("Received chunk from server in App.js:", chunk);
+
+      setMessages(prev => prev.map((msg, index) => 
+        index === prev.length - 1 
+        ? { ...msg, content: accumulatedResponse } 
+        : msg
+      ));
+    }
+
+  } catch (error) {
+    console.error("Network or processing error in App.js sendMessage:", error);
+    setMessages(prev => prev.map((msg, index) => 
+      index === prev.length - 1 
+      ? { ...msg, content: "Sorry, there was a connection or processing error. Please try again later." } 
+      : msg
+    ));
+  } finally {
+    console.log("sendMessage finally block reached in App.js");
+    setIsLoading(false);
+    fetchConversations();
+  }
+};
 
   const sendMessages = async (messages) => {
     console.log("Attempting to send messages in App.js");

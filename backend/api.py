@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form, Request
+from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import uvicorn
 from pydantic import BaseModel, Field
 from fastapi.logger import logger
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 import requests
 import time
 import firebase_admin
@@ -13,15 +14,21 @@ import json
 import datetime
 import logging
 import os
+import google.generativeai as genai
 
-
+cred = ""
+gemini_cred = ""
 if not firebase_admin._apps:
     # use my Mac service account or my Desktop service account
     if os.name == 'posix':
         cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-83bb9cb5c9.json")
+        gemini_cred = open("geminikey.txt", "r").read()
     else:
         cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
     firebase_admin.initialize_app(cred)
+
+print("Got gemini cred: ", gemini_cred)
+client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
 
 db = firestore.client()
 
@@ -33,6 +40,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Conversation-Id"] 
 )
 
 security = HTTPBearer()
@@ -75,7 +83,10 @@ def read_root():
 class Message(BaseModel):
     role: str
     content: str
-    timestamp: datetime.datetime
+    timestamp: Optional[datetime.datetime] = Field(default_factory=datetime.datetime.now)
+
+    class Config:
+        arbitrary_types_allowed = True
 
 class ChatRequest(BaseModel):
     messages: List[Message]
@@ -97,11 +108,6 @@ class AuthResponse(BaseModel):
 
 class DocumentRequest(BaseModel):
     bulletProse: str
-
-class Message(BaseModel):
-    role: str 
-    content: str
-    timestamp: datetime.datetime 
 
 class ConversationSummary(BaseModel):
     id: str
@@ -243,6 +249,155 @@ async def get_conversation(
         logger.error(f"Error retrieving conversation {conversation_id} for owner {owner_id} (accessed by {caller_uid}): {e}")
         raise HTTPException(status_code=500, detail="Error retrieving conversation")
 
+async def post_stream_save_to_db(
+    user_ref: firestore.DocumentReference,
+    conversation_ref: firestore.DocumentReference,
+    all_messages: List[Message],
+    full_ai_reply: str,
+    is_brand_new_conversation: bool
+):
+    logger.info(f"Background task started for conversation: {conversation_ref.id}")
+    ai_message = Message(role="assistant", content=full_ai_reply, timestamp=datetime.datetime.now(datetime.timezone.utc))
+    all_messages.append(ai_message)
+
+    user_uid = user_ref.id
+    ai_reply_content = full_ai_reply
+    if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+        try:
+            start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
+            end_index = ai_reply_content.find("</GRAPH>", start_index)
+            graph_string = ai_reply_content[start_index:end_index]
+            graph_data = json.loads(graph_string)
+            user_ref.update({"edges": graph_data.get("edges", []), "nodes": graph_data.get("nodes", [])})
+            logger.info(f"Graph data updated in Firestore for user {user_uid}")
+        except Exception as e:
+            logger.error(f"Error processing graph data in background: {e}")
+
+    if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+        try:
+            start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
+            end_index = ai_reply_content.find("</PREF>", start_index)
+            pref = ai_reply_content[start_index:end_index]
+            user_ref.update({"ChatPreferences": pref})
+            logger.info(f"User preferences updated in Firestore for user {user_uid}")
+        except Exception as e:
+            logger.error(f"Error processing user preferences in background: {e}")
+
+    messages_to_store = [msg.model_dump() for msg in all_messages]
+    update_data = {
+        "messages": messages_to_store,
+        "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    }
+
+    if is_brand_new_conversation and all_messages and all_messages[0].role == "user":
+        try:
+            first_message_content = all_messages[0].content
+            with open("titleprompt.txt", "r") as f:
+                titleprompt = f.read()
+            title_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            title_response = await title_model.generate_content_async(
+                f"{titleprompt}\n\nPlease generate a short, descriptive conversation title for this message:\n{first_message_content}"
+            )
+            title = title_response.text.strip().replace('"', '')
+            update_data["title"] = title
+            logger.info(f"Generated title for new conversation {conversation_ref.id}: '{title}'")
+        except Exception as e:
+            logger.error(f"Error during title generation in background: {e}")
+
+    conversation_ref.update(update_data)
+    logger.info(f"Background task finished. Conversation {conversation_ref.id} updated in Firestore.")
+
+@app.post("/chat-stream")
+async def chat_stream(
+    request: ChatRequest,
+    raw_request: Request,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(verify_token)
+):
+    user_uid = user_info["uid"]
+    user_ref = db.collection("users").document(user_uid)
+    conversation_id = request.conversation_id
+    now = datetime.datetime.now(datetime.timezone.utc)
+    is_brand_new_conversation_this_call = False
+
+    if conversation_id:
+        conversation_ref = user_ref.collection("conversations").document(conversation_id)
+        conversation_doc = conversation_ref.get()
+        if not conversation_doc.exists:
+            conversation_ref = user_ref.collection("conversations").document()
+            conversation_id = conversation_ref.id
+            is_brand_new_conversation_this_call = True
+    else:
+        conversation_ref = user_ref.collection("conversations").document()
+        conversation_id = conversation_ref.id
+        is_brand_new_conversation_this_call = True
+
+    if is_brand_new_conversation_this_call:
+        conversation_ref.set({
+            "user_id": user_uid, "created_at": now, "last_updated": now,
+            "messages": [], "title": "New Conversation"
+        })
+
+    all_messages: List[Message] = [Message(**msg) for msg in request.messages]
+    if all_messages and not all_messages[-1].timestamp:
+        all_messages[-1].timestamp = now
+
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+    
+    with open("prompt.txt", "r") as f:
+        prompt_template = f.read()
+
+    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
+    system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
+    system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
+    system_prompt = system_prompt.replace("{location}", "Unknown")
+    system_prompt = system_prompt.replace("{user}", user_data.get("name", "User"))
+    system_prompt = system_prompt.replace("{instructionSet}", user_data.get("ChatPreferences", ""))
+    system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
+    system_prompt = system_prompt.replace("{country}", "Unknown")
+
+    model = genai.GenerativeModel(
+        model_name='gemini-1.5-flash-latest',
+        system_instruction=system_prompt
+    )
+
+    messages_for_gemini = []
+    for msg in all_messages:
+        role = 'model' if msg.role == 'assistant' else 'user'
+        messages_for_gemini.append({'role': role, 'parts': [msg.content]})
+
+    async def stream_generator() -> AsyncGenerator[str, None]:
+        full_response_content = []
+        try:
+            response_stream = await model.generate_content_async(
+                messages_for_gemini,
+                stream=True
+            )
+            async for chunk in response_stream:
+                if chunk.text:
+                    print(f"Streaming chunk: {chunk.text}")
+                    yield chunk.text
+                    full_response_content.append(chunk.text)
+        except Exception as e:
+            logger.error(f"Error during Gemini stream: {e}")
+            yield "Error: Could not get response from AI."
+        finally:
+            logger.info("Stream finished. Scheduling background task for DB update.")
+            final_reply = "".join(full_response_content)
+            
+            background_tasks.add_task(
+                post_stream_save_to_db,
+                user_ref=user_ref,
+                conversation_ref=conversation_ref,
+                all_messages=all_messages,
+                full_ai_reply=final_reply,
+                is_brand_new_conversation=is_brand_new_conversation_this_call
+            )
+
+    headers = {"X-Conversation-Id": conversation_id}
+    return StreamingResponse(stream_generator(), media_type="text/plain", headers=headers)
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Depends(verify_token)):
@@ -328,25 +483,25 @@ async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Dep
     current_date = datetime.date.today().strftime("%Y-%m-%d")
     current_time = datetime.datetime.now().strftime("%H:%M:%S")
 
-    prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
-    prompt = prompt.replace("{name}", user_data.get("systemName", "AI"))
-    prompt = prompt.replace("{date}", current_date)
-    prompt = prompt.replace("{time}", current_time)
-    prompt = prompt.replace("{location}", location)
-    prompt = prompt.replace("{user}", username)
-    prompt = prompt.replace("{instructionSet}", user_prefs)
-    prompt = prompt.replace("{personalities}", ",".join(ai_personalities))
+    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
+    system_prompt = system_prompt.replace("{date}", current_date)
+    system_prompt = system_prompt.replace("{time}", current_time)
+    system_prompt = system_prompt.replace("{location}", location)
+    system_prompt = system_prompt.replace("{user}", username)
+    system_prompt = system_prompt.replace("{instructionSet}", user_prefs)
+    system_prompt = system_prompt.replace("{personalities}", ",".join(ai_personalities))
 
-    system_message = {"role": "system", "content": prompt}
+    # system_message = {"role": "system", "content": prompt}
 
     MAX_WORDS = 120000
-    messages_for_ai = []
-    total_length = 0
+    # total_length = 0
 
-    messages_for_ai.append(system_message)
-    total_length += len(system_message["content"].split())
+    # messages_for_ai.append(system_message)
+    # total_length += len(system_message["content"].split())
 
     truncated_history_messages = []
+    total_length = 0
     for msg in all_messages:
         message_content = msg.content
         message_words = message_content.split()
@@ -361,166 +516,120 @@ async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Dep
             truncated_history_messages.append({"role": msg.role, "content": message_content})
             total_length += len(message_words)
 
-    messages_for_ai.extend(truncated_history_messages)
+    # messages_for_ai.extend(truncated_history_messages)
 
     if total_length >= MAX_WORDS:
         logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {conversation_id})")
 
-    print("Messages sent to AI:", messages_for_ai)
-
-    url = "https://ai.hackclub.com/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-    }
-    data_to_send = {
-        "messages": messages_for_ai,
-        "model": "llama-3.3-70b-versatile"
-    }
+    # print("Messages sent to AI:", messages_for_ai)
 
     try:
-        response = requests.post(url, headers=headers, json=data_to_send)
-        response.raise_for_status()
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash-latest',
+            system_instruction=system_prompt
+        )
 
-        response_data = response.json()
-
-        ai_reply_content = "No valid response from AI"
-        if "choices" in response_data and len(response_data["choices"]) > 0:
-            ai_reply_content = response_data["choices"][0]["message"]["content"]
-            logger.info(f"Received AI reply for conversation {conversation_id}")
-            ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
-            all_messages.append(ai_message)
-
-            graph_string = None
-            if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
-                try:
-                    start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
-                    end_index = ai_reply_content.find("</GRAPH>", start_index)
-                    if end_index != -1:
-                        graph_string = ai_reply_content[start_index:end_index]
-                        graph_data = json.loads(graph_string)
-                        user_ref.update({
-                            "edges": graph_data.get("edges", []),
-                            "nodes": graph_data.get("nodes", [])
-                        })
-                        logger.info(f"Graph data updated in Firestore for user {user_uid}")
-                        ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
-                    else:
-                        logger.warning("Mismatched <GRAPH> tags in AI response.")
-                        ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding JSON graph data from AI: {e}")
-                    ai_reply_content += "\n\n(Error processing graph data)" 
-                except Exception as e:
-                    logger.error(f"Unexpected error processing graph data: {e}")
-                    ai_reply_content += "\n\n(Error processing graph data)"
-
-
-            pref = None
-            if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
-                try:
-                    start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
-                    end_index = ai_reply_content.find("</PREF>", start_index)
-                    if end_index != -1:
-                        pref = ai_reply_content[start_index:end_index]
-                        user_ref.update({
-                            "ChatPreferences": pref
-                        })
-                        logger.info(f"User preferences updated in Firestore for user {user_uid}")
-                        ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
-                    else:
-                        logger.warning("Mismatched <PREF> tags in AI response.")
-                        ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
-                except Exception as e:
-                    logger.error(f"Unexpected error processing user preferences: {e}")
-                    ai_reply_content += "\n\n(Error processing user preferences)"
-
-            messages_to_store = [msg.model_dump() for msg in all_messages]
-
-            update_data = {
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            }
-
-            if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
-                try:
-                    first_message_content = all_messages[0].content
-                    titleprompt = open("titleprompt.txt", "r").read()
-                    title_data_to_send = {
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": titleprompt
-                            },
-                            {
-                                "role": "user",
-                                "content": "Please generate a short, descriptive conversation title for the following message:\n" + first_message_content
-                            }
-                        ],
-                        "model": "llama-3.3-70b-versatile"
-                    }
-                    title_response = requests.post(url, headers=headers, json=title_data_to_send)
-                    title_response.raise_for_status()
-                    title_response_data = title_response.json()
-                    if "choices" in title_response_data and len(title_response_data["choices"]) > 0:
-                        title = title_response_data["choices"][0]["message"]["content"].strip()
-                        update_data["title"] = title
-                        logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
-                    else:
-                        logger.error("No choices found in the AI response for title generation.")
-                except FileNotFoundError:
-                    logger.error("titleprompt.txt not found, could not generate title.")
-                except requests.exceptions.RequestException as e:
-                    logger.error(f"Error calling AI for title generation: {e}")
-                except Exception as e:
-                    logger.error(f"An unexpected error occurred during title generation: {e}")
-
-
-            conversation_ref.update(update_data)
-            logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
-
-            return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
-
-        else:
-            logger.error("No choices found in the AI response payload.")
-            messages_to_store = [msg.model_dump() for msg in all_messages]
-            conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        messages_for_gemini = []
+        for msg in truncated_history_messages:
+            if not msg.get('content'):
+                continue
+            role = 'model' if msg['role'] == 'assistant' else 'user'
+            messages_for_gemini.append({
+                'role': role,
+                'parts': [msg['content']]
             })
-            logger.info(f"Conversation {conversation_id} updated in Firestore after AI error.")
-            return ChatResponse(reply="No valid response from AI", conversation_id=conversation_id)
+        
+        logger.info(f"Sending {len(messages_for_gemini)} messages to Gemini for conversation {conversation_id}")
+        chat_session = model.start_chat(history=messages_for_gemini[:-1])
+        last_message = messages_for_gemini[-1]['parts'][0]
+        
+        response = chat_session.send_message(last_message)
+
+        ai_reply_content = response.text
+        logger.info(f"Received AI reply for conversation {conversation_id}")
+        ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        all_messages.append(ai_message)
+
+        graph_string = None
+        if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+            try:
+                start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
+                end_index = ai_reply_content.find("</GRAPH>", start_index)
+                if end_index != -1:
+                    graph_string = ai_reply_content[start_index:end_index]
+                    graph_data = json.loads(graph_string)
+                    user_ref.update({
+                        "edges": graph_data.get("edges", []),
+                        "nodes": graph_data.get("nodes", [])
+                    })
+                    logger.info(f"Graph data updated in Firestore for user {user_uid}")
+                    ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
+                else:
+                    logger.warning("Mismatched <GRAPH> tags in AI response.")
+                    ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
+            except json.JSONDecodeError as e:
+                logger.error(f"Error decoding JSON graph data from AI: {e}")
+                ai_reply_content += "\n\n(Error processing graph data)" 
+            except Exception as e:
+                logger.error(f"Unexpected error processing graph data: {e}")
+                ai_reply_content += "\n\n(Error processing graph data)"
 
 
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"HTTP error from AI API: {e.response.status_code} - {e.response.text}")
-        try:
-            messages_to_store = [msg.model_dump() for msg in all_messages]
-            conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"Conversation {conversation_id} updated in Firestore after HTTP error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history after HTTP error: {db_e}")
+        pref = None
+        if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+            try:
+                start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
+                end_index = ai_reply_content.find("</PREF>", start_index)
+                if end_index != -1:
+                    pref = ai_reply_content[start_index:end_index]
+                    user_ref.update({
+                        "ChatPreferences": pref
+                    })
+                    logger.info(f"User preferences updated in Firestore for user {user_uid}")
+                    ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
+                else:
+                    logger.warning("Mismatched <PREF> tags in AI response.")
+                    ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
+            except Exception as e:
+                logger.error(f"Unexpected error processing user preferences: {e}")
+                ai_reply_content += "\n\n(Error processing user preferences)"
 
-        return ChatResponse(reply=f"Error communicating with AI: {e.response.status_code} - {e.response.text}", conversation_id=conversation_id)
+        messages_to_store = [msg.model_dump() for msg in all_messages]
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error communicating with AI API: {e}")
-        try:
-            messages_to_store = [msg.model_dump() for msg in all_messages]
-            conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"Conversation {conversation_id} updated in Firestore after network error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history after network error: {db_e}")
+        update_data = {
+            "messages": messages_to_store,
+            "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        }
 
-        return ChatResponse(reply="Network error communicating with AI", conversation_id=conversation_id)
+        if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
+            try:
+                first_message_content = all_messages[0].content
+                with open("titleprompt.txt", "r") as f:
+                    titleprompt = f.read()
 
+                title_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                title_generation_prompt = f"Please generate a short, descriptive conversation title for the following message:\n{first_message_content}"
+                
+                title_response = title_model.generate_content(
+                    title_generation_prompt,
+                )
+
+                title = title_response.text.strip().replace('"', '')
+                update_data["title"] = title
+                logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
+
+            except FileNotFoundError:
+                logger.error("titleprompt.txt not found, could not generate title.")
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during Gemini title generation: {e}")
+
+        conversation_ref.update(update_data)
+        logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
+
+        return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
+        
     except Exception as e:
-        logger.error(f"An unexpected error occurred in /chat: {e}", exc_info=True)
+        logger.error(f"An unexpected error occurred in /chat with Gemini: {e}", exc_info=True)
         try:
             messages_to_store = [msg.model_dump() for msg in all_messages]
             conversation_ref.update({
@@ -531,7 +640,172 @@ async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Dep
         except Exception as db_e:
             logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
 
-        return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
+        return ChatResponse(reply=f"An unexpected server error occurred with the AI model: {str(e)}", conversation_id=conversation_id)
+
+    # url = "https://ai.hackclub.com/chat/completions"
+    # headers = {
+    #     "Content-Type": "application/json",
+    # }
+    # data_to_send = {
+    #     "messages": messages_for_ai,
+    #     "model": "llama-3.3-70b-versatile"
+    # }
+
+    # try:
+    #     response = requests.post(url, headers=headers, json=data_to_send)
+    #     response.raise_for_status()
+
+    #     response_data = response.json()
+
+    #     ai_reply_content = "No valid response from AI"
+    #     if "choices" in response_data and len(response_data["choices"]) > 0:
+    #         ai_reply_content = response_data["choices"][0]["message"]["content"]
+    #         logger.info(f"Received AI reply for conversation {conversation_id}")
+    #         ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
+    #         all_messages.append(ai_message)
+
+    #         graph_string = None
+    #         if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+    #             try:
+    #                 start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
+    #                 end_index = ai_reply_content.find("</GRAPH>", start_index)
+    #                 if end_index != -1:
+    #                     graph_string = ai_reply_content[start_index:end_index]
+    #                     graph_data = json.loads(graph_string)
+    #                     user_ref.update({
+    #                         "edges": graph_data.get("edges", []),
+    #                         "nodes": graph_data.get("nodes", [])
+    #                     })
+    #                     logger.info(f"Graph data updated in Firestore for user {user_uid}")
+    #                     ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
+    #                 else:
+    #                     logger.warning("Mismatched <GRAPH> tags in AI response.")
+    #                     ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
+    #             except json.JSONDecodeError as e:
+    #                 logger.error(f"Error decoding JSON graph data from AI: {e}")
+    #                 ai_reply_content += "\n\n(Error processing graph data)" 
+    #             except Exception as e:
+    #                 logger.error(f"Unexpected error processing graph data: {e}")
+    #                 ai_reply_content += "\n\n(Error processing graph data)"
+
+
+    #         pref = None
+    #         if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+    #             try:
+    #                 start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
+    #                 end_index = ai_reply_content.find("</PREF>", start_index)
+    #                 if end_index != -1:
+    #                     pref = ai_reply_content[start_index:end_index]
+    #                     user_ref.update({
+    #                         "ChatPreferences": pref
+    #                     })
+    #                     logger.info(f"User preferences updated in Firestore for user {user_uid}")
+    #                     ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
+    #                 else:
+    #                     logger.warning("Mismatched <PREF> tags in AI response.")
+    #                     ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
+    #             except Exception as e:
+    #                 logger.error(f"Unexpected error processing user preferences: {e}")
+    #                 ai_reply_content += "\n\n(Error processing user preferences)"
+
+    #         messages_to_store = [msg.model_dump() for msg in all_messages]
+
+    #         update_data = {
+    #             "messages": messages_to_store,
+    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    #         }
+
+    #         if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
+    #             try:
+    #                 first_message_content = all_messages[0].content
+    #                 titleprompt = open("titleprompt.txt", "r").read()
+    #                 title_data_to_send = {
+    #                     "messages": [
+    #                         {
+    #                             "role": "system",
+    #                             "content": titleprompt
+    #                         },
+    #                         {
+    #                             "role": "user",
+    #                             "content": "Please generate a short, descriptive conversation title for the following message:\n" + first_message_content
+    #                         }
+    #                     ],
+    #                     "model": "llama-3.3-70b-versatile"
+    #                 }
+    #                 title_response = requests.post(url, headers=headers, json=title_data_to_send)
+    #                 title_response.raise_for_status()
+    #                 title_response_data = title_response.json()
+    #                 if "choices" in title_response_data and len(title_response_data["choices"]) > 0:
+    #                     title = title_response_data["choices"][0]["message"]["content"].strip()
+    #                     update_data["title"] = title
+    #                     logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
+    #                 else:
+    #                     logger.error("No choices found in the AI response for title generation.")
+    #             except FileNotFoundError:
+    #                 logger.error("titleprompt.txt not found, could not generate title.")
+    #             except requests.exceptions.RequestException as e:
+    #                 logger.error(f"Error calling AI for title generation: {e}")
+    #             except Exception as e:
+    #                 logger.error(f"An unexpected error occurred during title generation: {e}")
+
+
+    #         conversation_ref.update(update_data)
+    #         logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
+
+    #         return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
+
+    #     else:
+    #         logger.error("No choices found in the AI response payload.")
+    #         messages_to_store = [msg.model_dump() for msg in all_messages]
+    #         conversation_ref.update({
+    #             "messages": messages_to_store,
+    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    #         })
+    #         logger.info(f"Conversation {conversation_id} updated in Firestore after AI error.")
+    #         return ChatResponse(reply="No valid response from AI", conversation_id=conversation_id)
+
+
+    # except requests.exceptions.HTTPError as e:
+    #     logger.error(f"HTTP error from AI API: {e.response.status_code} - {e.response.text}")
+    #     try:
+    #         messages_to_store = [msg.model_dump() for msg in all_messages]
+    #         conversation_ref.update({
+    #             "messages": messages_to_store,
+    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    #         })
+    #         logger.info(f"Conversation {conversation_id} updated in Firestore after HTTP error.")
+    #     except Exception as db_e:
+    #         logger.error(f"Failed to save conversation history after HTTP error: {db_e}")
+
+    #     return ChatResponse(reply=f"Error communicating with AI: {e.response.status_code} - {e.response.text}", conversation_id=conversation_id)
+
+    # except requests.exceptions.RequestException as e:
+    #     logger.error(f"Network error communicating with AI API: {e}")
+    #     try:
+    #         messages_to_store = [msg.model_dump() for msg in all_messages]
+    #         conversation_ref.update({
+    #             "messages": messages_to_store,
+    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    #         })
+    #         logger.info(f"Conversation {conversation_id} updated in Firestore after network error.")
+    #     except Exception as db_e:
+    #         logger.error(f"Failed to save conversation history after network error: {db_e}")
+
+    #     return ChatResponse(reply="Network error communicating with AI", conversation_id=conversation_id)
+
+    # except Exception as e:
+    #     logger.error(f"An unexpected error occurred in /chat: {e}", exc_info=True)
+    #     try:
+    #         messages_to_store = [msg.model_dump() for msg in all_messages]
+    #         conversation_ref.update({
+    #             "messages": messages_to_store,
+    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
+    #         })
+    #         logger.info(f"Conversation {conversation_id} updated in Firestore after unexpected error.")
+    #     except Exception as db_e:
+    #         logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
+
+    #     return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
 
 @app.post("/edit", response_model=ChatResponse)
 async def edit_conversation(request: EditRequest, user_info: dict = Depends(verify_token)):
