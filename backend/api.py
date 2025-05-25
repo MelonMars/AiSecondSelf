@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form
+from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pydantic import BaseModel, Field
@@ -245,9 +245,22 @@ async def get_conversation(
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
+async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Depends(verify_token)):
     user_uid = user_info["uid"]
     user_ref = db.collection("users").document(user_uid)
+
+    client_ip = raw_request.client.host if raw_request.client else "Unknown IP"
+    location = "Unknown Location"
+    if client_ip:
+        try:
+            ipinfo_token = "38c16d946ecb52"
+            response = requests.get(f"https://ipinfo.io/{client_ip}?token={ipinfo_token}")
+            response.raise_for_status()
+            location_data = response.json()
+            print(f"Location data for IP {client_ip}: {location_data}")
+            location = location_data.get("city", "Unknown City") + ", " + location_data.get("region", "Unknown Region")
+        except Exception as e:
+            logger.error(f"Error retrieving location for IP {client_ip}: {e}")
 
     conversation_ref: firestore.DocumentReference
     conversation_id = request.conversation_id
@@ -318,7 +331,7 @@ async def chat(request: ChatRequest, user_info: dict = Depends(verify_token)):
     prompt = prompt.replace("{name}", user_data.get("name", "User"))
     prompt = prompt.replace("{date}", current_date)
     prompt = prompt.replace("{time}", current_time)
-    prompt = prompt.replace("{location}", "NYC")
+    prompt = prompt.replace("{location}", location)
     prompt = prompt.replace("{user}", username)
     prompt = prompt.replace("{instructionSet}", user_prefs)
 
