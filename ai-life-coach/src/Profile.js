@@ -15,7 +15,24 @@ function ProfileComponent({
   aiAvatarUrl,
   handleUserAvatarUpload,
   handleAIAvatarUpload,
+  aiName,
+  handleAINameChange,
+  aiPersonalities,
+  togglePersonality,
 }) {
+
+    const availablePersonalities = [
+        'Friendly',
+        'Formal',
+        'Witty',
+        'Sarcastic',
+        'Helpful',
+        'Concise',
+        'Creative',
+        'Analytical',
+        'Empathetic',
+        'Direct'
+    ];
 
     return (
         <div className={`p-6 max-w-2xl mx-auto ${darkMode ? "bg-gray-900" : "bg-white"}`}>
@@ -83,6 +100,45 @@ function ProfileComponent({
                 <p className="text-xs text-gray-500">Upload a picture for the AI's avatar (e.g., JPEG, PNG).</p>
               </div>
 
+              <div className="pt-4">
+                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  AI Name
+                </label>
+                <input
+                  type="text"
+                  value={aiName}
+                  onChange={(e) => handleAINameChange(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                    darkMode
+                      ? "bg-gray-800 text-white border-gray-700 focus:ring-orange-500"
+                      : "bg-white text-gray-700 border-gray-300 focus:ring-blue-500"
+                  }`}
+                  placeholder="Enter the AI's name"
+                />
+              </div>
+
+              <div className="pt-4">
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  AI Personalities
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {availablePersonalities.map((personality) => (
+                    <button
+                      key={personality}
+                      type="button"
+                      onClick={() => togglePersonality(personality)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${
+                        aiPersonalities.includes(personality)
+                          ? (darkMode ? "bg-orange-600 text-white" : "bg-blue-600 text-white")
+                          : (darkMode ? "bg-gray-700 text-gray-300 hover:bg-gray-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300")
+                      }`}
+                    >
+                      {personality}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Select one or more personalities for your AI.</p>
+              </div>
 
               <div>
                 <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
@@ -100,6 +156,7 @@ function ProfileComponent({
                   placeholder="Enter preferences or custom instructions for the AI..."
                 />
               </div>
+
               <div
                 id="doc-result"
                 className={`mt-4 p-3 rounded-md text-sm ${

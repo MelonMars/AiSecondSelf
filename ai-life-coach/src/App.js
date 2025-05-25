@@ -82,6 +82,8 @@ export default function App() {
   const [starredConversations, setStarredConversations] = useState([]);
   const [darkMode, setDarkMode] = useState(true);
   const [currentConversationBranchInfo, setCurrentConversationBranchInfo] = useState(null);
+  const [aiName, setAIName] = useState("AI");
+  const [aiPersonalities, setAiPersonalities] = useState([]); 
 
   const messagesEndRef = useRef(null);
 
@@ -139,6 +141,8 @@ export default function App() {
              if (graphData === null) {
                fetchUserData(idToken);
                fetchUserPrefs(idToken);
+               fetchPersonalities(idToken);
+               fetchAIName(idToken);
              }
            }, 0);
         }).catch(error => {
@@ -896,6 +900,72 @@ export default function App() {
     }
   };
 
+  const fetchPersonalities = async (token) => {
+    if (!token) return;
+    try {
+      console.log("Fetching AI personalities with token:", token);
+      const response = await fetch("http://127.0.0.1:8000/personalities", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.personalities)) {
+          setAiPersonalities(data.personalities);
+        } else {
+          console.warn("Fetched personalities data is not in expected format. Loading empty array.", data);
+          setAiPersonalities([]);
+        }
+      } else {
+          if (response.status === 401) {
+            console.error("Auth failed fetching AI personalities. Logging out.");
+          } else {
+            console.error("Failed to fetch AI personalities", response.status);
+          }
+        }
+      } catch (error) {
+          console.error("Error fetching AI personalities:", error);
+          setAiPersonalities([]);
+    } finally {
+      // Don't set loading, bc you need to fetch more than one thing
+    }
+  };
+
+  const fetchAIName = async (token) => {
+    if (!token) return;
+    try {
+      console.log("Fetching AI name with token:", token);
+      const response = await fetch("http://127.0.0.1:8000/ai_name", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.ai_name) {
+          setAIName(data.ai_name);
+        } else {
+          console.warn("Fetched AI name data is not in expected format. Loading empty string.", data);
+          setAIName("");
+        }
+      } else {
+          if (response.status === 401) {
+            console.error("Auth failed fetching AI name. Logging out.");
+            setShowAuthModal(true);
+          } else {
+            console.error("Failed to fetch AI name", response.status);
+          }
+        }
+      } catch (error) {
+          console.error("Error fetching AI name:", error);
+          setAIName("");
+    } finally {
+      // Don't set loading, bc you need to fetch more than one thing
+    }};
+
     const fetchUserData = async (token) => {
       if (!token) {
           setGraphData({ nodes: [], edges: [] });
@@ -1021,6 +1091,31 @@ export default function App() {
         console.error("Error updating user preferences:", error);
       });
     };
+
+    const handleTogglePersonality = async (personality) => {
+      const isActive = chatPrefs?.personalities?.includes(personality);
+      if (isActive) {
+        setAiPersonalities(prev => prev.filter(p => p !== personality));
+      } else {
+        setAiPersonalities(prev => [...prev, personality]);
+      }
+      const headers = {
+        "Authorization": `Bearer ${authToken}`,
+        "Content-Type": "application/json"
+      }
+      const res = await fetch("http://127.0.0.1:8000/toggle_personality", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ personality: personality })
+        }
+      );
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+        } 
+      }
+    }
 
     const login = async () => {
       setIsLoading(true);
@@ -1317,6 +1412,35 @@ export default function App() {
     console.log("Preference message response:", data);
   }
 
+  const renameAI = async (newName) => {
+    if (!newName) {
+      newName = " ";
+    }
+    setAIName(newName);
+    const headers = {
+      Authorization: `Bearer ${authToken}`,
+      "Content-Type": "application/json"
+    }
+    const requestBody = {
+      newName: newName
+    }
+    const res = await fetch("http://127.0.1:8000/rename_ai", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody)
+    });
+    if (!res.ok) {
+      if (res.status === 401) {
+        setAuthError("Authentication failed. Please log in again.");
+        setShowAuthModal(true);
+        logout();
+      }
+      throw new Error(`Server error: ${res.status}`);
+    }
+    const data = await res.json();
+    console.log("Rename AI response:", data);
+  }
+
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
@@ -1385,7 +1509,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-y-auto relative">
          {tab === "chat" && (
              <ChatComponent
                  messages={messages}
@@ -1431,7 +1555,11 @@ export default function App() {
                     handleUserAvatarUpload={handleUserAvatarUpload}
                     handleAIAvatarUpload={handleAIAvatarUpload}
                     aiAvatarUrl={aiAvatarImage}
-                    userAvatarUrl={userAvatarImage}/>)}
+                    userAvatarUrl={userAvatarImage}
+                    handleAINameChange={renameAI}
+                    aiName={aiName}
+                    aiPersonalities={aiPersonalities}
+                    togglePersonality={handleTogglePersonality}/>)}
       </div>
 
       {renderAuthModal()}

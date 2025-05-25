@@ -316,6 +316,7 @@ async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Dep
     user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
     username = user_data.get("name", "User")
     user_prefs = user_data.get("ChatPreferences", "")
+    ai_personalities = user_data.get("personalities", [])
 
     try:
         with open("prompt.txt", "r") as f:
@@ -328,12 +329,13 @@ async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Dep
     current_time = datetime.datetime.now().strftime("%H:%M:%S")
 
     prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
-    prompt = prompt.replace("{name}", user_data.get("name", "User"))
+    prompt = prompt.replace("{name}", user_data.get("systemName", "AI"))
     prompt = prompt.replace("{date}", current_date)
     prompt = prompt.replace("{time}", current_time)
     prompt = prompt.replace("{location}", location)
     prompt = prompt.replace("{user}", username)
     prompt = prompt.replace("{instructionSet}", user_prefs)
+    prompt = prompt.replace("{personalities}", ",".join(ai_personalities))
 
     system_message = {"role": "system", "content": prompt}
 
@@ -1249,6 +1251,113 @@ async def get_pictures(user_info: dict = Depends(verify_token)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving profile pictures: {str(e)}"
+        )
+
+@app.post("/rename_ai")
+async def rename_ai(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    new_name = body.get("newName")
+    if not new_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New name is required"
+        )
+
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_ref.update({
+            "systemName": new_name
+        })
+        return {"message": "AI name updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating AI name: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating AI name: {str(e)}"
+        )
+
+@app.get("/personalities")
+async def get_personalities(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        personalities = {
+            "personalities": user_data.get("personalities", [])
+        }
+        return personalities
+    except Exception as e:
+        logger.error(f"Error retrieving personalities: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving personalities: {str(e)}"
+        )
+
+@app.post("/toggle_personality")
+async def toggle_personality(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    personality = body.get("personality")
+    if not personality:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Personality is required"
+        )
+
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        personalities = user_data.get("personalities", [])
+        
+        if personality in personalities:
+            personalities.remove(personality)
+        else:
+            personalities.append(personality)
+        
+        user_ref.update({
+            "personalities": personalities
+        })
+        
+        return {"message": "Personality toggled successfully"}
+    except Exception as e:
+        logger.error(f"Error toggling personality: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error toggling personality: {str(e)}"
+        )
+
+@app.get("/ai_name")
+async def get_ai_name(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        ai_name = user_data.get("systemName", "AI")
+        return {"ai_name": ai_name}
+    except Exception as e:
+        logger.error(f"Error retrieving AI name: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving AI name: {str(e)}"
         )
 
 if __name__ == "__main__":
