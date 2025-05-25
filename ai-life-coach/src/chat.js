@@ -43,22 +43,32 @@ function DynamicWidget({ key, payload }) {
 }
 
 const ChatMessage = memo(({ content, darkMode }) => {
-  let cleanedContent = content
+  let displayContent = content;
+  const unclosedGraph = /<GRAPH(?![^>]*?>[\s\S]*?<\/GRAPH>)/.exec(content);
+  const unclosedPref = /<PREF(?![^>]*?>[\s\S]*?<\/PREF>)/.exec(content);
+
+  if (unclosedGraph) {
+    displayContent = content.substring(0, unclosedGraph.index);
+  } else if (unclosedPref) {
+    displayContent = content.substring(0, unclosedPref.index);
+  }
+
+  let cleanedContent = displayContent
     .replace(/<GRAPH[\s\S]*?<\/GRAPH>/g, '')
     .replace(/<PREF[\s\S]*?<\/PREF>/g, '');
 
   const parts = [];
   const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g;
   let last = 0, match, idx = 0;
-  
+
   while ((match = regex.exec(cleanedContent)) !== null) {
     const [full, name, data] = match;
     const start = match.index, end = start + full.length;
-    
+
     if (last < start) {
       parts.push(
-        <div 
-          key={`t-${idx++}`} 
+        <div
+          key={`t-${idx++}`}
           className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
         >
           <ReactMarkdown
@@ -126,24 +136,24 @@ const ChatMessage = memo(({ content, darkMode }) => {
         </div>
       );
     }
-    
+
     let payload;
     try { payload = JSON.parse(data); }
     catch { payload = { code: `()=><pre>Invalid JSON</pre>` }; }
-    
+
     parts.push(
       <div key={`w-${idx++}`} className="my-2 w-full">
         <DynamicWidget payload={payload} />
       </div>
     );
-    
+
     last = end;
   }
-  
+
   if (last < cleanedContent.length) {
     parts.push(
-      <div 
-        key={`t-${idx++}`} 
+      <div
+        key={`t-${idx++}`}
         className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
       >
         <ReactMarkdown
@@ -211,7 +221,7 @@ const ChatMessage = memo(({ content, darkMode }) => {
       </div>
     );
   }
-  
+
   return <div className="max-w-full">{parts}</div>;
 });
 
