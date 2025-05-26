@@ -637,195 +637,205 @@ return (
         </div>
  
         <div className={`flex-grow overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
-        {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex flex-col group ${
-              message.role === 'user' ? 'justify-end items-end' : 'justify-start items-start'
-            }`}
-            onMouseEnter={() => setHoveredMessageIndex(index)}
-            onMouseLeave={() => setHoveredMessageIndex(null)}
-          >
-            <div className="flex items-end">
-              {message.role !== 'user' && (
-                <img
-                  src={aiPicture}
-                  alt="AI Avatar"
-                  className="w-8 h-8 rounded-full mr-2"
-                />
-              )}
-              <div
-                className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
-                  message.role === 'user'
-                    ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
-                    : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
-                } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
-              >
-                {editingMessageIndex === index ? (
-                                  <div className="flex flex-col">
-                        <textarea
-                          ref={editTextareaRef}
-                          value={editMessageContent}
-                          onChange={(e) => {
-                            setEditMessageContent(e.target.value);
-                            adjustTextareaHeight(e.target);
-                          }}
-                          className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
-                            darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
-                          }`}
-                          rows={1}
-                          style={{ overflow: 'hidden' }}
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
-                            className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
-                          >
-                            <Check size={16} />
-                          </button>
-                          <button
-                            onClick={handleCancelEditMessage}
-                            className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </div>
-                ) : (
-                  <ChatMessage content={message.content} darkMode={darkMode}/>
-                )}
-              </div>
-              {message.role === 'user' && (
-                <img
-                  src={userPicture}
-                  alt="User Avatar"
-                  className="w-8 h-8 rounded-full ml-2"
-                />
-              )}
-            </div>
+        {messages.map((message, index) => {
+          const parts = message.content.split('\n\n');
 
-            <div className={`flex mt-1 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
-                hoveredMessageIndex === index && message.role === 'user'
-                  ? 'opacity-100 group-hover:opacity-100'
-                  : 'opacity-0 group-hover:opacity-0'
-              } transition-opacity text-sm`}
-            >
-              {message.role === 'user' && (
-                <button
-                  onClick={() => handleStartEditingMessage(index, message.content)}
-                  className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
-                  title="Edit message"
+          return (
+            <>
+              {parts.map((part, partIndex) => (
+                <div
+                  key={`${index}-${partIndex}`}
+                  className={`flex flex-col group ${
+                    message.role === 'user' ? 'justify-end items-end' : 'justify-start items-start'
+                  }`}
+                  onMouseEnter={() => setHoveredMessageIndex(index)}
+                  onMouseLeave={() => setHoveredMessageIndex(null)}
                 >
-                  <Edit2 size={14} />
-                </button>
-              )}
-            </div>
-
-            <div className={`flex mt-1 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
-                hoveredMessageIndex === index && message.role !== 'user'
-                  ? 'opacity-100 group-hover:opacity-100'
-                  : 'opacity-0 group-hover:opacity-0'
-              } transition-opacity text-sm`}
-            >
-              {message.role !== 'user' && (
-                <div>
-                  <button
-                    onClick={() => handleLikeMessage(index, message.content)}
-                    className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
-                    title="Like message"
-                    >
-                      <ThumbsUp size={14} />
-                  </button>
-                  <button
-                      onClick={() => handleDislikeMessage(index, message.content)}
-                      className={`p-1.5 rounded-full ml-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
-                      title="Dislike message"
-                      >
-                        <ThumbsDown size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {(
-              (currentConversationBranchInfo?.parent_conversation_id && currentConversationBranchInfo.branch_from_message_index === index) ||
-              (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
-            ) && (
-              <div className={`flex mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                <div className={`relative inline-block text-left ${darkMode ? 'text-white' : 'text-gray-700'}`}>
-                  <button
-                    onClick={() => {
-                      setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
-                    }}
-                    className={`inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 text-sm font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 border-gray-600' : 'bg-white hover:bg-gray-50 text-gray-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 ${darkMode ? 'focus:ring-offset-gray-800 focus:ring-orange-500' : 'focus:ring-offset-gray-100 focus:ring-blue-500'}`}
-                    id={`options-menu-${index}`}
-                    aria-haspopup="true"
-                    aria-expanded="true"
-                  >
-                    Branches
-                    <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-                  </button>
-
-                  {openBranchDropdownIndex === index && (
+                  <div className="flex items-end">
+                    {message.role !== 'user' && (
+                      <img
+                        src={aiPicture}
+                        alt="AI Avatar"
+                        className="w-8 h-8 rounded-full mr-2"
+                      />
+                    )}
                     <div
-                      className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg ${darkMode ? 'bg-gray-700 ring-1 ring-black ring-opacity-5' : 'bg-white ring-1 ring-black ring-opacity-5'}`}
-                      role="menu"
-                      aria-orientation="vertical"
-                      aria-labelledby={`options-menu-${index}`}
+                      className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
+                        message.role === 'user'
+                          ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
+                          : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
+                      } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
                     >
-                      <div className="py-1" role="none">
-                        {currentConversationBranchInfo?.parent_conversation_id &&
-                           currentConversationBranchInfo.branch_from_message_index === index && (
-                          <button
-                            onClick={() => {
-                              loadConversation(currentConversationBranchInfo.parent_conversation_id);
-                                setOpenBranchDropdownIndex(null);
+                      {editingMessageIndex === index && partIndex === 0 ? (
+                                        <div className="flex flex-col">
+                            <textarea
+                              ref={editTextareaRef}
+                              value={editMessageContent}
+                              onChange={(e) => {
+                                setEditMessageContent(e.target.value);
+                                adjustTextareaHeight(e.target);
                               }}
-                              className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
-                              role="menuitem"
-                              >
-                              <ArrowLeft className="inline-block mr-2" size={14} /> Go to Parent
-                              </button>
-                            )}
-
-                            {currentConversationBranchInfo?.children_branches
-                              .filter(b => b.branch_from_message_index === index && b.id !== currentConversationId)
-                              .map((branch, idx) => (
+                              className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                              }`}
+                              rows={1}
+                              style={{ overflow: 'hidden' }}
+                            />
+                            <div className="flex justify-end">
                               <button
-                                key={branch.id}
-                                onClick={() => {
-                                loadConversation(branch.id);
-                                setOpenBranchDropdownIndex(null);
-                                }}
-                                className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
-                                role="menuitem"
+                                onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
+                                className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
                               >
-                                <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
+                                <Check size={16} />
                               </button>
-                              ))}
-
-                              {currentConversationBranchInfo?.parent_conversation_id &&
-                               currentConversationBranchInfo.branch_from_message_index === index && (
                               <button
-                                onClick={() => {
-                                setOpenBranchDropdownIndex(null);
-                              }}
-                              className={`${darkMode ? 'text-orange-400 bg-gray-600' : 'text-blue-600 bg-blue-50'} block px-4 py-2 text-sm w-full text-left cursor-default`}
-                              role="menuitem"
-                              disabled
-                            >
-                               <Check className="inline-block mr-2" size={14} /> Current Branch
-                            </button>
-                          )}
-                      </div>
+                                onClick={handleCancelEditMessage}
+                                className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          </div>
+                      ) : (
+                        <ChatMessage content={part} darkMode={darkMode}/>
+                      )}
                     </div>
+                    {message.role === 'user' && (
+                      <img
+                        src={userPicture}
+                        alt="User Avatar"
+                        className="w-8 h-8 rounded-full ml-2"
+                      />
+                    )}
+                  </div>
+                  {partIndex === parts.length - 1 && (
+                    <>
+                      <div className={`flex mt-1 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
+                          hoveredMessageIndex === index && message.role === 'user'
+                            ? 'opacity-100 group-hover:opacity-100'
+                            : 'opacity-0 group-hover:opacity-0'
+                        } transition-opacity text-sm`}
+                      >
+                        {message.role === 'user' && (
+                          <button
+                            onClick={() => handleStartEditingMessage(index, message.content)}
+                            className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                            title="Edit message"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className={`flex mt-1 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
+                          hoveredMessageIndex === index && message.role !== 'user'
+                            ? 'opacity-100 group-hover:opacity-100'
+                            : 'opacity-0 group-hover:opacity-0'
+                        } transition-opacity text-sm`}
+                      >
+                        {message.role !== 'user' && (
+                          <div>
+                            <button
+                              onClick={() => handleLikeMessage(index, message.content)}
+                              className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                              title="Like message"
+                              >
+                                <ThumbsUp size={14} />
+                            </button>
+                            <button
+                                onClick={() => handleDislikeMessage(index, message.content)}
+                                className={`p-1.5 rounded-full ml-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                                title="Dislike message"
+                                >
+                                  <ThumbsDown size={14} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {(
+                        (currentConversationBranchInfo?.parent_conversation_id && currentConversationBranchInfo.branch_from_message_index === index) ||
+                        (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
+                      ) && (
+                        <div className={`flex mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                          <div className={`relative inline-block text-left ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                            <button
+                              onClick={() => {
+                                setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
+                              }}
+                              className={`inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 text-sm font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 border-gray-600' : 'bg-white hover:bg-gray-50 text-gray-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 ${darkMode ? 'focus:ring-offset-gray-800 focus:ring-orange-500' : 'focus:ring-offset-gray-100 focus:ring-blue-500'}`}
+                              id={`options-menu-${index}`}
+                              aria-haspopup="true"
+                              aria-expanded="true"
+                            >
+                              Branches
+                              <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+                            </button>
+
+                            {openBranchDropdownIndex === index && (
+                              <div
+                                className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg ${darkMode ? 'bg-gray-700 ring-1 ring-black ring-opacity-5' : 'bg-white ring-1 ring-black ring-opacity-5'}`}
+                                role="menu"
+                                aria-orientation="vertical"
+                                aria-labelledby={`options-menu-${index}`}
+                              >
+                                <div className="py-1" role="none">
+                                  {currentConversationBranchInfo?.parent_conversation_id &&
+                                    currentConversationBranchInfo.branch_from_message_index === index && (
+                                    <button
+                                      onClick={() => {
+                                        loadConversation(currentConversationBranchInfo.parent_conversation_id);
+                                          setOpenBranchDropdownIndex(null);
+                                        }}
+                                        className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
+                                        role="menuitem"
+                                        >
+                                        <ArrowLeft className="inline-block mr-2" size={14} /> Go to Parent
+                                        </button>
+                                      )}
+
+                                      {currentConversationBranchInfo?.children_branches
+                                        .filter(b => b.branch_from_message_index === index && b.id !== currentConversationId)
+                                        .map((branch, idx) => (
+                                        <button
+                                          key={branch.id}
+                                          onClick={() => {
+                                          loadConversation(branch.id);
+                                          setOpenBranchDropdownIndex(null);
+                                          }}
+                                          className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
+                                          role="menuitem"
+                                        >
+                                          <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
+                                        </button>
+                                        ))}
+
+                                        {currentConversationBranchInfo?.parent_conversation_id &&
+                                          currentConversationBranchInfo.branch_from_message_index === index && (
+                                        <button
+                                          onClick={() => {
+                                          setOpenBranchDropdownIndex(null);
+                                        }}
+                                        className={`${darkMode ? 'text-orange-400 bg-gray-600' : 'text-blue-600 bg-blue-50'} block px-4 py-2 text-sm w-full text-left cursor-default`}
+                                        role="menuitem"
+                                        disabled
+                                      >
+                                         <Check className="inline-block mr-2" size={14} /> Current Branch
+                                      </button>
+                                    )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        ))}
-          {isLoading && (
+              ))}
+            </>
+          );
+        })}          {isLoading && (
             <div className="flex justify-start">
               <div className={`flex items-center space-x-1 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} shadow-sm`}>
                 <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.1s' }}></span>
