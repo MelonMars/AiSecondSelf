@@ -307,6 +307,57 @@ async def post_stream_save_to_db(
     conversation_ref.update(update_data)
     logger.info(f"Background task finished. Conversation {conversation_ref.id} updated in Firestore.")
 
+async def summarize_long_chat_history(
+    messages: List[Message],
+    model: genai.GenerativeModel,
+    max_messages_to_keep: int
+) -> List[Message]:
+    if len(messages) <= max_messages_to_keep:
+        logger.info(f"Chat history length ({len(messages)}) is within limits. No summarization needed.")
+        return messages
+
+    num_messages_to_summarize = len(messages) - (max_messages_to_keep - 1)
+    
+    messages_to_summarize = messages[:num_messages_to_summarize]
+    
+    summary_prompt_parts = [
+        "Please summarize the following conversation history for context. "
+        "The summary should be concise, capturing all crucial details and "
+        "maintaining the original tone and key information. "
+        "This summary will be used to provide context to an AI model for a continuing conversation. "
+        "Do not add any conversational filler, just the summary.\n\n"
+    ]
+    for msg in messages_to_summarize:
+        summary_prompt_parts.append(f"{msg.role}: {msg.content}\n")
+
+    summary_prompt = "".join(summary_prompt_parts)
+    
+    logger.info(f"Initiating summarization for {num_messages_to_summarize} messages.")
+    logger.debug(f"Summarization prompt preview: {summary_prompt[:200]}...")
+
+    try:
+        summarization_response = await model.generate_content_async(
+            [{"role": "user", "parts": [summary_prompt]}]
+        )
+        
+        summary_text = summarization_response.text
+        logger.info(f"Summarization complete. Summary length: {len(summary_text)} characters.")
+
+        summary_message = Message(
+            role="user",
+            content=f"Previous conversation summary: {summary_text}",
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+
+        processed_messages = [summary_message] + messages[num_messages_to_summarize:]
+        logger.info(f"Chat history reduced to {len(processed_messages)} messages after summarization.")
+        return processed_messages
+
+    except Exception as e:
+        logger.error(f"Error during chat summarization: {e}. Sending last {max_messages_to_keep} messages instead.")
+        return messages[len(messages) - max_messages_to_keep:]
+
+
 @app.post("/chat-stream")
 async def chat_stream(
     request: ChatRequest,
@@ -334,9 +385,15 @@ async def chat_stream(
 
     if is_brand_new_conversation_this_call:
         conversation_ref.set({
-            "user_id": user_uid, "created_at": now, "last_updated": now,
-            "messages": [], "title": "New Conversation"
+            "user_id": user_uid,
+            "created_at": now,
+            "last_updated": now,
+            "messages": [],
+            "title": "New Conversation"
         })
+        logger.info(f"Created new conversation: {conversation_id} for user {user_uid}")
+    else:
+        logger.info(f"Continuing conversation: {conversation_id} for user {user_uid}")
 
     all_messages: List[Message] = [Message(**msg) for msg in request.messages]
     if all_messages and not all_messages[-1].timestamp:
@@ -345,26 +402,47 @@ async def chat_stream(
     user_doc = user_ref.get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
     
-    with open("prompt.txt", "r") as f:
-        prompt_template = f.read()
+    try:
+        with open("prompt.txt", "r") as f:
+            prompt_template = f.read()
+    except FileNotFoundError:
+        logger.error("prompt.txt not found. Using a default prompt template.")
+        prompt_template = (
+            "You are a helpful AI assistant named {name}. "
+            "The current date is {date} and time is {time}. "
+            "Your user is {user}. "
+            "Your location is {location} in {country}. "
+            "Here are some instructions: {instructionSet}. "
+            "Your personalities are: {personalities}. "
+            "Context: {bulletProse}"
+        )
 
     system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
     system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
     system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
     system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
-    system_prompt = system_prompt.replace("{location}", "Unknown")
+    system_prompt = system_prompt.replace("{location}", user_data.get("location", "Unknown"))
     system_prompt = system_prompt.replace("{user}", user_data.get("name", "User"))
     system_prompt = system_prompt.replace("{instructionSet}", user_data.get("ChatPreferences", ""))
     system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
-    system_prompt = system_prompt.replace("{country}", "Unknown")
+    system_prompt = system_prompt.replace("{country}", user_data.get("country", "Unknown"))
 
     model = genai.GenerativeModel(
         model_name='gemini-1.5-flash-latest',
         system_instruction=system_prompt
     )
 
+    messages_for_gemini_processing = list(all_messages) 
+    
+    processed_messages_for_gemini = await summarize_long_chat_history(
+        messages_for_gemini_processing,
+        model,
+        10
+    )
+    logger.info(f"Messages prepared for Gemini (after potential summarization): {len(processed_messages_for_gemini)} messages.")
+
     messages_for_gemini = []
-    for msg in all_messages:
+    for msg in processed_messages_for_gemini:
         role = 'model' if msg.role == 'assistant' else 'user'
         messages_for_gemini.append({'role': role, 'parts': [msg.content]})
 
@@ -378,7 +456,7 @@ async def chat_stream(
             async for chunk in response_stream:
                 if chunk.text:
                     print(f"Streaming chunk: {chunk.text}")
-                    yield chunk.text
+                    yield chunk.text 
                     full_response_content.append(chunk.text)
         except Exception as e:
             logger.error(f"Error during Gemini stream: {e}")
