@@ -1712,5 +1712,68 @@ async def get_ai_name(user_info: dict = Depends(verify_token)):
             detail=f"Error retrieving AI name: {str(e)}"
         )
 
+@app.post("/custom_personality")
+async def create_custom_personality(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    personality_name = body.get("name", "")
+    personality_icon = body.get("icon", "")
+    if not personality_name or not personality_icon:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Personality name and icon are required"
+        )
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        custom_personalities = user_data.get("customPersonalities", [])
+        
+        new_personality = {
+            "name": personality_name,
+            "icon": personality_icon
+        }
+        
+        custom_personalities.append(new_personality)
+        
+        user_ref.update({
+            "customPersonalities": custom_personalities
+        })
+        
+        return {"message": "Custom personality created successfully"}
+    except Exception as e:
+        logger.error(f"Error creating custom personality: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating custom personality: {str(e)}"
+        )
+
+@app.get("/custom_personalities")
+async def get_custom_personalities(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        custom_personalities = user_data.get("customPersonalities", [])
+        return {"custom_personalities": custom_personalities}
+    except Exception as e:
+        logger.error(f"Error retrieving custom personalities: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving custom personalities: {str(e)}"
+        )
+
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True, log_level="info")

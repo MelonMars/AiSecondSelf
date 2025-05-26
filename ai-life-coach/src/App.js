@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -8,6 +8,7 @@ import ProfileComponent from "./Profile";
 import { Cloudinary } from '@cloudinary/url-gen';
 import { auto } from '@cloudinary/url-gen/actions/resize';
 import { autoGravity } from '@cloudinary/url-gen/qualifiers/gravity';
+import { render } from "katex";
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
@@ -94,6 +95,14 @@ export default function App() {
 
   const [userAvatarImage, setAvatarImage] = useState(null);
   const [aiAvatarImage, setAiAvatarImage] = useState(null);
+
+  const [showCustomPersonalityModal, setShowCustomPersonalityModal] = useState(false);
+  const [customPersonalityName, setCustomPersonalityName] = useState("");
+  const [customPersonalityIcon, setCustomPersonalityIcon] = useState("");
+  const [customPersonalityError, setCustomPersonalityError] = useState("");
+  const [customPersonalities, setCustomPersonalities] = useState([]);
+
+  const personalityIconInputRef = useRef(null);
 
   const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
 
@@ -932,7 +941,33 @@ const sendMessage = async (messageInput) => {
     } finally {
       // Don't set loading, bc you need to fetch more than one thing
     }
-  };
+    try {
+      const response = await fetch("http://127.0.0.1:8000/custom_personalities", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data && Array.isArray(data.custom_personalities)) {
+          setCustomPersonalities(data.custom_personalities);
+        } else {
+          console.warn("Fetched custom personalities data is not in expected format. Loading empty array.", data);
+          setCustomPersonalities([]);
+        }
+      } else {
+          if (response.status === 401) {
+            console.error("Auth failed fetching custom personalities. Logging out.");
+          } else {
+            console.error("Failed to fetch custom personalities", response.status);
+          }
+        }
+    } catch (error) {
+      console.error("Error fetching custom personalities:", error);
+      setCustomPersonalities([]);
+    }
+  } 
 
   const fetchAIName = async (token) => {
     if (!token) return;
@@ -1093,8 +1128,61 @@ const sendMessage = async (messageInput) => {
       });
     };
 
+    const renderCustomPersonalityModal = () => {
+      setShowCustomPersonalityModal(true);
+      setCustomPersonalityName("");
+      setCustomPersonalityError("");
+    };
+
+    const handleSaveCustomPersonality = async () => {
+      if (!customPersonalityName.trim()) {
+        setCustomPersonalityError("Personality name cannot be empty.");
+        return;
+      }
+
+      if (!customPersonalityIcon) {
+        setCustomPersonalityError("Please select an emoji for the personality.");
+        return;
+      }
+
+      setCustomPersonalities(prev => [...prev, {
+        name: customPersonalityName.trim(),
+        icon: customPersonalityIcon,
+      }]);
+
+      setAiPersonalities(prev => [...prev, customPersonalityName]);
+  
+      console.log("Saving Custom Personality:", {
+        name: customPersonalityName,
+      });
+  
+      setCustomPersonalityError("");
+      handleTogglePersonality(customPersonalityName.trim());
+      const res = await fetch("http://127.0.0.1:8000/custom_personality", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: customPersonalityName.trim(),
+          icon: customPersonalityIcon
+        })
+      });
+      setShowCustomPersonalityModal(false);
+    };
+
+    const handleCloseCustomPersonalityModal = () => {
+      setShowCustomPersonalityModal(false);
+      setCustomPersonalityError("");
+    };
+
     const handleTogglePersonality = async (personality) => {
       const isActive = aiPersonalities.includes(personality);
+      if (personality === "Custom") {
+        renderCustomPersonalityModal();
+        return;
+      }
       console.log(`Toggling personality: ${personality}, currently active: ${isActive}`);
       if (isActive) {
         setAiPersonalities(prev => prev.filter(p => p !== personality));
@@ -1118,6 +1206,15 @@ const sendMessage = async (messageInput) => {
         } 
       }
     }
+
+    const handleOpenEmojiPicker = () => {
+      if (personalityIconInputRef.current && personalityIconInputRef.current.showPicker) {
+        personalityIconInputRef.current.showPicker();
+      } else {
+        console.warn('showPicker() not supported on this browser/device for text inputs.');
+        setCustomPersonalityError('Your browser may not support the native emoji picker.');
+      }
+    };
 
     const login = async () => {
       setIsLoading(true);
@@ -1561,7 +1658,8 @@ const sendMessage = async (messageInput) => {
                     handleAINameChange={renameAI}
                     aiName={aiName}
                     aiPersonalities={aiPersonalities}
-                    togglePersonality={handleTogglePersonality}/>)}
+                    togglePersonality={handleTogglePersonality}
+                    customPersonalities={customPersonalities}/>)}
       </div>
 
       {renderAuthModal()}
@@ -1596,6 +1694,81 @@ const sendMessage = async (messageInput) => {
           </div>
         </div>
       )}
-    </div>
+
+      {showCustomPersonalityModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className={`rounded-lg shadow-lg p-6 w-full max-w-md relative ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
+            <h3 className="text-xl font-semibold mb-6 text-center">Create Custom Personality</h3>
+
+            <button
+              onClick={handleCloseCustomPersonalityModal}
+              className={`absolute top-2 right-2 rounded-full p-1 transition-colors ${darkMode ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="mb-4">
+              <label htmlFor="personalityName" className="block text-sm font-medium mb-1">
+                Personality Name:
+              </label>
+              <input
+                type="text"
+                id="personalityName"
+                value={customPersonalityName}
+                onChange={(e) => setCustomPersonalityName(e.target.value)}
+                className={`w-full px-3 py-2 rounded-md border focus:outline-none focus:ring-2 ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-300 focus:ring-blue-500' : 'bg-gray-100 border-gray-300 text-gray-800 focus:ring-blue-400'}`}
+                placeholder="e.g., Sarcastic Chef"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="personalityIcon" className="block text-sm font-medium mb-1">
+                Personality Icon:
+              </label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  id="personalityIcon"
+                  ref={personalityIconInputRef}
+                  value={customPersonalityIcon}
+                  onChange={(e) => setCustomPersonalityIcon(e.target.value)}
+                  className={`w-full px-3 py-2 rounded-md border focus:outline-none focus:ring-2 ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-300 focus:ring-blue-500' : 'bg-gray-100 border-gray-300 text-gray-800 focus:ring-blue-400'}`}
+                  placeholder="e.g., 😊"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleOpenEmojiPicker}
+                  className={`p-2 rounded-md transition-colors flex items-center justify-center ${darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+                  aria-label="Open emoji picker"
+                >
+                  <Smile size={20} />
+                </button>
+              </div>
+            </div>
+
+            {customPersonalityError && (
+              <p className="text-red-500 text-sm mb-4 text-center">{customPersonalityError}</p>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCloseCustomPersonalityModal}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+              >
+                <Eraser size={16} className="mr-2" /> Cancel
+              </button>
+              <button
+                onClick={handleSaveCustomPersonality}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+              >
+                <Save size={16} className="mr-2" /> Save Personality
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
+        </div>
   );
 }

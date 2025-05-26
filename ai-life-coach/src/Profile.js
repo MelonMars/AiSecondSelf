@@ -19,9 +19,11 @@ function ProfileComponent({
   handleAINameChange,
   aiPersonalities,
   togglePersonality,
+  customPersonalities,
 }) {
   const [activeSection, setActiveSection] = useState('profile');
 
+  const newLocal = '';
   const availablePersonalities = [
     { name: 'Friendly', color: 'from-green-400 to-emerald-500', icon: '😊' },
     { name: 'Formal', color: 'from-blue-400 to-blue-600', icon: '🎩' },
@@ -32,7 +34,7 @@ function ProfileComponent({
     { name: 'Creative', color: 'from-pink-400 to-purple-500', icon: '🎨' },
     { name: 'Analytical', color: 'from-indigo-400 to-purple-600', icon: '📊' },
     { name: 'Empathetic', color: 'from-rose-400 to-pink-500', icon: '💝' },
-    { name: 'Direct', color: 'from-yellow-400 to-orange-500', icon: '🎯' }
+    { name: 'Custom', color: 'from-yellow-400 to-orange-500', icon: '➕' }
   ];
 
   const sections = [
@@ -41,6 +43,15 @@ function ProfileComponent({
     { id: 'preferences', name: 'Preferences', icon: Settings }
   ];
 
+  const availablePersonalityNames = new Set(availablePersonalities.map(p => p.name))
+
+  const customPersonalityObjects = customPersonalities.map((personality) => ({
+    name: personality.name,
+    icon: personality.icon || '✨',
+    color: 'from-purple-500 to-indigo-500',
+  }));
+  
+  const allPersonalitiesToDisplay = [...availablePersonalities, ...customPersonalityObjects];
   return (
     <div className={`min-h-screen transition-all duration-500 ${
       darkMode 
@@ -297,7 +308,7 @@ function ProfileComponent({
                       AI Personalities
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {availablePersonalities.map((personality) => (
+                      {allPersonalitiesToDisplay.map((personality) => (
                         <button
                           key={personality.name}
                           type="button"
