@@ -1,20 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User } from "lucide-react";
 
 const typeColors = {
-  person: "#4299e1", 
-  trait: "#68d391",
-  belief: "#f6ad55",
-  goal: "#fc8181", 
-  default: "#a0aec0" 
+  person: "#3b82f6", 
+  trait: "#10b981",
+  belief: "#f59e0b",
+  goal: "#ef4444", 
+  default: "#6b7280" 
 };
 
 const typeBgColors = {
-  person: "rgba(66, 153, 225, 0.8)",
-  trait: "rgba(104, 211, 145, 0.8)",
-  belief: "rgba(246, 173, 85, 0.8)",
-  goal: "rgba(252, 129, 129, 0.8)",
-  default: "rgba(160, 174, 192, 0.8)"
+  person: "rgba(59, 130, 246, 0.9)",
+  trait: "rgba(16, 185, 129, 0.9)",
+  belief: "rgba(245, 158, 11, 0.9)",
+  goal: "rgba(239, 68, 68, 0.9)",
+  default: "rgba(107, 114, 128, 0.9)"
 };
 
 const typeIcons = {
@@ -23,6 +23,18 @@ const typeIcons = {
   belief: "💭",
   goal: "🎯",
   default: "📌"
+};
+
+const TypeIcon = ({ type, size = 16 }) => {
+  const iconMap = {
+    person: User,
+    trait: Sparkles,
+    belief: Brain,
+    goal: Target,
+    default: Plus
+  };
+  const Icon = iconMap[type] || iconMap.default;
+  return <Icon size={size} />;
 };
 
 const computeLayout = (nodes, edges, svgWidth, svgHeight) => {
@@ -592,18 +604,27 @@ const handleZoomOut = (event) => {
 
     return (
       <div
-        className="fixed bg-white p-2 rounded shadow-lg border border-gray-200 z-30 pointer-events-none" 
+        className="fixed backdrop-blur-md bg-white/90 dark:bg-gray-900/90 p-4 rounded-xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 z-30 pointer-events-none transition-all duration-200"
         style={{
           left: `${tooltipPosition.x}px`,
           top: `${tooltipPosition.y}px`,
-          width: "180px",
-           transform: `translate(${tooltipPosition.x + 180 > window.innerWidth ? '-100%' : '0%'}, ${tooltipPosition.y + 100 > window.innerHeight ? '-100%' : '0%'})` 
+          width: "220px",
+           transform: `translate(${tooltipPosition.x + 220 > window.innerWidth ? '-100%' : '0%'}, ${tooltipPosition.y + 120 > window.innerHeight ? '-100%' : '0%'})` 
         }}
       >
-        <div className="font-bold text-sm mb-1 break-words">{hoveredNode.label}</div>
-        <div className="text-xs text-gray-600 mb-1 capitalize">Type: {hoveredNode.type || "default"}</div>
+        <div className="flex items-center gap-2 mb-2">
+          <div 
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: typeColors[hoveredNode.type] || typeColors.default }}
+          />
+          <div className="font-semibold text-gray-900 dark:text-gray-100 break-words">{hoveredNode.label}</div>
+        </div>
+        <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 mb-2 capitalize">
+          <TypeIcon type={hoveredNode.type} size={12} />
+          {hoveredNode.type || "default"}
+        </div>
         {hoveredNode.description && (
-            <div className="text-xs text-gray-700 break-words">{hoveredNode.description}</div>
+            <div className="text-sm text-gray-700 dark:text-gray-300 break-words leading-relaxed">{hoveredNode.description}</div>
         )}
       </div>
     );
@@ -621,199 +642,345 @@ const handleZoomOut = (event) => {
    const isGraphReady = layoutNodes.length > 0 || structuralNodes.length === 0; 
 
    return (
-    <div className={`w-full h-full p-4 rounded-lg shadow-sm relative overflow-hidden ${darkMode ? "bg-gray-800" : "bg-gray-50"}`}>
-      <div className="mb-4 flex justify-between items-center">
-        <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-700"}`}>Knowledge Graph</h3>
-        <div className="flex items-center space-x-4">
-          <div className={`flex items-center border rounded-md overflow-hidden shadow-sm ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+    <div className={`w-full h-full p-6 rounded-2xl shadow-2xl relative overflow-hidden backdrop-blur-sm border transition-all duration-300 ${
+      darkMode 
+        ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50" 
+        : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-200/50"
+    }`}>
+
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+          <div className={`w-2 h-2 rounded-full animate-pulse ${darkMode ? "bg-orange-500" : "bg-blue-500"}`} />
+          <h3 className={`text-xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
+            darkMode 
+              ? "from-orange-400 to-red-400" 
+              : "from-blue-600 to-purple-600"
+          }`}>
+            Knowledge Graph
+          </h3>
+        </div>
+        
+        <div className="flex items-center space-x-6">
+
+          <div className={`flex items-center rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border transition-all duration-200 ${
+            darkMode 
+              ? "border-gray-700/50 bg-gray-800/80" 
+              : "border-gray-200/50 bg-white/80"
+          }`}>
             <button
               onClick={handleZoomOut}
               disabled={zoomLevel <= minZoom}
-              className={`p-1 border-r ${darkMode ? "border-gray-700 hover:bg-gray-700" : "border-gray-200 hover:bg-gray-100"} disabled:opacity-50 disabled:cursor-not-allowed ${darkMode ? "text-gray-300" : "text-gray-600"}`}
+              className={`p-3 border-r transition-all duration-200 ${
+                darkMode 
+                  ? "border-gray-700/50 hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+                  : "border-gray-200/50 hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+              } disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95`}
             >
               <ZoomOut size={18} />
             </button>
-            <span className={`text-sm px-2 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>{`${Math.round(zoomLevel * 100)}%`}</span>
+            <div className={`px-4 py-3 font-mono text-sm font-medium ${
+              darkMode ? "text-gray-300" : "text-gray-700"
+            }`}>
+              {`${Math.round(zoomLevel * 100)}%`}
+            </div>
             <button
               onClick={handleZoomIn}
               disabled={zoomLevel >= maxZoom}
-              className={`p-1 border-l ${darkMode ? "border-gray-700 hover:bg-gray-700" : "border-gray-200 hover:bg-gray-100"} disabled:opacity-50 disabled:cursor-not-allowed ${darkMode ? "text-gray-300" : "text-gray-600"}`}
+              className={`p-3 border-l transition-all duration-200 ${
+                darkMode 
+                  ? "border-gray-700/50 hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+                  : "border-gray-200/50 hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+              } disabled:opacity-40 disabled:cursor-not-allowed hover:scale-105 active:scale-95`}
             >
               <ZoomIn size={18} />
             </button>
           </div>
   
-          {Object.entries(typeColors).map(([type, color]) => (
-            <div key={type} className="flex items-center">
-              <div
-                className="w-3 h-3 rounded-full mr-2"
-                style={{ backgroundColor: color }}
-              />
-              <span className={`text-sm capitalize ${darkMode ? "text-gray-400" : "text-gray-600"}`}>{type}</span>
-            </div>
-          ))}
+          <div className="flex items-center space-x-4">
+            {Object.entries(typeColors).map(([type, color]) => (
+              <div key={type} className="flex items-center group">
+                <div
+                  className="w-4 h-4 rounded-full mr-2 shadow-md border-2 border-white/20 transition-transform duration-200 group-hover:scale-110"
+                  style={{ 
+                    backgroundColor: color,
+                    boxShadow: `0 0 8px ${color}40`
+                  }}
+                />
+                <span className={`text-sm font-medium capitalize transition-colors duration-200 ${
+                  darkMode 
+                    ? "text-gray-400 group-hover:text-gray-300" 
+                    : "text-gray-600 group-hover:text-gray-700"
+                }`}>
+                  {type}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
   
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="90%"
-        className={`rounded-lg shadow-inner cursor-grab active:cursor-grabbing ${darkMode ? "bg-gray-700" : "bg-white"}`}
-        onContextMenu={handleRightClick}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
-        onWheel={handleWheel}
-        style={{ touchAction: 'none' }}
-      >
-        <defs>
-          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path
-              d="M 20 0 L 0 0 0 20"
-              fill="none"
-              stroke={darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.05)"}
-              strokeWidth="1"
-            />
-          </pattern>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="9"
-            refY="3.5"
-            orient="auto"
-          >
-            <polygon
-              points="0 0, 10 3.5, 0 7"
-              fill={darkMode ? "#999" : "#666"}
-            />
-          </marker>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
+      <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{ height: 'calc(100% - 160px)' }}>
+        <svg
+          ref={svgRef}
+          width="100%"
+          height="100%"
+          className={`cursor-grab active:cursor-grabbing transition-all duration-300 ${
+            darkMode 
+              ? "bg-gradient-to-br from-gray-900 to-gray-800" 
+              : "bg-gradient-to-br from-white to-gray-50"
+          }`}
+          onContextMenu={handleRightClick}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onWheel={handleWheel}
+          style={{ touchAction: 'none' }}
+        >
+          <defs>
+            <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path
+                d="M 30 0 L 0 0 0 30"
+                fill="none"
+                stroke={darkMode ? "rgba(255, 255, 255, 0.03)" : "rgba(0, 0, 0, 0.03)"}
+                strokeWidth="1"
+              />
+              <circle
+                cx="0"
+                cy="0"
+                r="0.5"
+                fill={darkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"}
+              />
+            </pattern>
+            
+            <marker
+              id="arrowhead"
+              markerWidth="12"
+              markerHeight="8"
+              refX="11"
+              refY="4"
+              orient="auto"
+            >
+              <polygon
+                points="0 0, 12 4, 0 8"
+                fill={darkMode ? "#94a3b8" : "#64748b"}
+                className="drop-shadow-sm"
+              />
+            </marker>
+            
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge> 
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            
+            <filter id="nodeGlow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge> 
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
+          <rect width="100%" height="100%" fill="url(#grid)" />
   
-        <g transform={`translate(${panOffset.x + zoomOrigin.x * (1 - zoomLevel)}, ${panOffset.y + zoomOrigin.y * (1 - zoomLevel)}) scale(${zoomLevel})`}>
-          {structuralEdges.map((edge, i) => {
-            const source = getNodeLayoutPosition(edge.source);
-            const target = getNodeLayoutPosition(edge.target);
-            if (!source || !target) return null; 
+          <g transform={`translate(${panOffset.x + zoomOrigin.x * (1 - zoomLevel)}, ${panOffset.y + zoomOrigin.y * (1 - zoomLevel)}) scale(${zoomLevel})`}>
+            {structuralEdges.map((edge, i) => {
+              const source = getNodeLayoutPosition(edge.source);
+              const target = getNodeLayoutPosition(edge.target);
+              if (!source || !target) return null; 
   
-            const labelPos = getLabelPosition(edge.source, edge.target);
-            const path = getEdgePath(edge.source, edge.target); 
+              const labelPos = getLabelPosition(edge.source, edge.target);
+              const path = getEdgePath(edge.source, edge.target); 
   
-            return (
-              <g key={i} className="edge">
-                <path
-                  d={path}
-                  stroke={darkMode ? "#999" : "#666"}
-                  strokeWidth="1.5"
-                  fill="none"
-                  strokeOpacity="0.8"
-                  markerEnd="url(#arrowhead)"
-                />
-                <rect
-                  x={labelPos.x - 40 / zoomLevel}
-                  y={labelPos.y - 10 / zoomLevel}
-                  width={80 / zoomLevel}
-                  height={20 / zoomLevel}
-                  rx={4 / zoomLevel}
-                  fill={darkMode ? "#4b5563" : "white"}
-                  fillOpacity="0.8"
-                  stroke={darkMode ? "#555" : "#ddd"}
-                  strokeWidth={0.5 / zoomLevel}
-                />
-                <text
-                  x={labelPos.x}
-                  y={labelPos.y + 4 / zoomLevel}
-                  fontSize={12 / zoomLevel}
-                  fontWeight="500"
-                  fill={darkMode ? "#e5e7eb" : "#555"}
-                  textAnchor="middle"
-                  className="select-none pointer-events-none"
+              return (
+                <g key={i} className="edge">
+                  <path
+                    d={path}
+                    stroke="rgba(0,0,0,0.1)"
+                    strokeWidth="2.5"
+                    fill="none"
+                    transform="translate(1, 1)"
+                  />
+                  
+                  <path
+                    d={path}
+                    stroke={darkMode ? "#94a3b8" : "#64748b"}
+                    strokeWidth="2"
+                    fill="none"
+                    strokeOpacity="0.8"
+                    markerEnd="url(#arrowhead)"
+                    className="transition-all duration-300 hover:stroke-opacity-100"
+                    style={{
+                      filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.1))"
+                    }}
+                  />
+                  
+                  <rect
+                    x={labelPos.x - 50 / zoomLevel}
+                    y={labelPos.y - 12 / zoomLevel}
+                    width={100 / zoomLevel}
+                    height={24 / zoomLevel}
+                    rx={12 / zoomLevel}
+                    fill={darkMode ? "rgba(55, 65, 81, 0.95)" : "rgba(255, 255, 255, 0.95)"}
+                    stroke={darkMode ? "rgba(156, 163, 175, 0.3)" : "rgba(209, 213, 219, 0.5)"}
+                    strokeWidth={1 / zoomLevel}
+                    className="transition-all duration-200"
+                    style={{
+                      filter: "drop-shadow(0px 2px 4px rgba(0,0,0,0.1))"
+                    }}
+                  />
+                  
+                  <text
+                    x={labelPos.x}
+                    y={labelPos.y + 4 / zoomLevel}
+                    fontSize={11 / zoomLevel}
+                    fontWeight="600"
+                    fill={darkMode ? "#e5e7eb" : "#374151"}
+                    textAnchor="middle"
+                    className="select-none pointer-events-none transition-all duration-200"
+                  >
+                    {edge.label}
+                  </text>
+                </g>
+              );
+            })}
+  
+            {layoutNodes.map((node) => {
+              const isHovered = hoveredNode && hoveredNode.id === node.id;
+              const isYouNode = node.id === "1" || node.label.toLowerCase() === "you";
+  
+              const nodeRadius = (isYouNode ? 36 : 32) / Math.sqrt(zoomLevel);
+              const strokeWidth = (isHovered ? 3 : 2) / zoomLevel;
+  
+              if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) return null;
+  
+              return (
+                <g
+                  key={node.id}
+                  onMouseEnter={(e) => handleNodeHover(node, e)}
+                  onMouseLeave={() => handleNodeHover(null)}
+                  onClick={() => handleNodeClick(node)}
+                  onContextMenu={(e) => handleNodeRightClick(e, node)}
+                  className="cursor-pointer transition-all duration-200"
+                  style={{
+                    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+                    transformOrigin: `${node.x}px ${node.y}px`
+                  }}
                 >
-                  {edge.label}
-                </text>
-              </g>
-            );
-          })}
+                  <circle
+                    cx={node.x + 2}
+                    cy={node.y + 2}
+                    r={nodeRadius}
+                    fill="rgba(0,0,0,0.15)"
+                    className="transition-all duration-200"
+                  />
+                  
+                  {isHovered && (
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={nodeRadius + 8}
+                      fill={typeColors[node.type] || typeColors.default}
+                      fillOpacity="0.2"
+                      className="animate-pulse"
+                    />
+                  )}
+                  
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={nodeRadius}
+                    fill={`url(#gradient-${node.type})`}
+                    stroke={typeColors[node.type] || typeColors.default}
+                    strokeWidth={strokeWidth}
+                    filter={isHovered ? "url(#nodeGlow)" : "none"}
+                    className="transition-all duration-200"
+                  />
+                  
+                  <circle
+                    cx={node.x - nodeRadius * 0.3}
+                    cy={node.y - nodeRadius * 0.3}
+                    r={nodeRadius * 0.3}
+                    fill="rgba(255,255,255,0.2)"
+                    className="pointer-events-none"
+                  />
   
-          {layoutNodes.map((node) => {
-            const isHovered = hoveredNode && hoveredNode.id === node.id;
-            const isYouNode = node.id === "1" || node.label.toLowerCase() === "you";
+                  <text
+                    x={node.x}
+                    y={node.y + (isYouNode ? 5 : 4) / zoomLevel}
+                    fontSize={(isYouNode ? 14 : 12) / zoomLevel}
+                    fontWeight={isYouNode ? "bold" : "600"}
+                    fill="white"
+                    textAnchor="middle"
+                    className="select-none pointer-events-none transition-all duration-200"
+                    dominantBaseline="middle"
+                    style={{
+                      textShadow: "0px 1px 2px rgba(0,0,0,0.5)"
+                    }}
+                  >
+                    {node.label.length > (isYouNode ? 8 : 10) * zoomLevel ? 
+                      node.label.substring(0, Math.floor((isYouNode ? 8 : 10) * zoomLevel)) + "..." : 
+                      node.label
+                    }
+                  </text>
   
-            const nodeRadius = (isYouNode ? 32 : 28) / Math.sqrt(zoomLevel);
-            const strokeWidth = (isHovered ? 4 : 3) / zoomLevel;
-  
-            if (node.x == null || node.y == null || isNaN(node.x) || isNaN(node.y)) return null;
-  
-            return (
-              <g
-                key={node.id}
-                onMouseEnter={(e) => handleNodeHover(node, e)}
-                onMouseLeave={() => handleNodeHover(null)}
-                onClick={() => handleNodeClick(node)}
-                onContextMenu={(e) => handleNodeRightClick(e, node)}
-                className="cursor-pointer"
-              >
-                <circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={nodeRadius}
-                  fill={typeBgColors[node.type] || typeBgColors.default}
-                  stroke={typeColors[node.type] || typeColors.default}
-                  strokeWidth={strokeWidth}
-                  filter={isHovered ? "drop-shadow(0px 0px 4px rgba(0,0,0,0.2))" : "none"}
-                  className={isHovered ? "brightness-110" : ""}
-                />
-  
-                <text
-                  x={node.x}
-                  y={node.y + (isYouNode ? 5 : 4) / zoomLevel}
-                  fontSize={(isYouNode ? 14 : 12) / zoomLevel}
-                  fontWeight={isYouNode ? "bold" : "normal"}
-                  fill="white"
-                  textAnchor="middle"
-                  className="select-none pointer-events-none"
-                  dominantBaseline="middle"
-                >
-                  {node.label.length > (isYouNode ? 8 : 10) * zoomLevel ? node.label.substring(0, Math.floor((isYouNode ? 8 : 10) * zoomLevel)) + "..." : node.label}
-                </text>
-  
-                <text
-                  x={node.x + (isYouNode ? 24 : 20) / zoomLevel} 
-                  y={node.y - (isYouNode ? 18 : 16) / zoomLevel} 
-                  fontSize={12 / zoomLevel}
-                  fill={typeColors[node.type]}
-                  className="select-none pointer-events-none"
-                >
-                  {typeIcons[node.type] || typeIcons.default}
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      </svg>
+                  <text
+                    x={node.x + (isYouNode ? 26 : 22) / zoomLevel} 
+                    y={node.y - (isYouNode ? 20 : 18) / zoomLevel} 
+                    fontSize={14 / zoomLevel}
+                    fill={typeColors[node.type]}
+                    className="select-none pointer-events-none transition-all duration-200"
+                    style={{
+                      filter: "drop-shadow(0px 1px 2px rgba(0,0,0,0.3))"
+                    }}
+                  >
+                    {typeIcons[node.type] || typeIcons.default}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+          
+          <defs>
+            {Object.entries(typeColors).map(([type, color]) => (
+              <linearGradient key={type} id={`gradient-${type}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={color} stopOpacity="1" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.7" />
+              </linearGradient>
+            ))}
+          </defs>
+        </svg>
+      </div>
   
       <NodeTooltip />
   
       {contextMenu.visible && (
         <div
-          className={`context-menu absolute shadow-lg rounded-lg p-2 z-40 border ${
-            darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          className={`context-menu absolute shadow-2xl rounded-xl p-2 z-40 border backdrop-blur-sm transition-all duration-200 ${
+            darkMode 
+              ? "bg-gray-800/95 border-gray-700/50" 
+              : "bg-white/95 border-gray-200/50"
           }`}
-          style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+          style={{ 
+            left: `${contextMenu.x}px`, 
+            top: `${contextMenu.y}px`,
+            animation: 'fadeIn 0.2s ease-out'
+          }}
         >
           {contextMenu.type === 'canvas' && (
             <button
               onClick={handleAddNode}
-              className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+              className={`flex items-center w-full text-left px-4 py-3 text-sm rounded-lg transition-all duration-200 ${
                 darkMode 
-                  ? "text-gray-300 hover:bg-gray-700" 
-                  : "text-gray-700 hover:bg-blue-50"
+                  ? "text-gray-300 hover:bg-gray-700/80 hover:text-orange-400" 
+                  : "text-gray-700 hover:bg-blue-50/80 hover:text-blue-600"
               }`}
             >
-              <Plus size={16} className="mr-2" />
+              <Plus size={16} className="mr-3" />
               Add Node
             </button>
           )}
@@ -822,37 +989,37 @@ const handleZoomOut = (event) => {
             <>
               <button
                 onClick={handleEditNode}
-                className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                className={`flex items-center w-full text-left px-4 py-3 text-sm rounded-lg transition-all duration-200 ${
                   darkMode 
-                    ? "text-gray-300 hover:bg-gray-700" 
-                    : "text-gray-700 hover:bg-blue-50"
+                    ? "text-gray-300 hover:bg-gray-700/80 hover:text-orange-400" 
+                    : "text-gray-700 hover:bg-blue-50/80 hover:text-blue-600"
                 }`}
               >
-                <Edit size={16} className="mr-2" />
+                <Edit size={16} className="mr-3" />
                 Edit Node
               </button>
               {(selectedNode.id !== "1" && selectedNode.label.toLowerCase() !== "you") && (
                 <button
                   onClick={handleDeleteNode}
-                  className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                  className={`flex items-center w-full text-left px-4 py-3 text-sm rounded-lg transition-all duration-200 ${
                     darkMode 
-                      ? "text-red-400 hover:bg-gray-700" 
-                      : "text-red-600 hover:bg-red-50"
+                      ? "text-red-400 hover:bg-red-900/30" 
+                      : "text-red-600 hover:bg-red-50/80"
                   }`}
                 >
-                  <Trash2 size={16} className="mr-2" />
+                  <Trash2 size={16} className="mr-3" />
                   Delete Node
                 </button>
               )}
               <button
                 onClick={handleStartEdge}
-                className={`flex items-center w-full text-left px-3 py-2 text-sm rounded ${
+                className={`flex items-center w-full text-left px-4 py-3 text-sm rounded-lg transition-all duration-200 ${
                   darkMode 
-                    ? "text-gray-300 hover:bg-gray-700" 
-                    : "text-gray-700 hover:bg-blue-50"
+                    ? "text-gray-300 hover:bg-gray-700/80 hover:text-orange-400" 
+                    : "text-gray-700 hover:bg-blue-50/80 hover:text-blue-600"
                 }`}
               >
-                <Plus size={16} className="mr-2" />
+                <Plus size={16} className="mr-3" />
                 Create Connection
               </button>
             </>
@@ -861,20 +1028,31 @@ const handleZoomOut = (event) => {
       )}
   
       {nodeForm.visible && (
-        <div className="node-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className={`rounded-lg shadow-xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-800"}`}>
+        <div className="node-form-modal fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
+          <div className={`rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all duration-300 scale-100 ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          }`}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className={`text-xl font-bold ${darkMode ? "text-gray-200" : "text-gray-800"}`}>
                 {nodeForm.isNew ? "Add New Node" : "Edit Node"}
               </h3>
-              <button onClick={() => setNodeForm({ ...nodeForm, visible: false })} className={darkMode ? "text-gray-400" : "text-gray-600"}>
+              <button 
+                onClick={() => setNodeForm({ ...nodeForm, visible: false })} 
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  darkMode 
+                    ? "text-gray-400 hover:text-gray-300 hover:bg-gray-700" 
+                    : "text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                }`}
+              >
                 <X size={20} />
               </button>
             </div>
   
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <label htmlFor="node-label" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                <label htmlFor="node-label" className={`block text-sm font-semibold mb-2 ${
+                  darkMode ? "text-gray-300" : "text-gray-700"
+                }`}>
                   Label
                 </label>
                 <input
@@ -882,26 +1060,28 @@ const handleZoomOut = (event) => {
                   type="text"
                   value={nodeForm.label}
                   onChange={(e) => setNodeForm({ ...nodeForm, label: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                  className={`w-full px-4 py-3 border rounded-xl shadow-sm focus:outline-none focus:ring-2 transition-all duration-200 ${
                     darkMode 
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
-                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 focus:border-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500"
                   }`}
                 />
               </div>
   
               <div>
-                <label htmlFor="node-type" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                <label htmlFor="node-type" className={`block text-sm font-semibold mb-2 ${
+                  darkMode ? "text-gray-300" : "text-gray-700"
+                }`}>
                   Type
                 </label>
                 <select
                   id="node-type"
                   value={nodeForm.type}
                   onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                  className={`w-full px-4 py-3 border rounded-xl shadow-sm focus:outline-none focus:ring-2 transition-all duration-200 ${
                     darkMode 
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
-                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 focus:border-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500"
                   }`}
                 >
                   <option value="person">Person</option>
@@ -913,39 +1093,41 @@ const handleZoomOut = (event) => {
               </div>
   
               <div>
-                <label htmlFor="node-description" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                <label htmlFor="node-description" className={`block text-sm font-semibold mb-2 ${
+                  darkMode ? "text-gray-300" : "text-gray-700"
+                }`}>
                   Description
                 </label>
                 <textarea
                   id="node-description"
                   value={nodeForm.description}
                   onChange={(e) => setNodeForm({ ...nodeForm, description: e.target.value })}
-                  rows="3"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                  rows="4"
+                  className={`w-full px-4 py-3 border rounded-xl shadow-sm focus:outline-none focus:ring-2 transition-all duration-200 resize-none ${
                     darkMode 
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500" 
-                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500"
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 focus:border-orange-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500"
                   }`}
                 />
               </div>
   
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-4 pt-4">
                 <button
                   onClick={() => setNodeForm({ ...nodeForm, visible: false })}
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                  className={`px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
                     darkMode 
-                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-105" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105"
                   }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveNodeForm}
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                  className={`px-6 py-3 text-sm font-semibold text-white rounded-xl transition-all duration-200 hover:scale-105 ${
                     darkMode 
-                      ? "bg-orange-600 hover:bg-orange-700" 
-                      : "bg-blue-600 hover:bg-blue-700"
+                      ? "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700" 
+                      : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                   }`}
                 >
                   Save
@@ -957,18 +1139,31 @@ const handleZoomOut = (event) => {
       )}
   
       {edgeForm.visible && (
-        <div className="edge-form-modal fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className={`rounded-lg shadow-xl p-6 w-full max-w-md ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className={`text-lg font-medium ${darkMode ? "text-gray-200" : "text-gray-800"}`}>Create Connection</h3>
-              <button onClick={() => setEdgeForm({ ...edgeForm, visible: false })} className={darkMode ? "text-gray-400" : "text-gray-600"}>
+        <div className="edge-form-modal fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-all duration-300">
+          <div className={`rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all duration-300 scale-100 ${
+            darkMode ? "bg-gray-800" : "bg-white"
+          }`}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className={`text-xl font-bold ${darkMode ? "text-gray-200" : "text-gray-800"}`}>
+                Create Connection
+              </h3>
+              <button 
+                onClick={() => setEdgeForm({ ...edgeForm, visible: false })} 
+                className={`p-2 rounded-lg transition-all duration-200 ${
+                  darkMode 
+                    ? "text-gray-400 hover:text-gray-300 hover:bg-gray-700" 
+                    : "text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                }`}
+              >
                 <X size={20} />
               </button>
             </div>
   
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <label htmlFor="edge-label" className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
+                <label htmlFor="edge-label" className={`block text-sm font-semibold mb-2 ${
+                  darkMode ? "text-gray-300" : "text-gray-700"
+                }`}>
                   Relationship Label
                 </label>
                 <input
@@ -977,31 +1172,31 @@ const handleZoomOut = (event) => {
                   value={edgeForm.label}
                   onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
                   placeholder="e.g., is friends with, believes in, aspires to"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 ${
+                  className={`w-full px-4 py-3 border rounded-xl shadow-sm focus:outline-none focus:ring-2 transition-all duration-200 ${
                     darkMode 
-                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 placeholder-gray-500" 
-                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 placeholder-gray-400"
+                      ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 focus:border-orange-500 placeholder-gray-500" 
+                      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
                   }`}
                 />
               </div>
   
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-4 pt-4">
                 <button
                   onClick={() => setEdgeForm({ ...edgeForm, visible: false })}
-                  className={`px-4 py-2 text-sm font-medium rounded-md ${
+                  className={`px-6 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
                     darkMode 
-                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:scale-105" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:scale-105"
                   }`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdgeForm} 
-                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                  className={`px-6 py-3 text-sm font-semibold text-white rounded-xl transition-all duration-200 hover:scale-105 ${
                     darkMode 
-                      ? "bg-orange-600 hover:bg-orange-700" 
-                      : "bg-blue-600 hover:bg-blue-700"
+                      ? "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700" 
+                      : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                   }`}
                 >
                   Save
@@ -1014,23 +1209,50 @@ const handleZoomOut = (event) => {
   
       {notification.visible && (
         <div
-          className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center ${
-            notification.type === 'success' ? (darkMode ? 'bg-green-600' : 'bg-green-500') :
-            notification.type === 'error' ? (darkMode ? 'bg-red-600' : 'bg-red-500') : 
-            (darkMode ? 'bg-blue-600' : 'bg-blue-500')
+          className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center backdrop-blur-sm border transition-all duration-300 transform ${
+            notification.type === 'success' ? 
+              (darkMode ? 'bg-green-600/90 border-green-500/50' : 'bg-green-500/90 border-green-400/50') :
+            notification.type === 'error' ? 
+              (darkMode ? 'bg-red-600/90 border-red-500/50' : 'bg-red-500/90 border-red-400/50') : 
+              (darkMode ? 'bg-blue-600/90 border-blue-500/50' : 'bg-blue-500/90 border-blue-400/50')
           }`}
+          style={{
+            animation: 'slideIn 0.3s ease-out'
+          }}
         >
-          <span className="text-white">{notification.message}</span>
+          <span className="text-white font-medium">{notification.message}</span>
         </div>
       )}
   
-      <div className={`mt-4 text-sm flex items-center ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-        <Info size={16} className="mr-2 flex-shrink-0" />
-        <div>
-          <p>Hover over nodes to see details. Right-click on empty space to add a node.</p>
-          <p>Right-click on nodes to edit, delete, or create connections. Click and drag to pan.</p>
+      <div className={`mt-6 p-4 rounded-xl border transition-all duration-200 ${
+        darkMode 
+          ? "bg-gray-800/50 border-gray-700/50 text-gray-400" 
+          : "bg-gray-50/50 border-gray-200/50 text-gray-600"
+      }`}>
+        <div className="flex items-start space-x-3">
+          <Info size={18} className="flex-shrink-0 mt-0.5" />
+          <div className="text-sm leading-relaxed">
+            <p className="mb-1">
+              <strong>Hover</strong> over nodes to see details • <strong>Right-click</strong> empty space to add nodes
+            </p>
+            <p>
+              <strong>Right-click</strong> nodes to edit, delete, or create connections • <strong>Click and drag</strong> to pan around
+            </p>
+          </div>
         </div>
       </div>
+  
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

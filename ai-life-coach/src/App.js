@@ -1094,7 +1094,8 @@ const sendMessage = async (messageInput) => {
     };
 
     const handleTogglePersonality = async (personality) => {
-      const isActive = chatPrefs?.personalities?.includes(personality);
+      const isActive = aiPersonalities.includes(personality);
+      console.log(`Toggling personality: ${personality}, currently active: ${isActive}`);
       if (isActive) {
         setAiPersonalities(prev => prev.filter(p => p !== personality));
       } else {

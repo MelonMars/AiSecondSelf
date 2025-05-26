@@ -1,5 +1,5 @@
-import React from 'react';
-import { Moon, Sun, User, Bot } from 'lucide-react';
+import React, { useState } from 'react';
+import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain } from 'lucide-react';
 
 function ProfileComponent({
   authToken,
@@ -20,190 +20,419 @@ function ProfileComponent({
   aiPersonalities,
   togglePersonality,
 }) {
+  const [activeSection, setActiveSection] = useState('profile');
 
-    const availablePersonalities = [
-        'Friendly',
-        'Formal',
-        'Witty',
-        'Sarcastic',
-        'Helpful',
-        'Concise',
-        'Creative',
-        'Analytical',
-        'Empathetic',
-        'Direct'
-    ];
+  const availablePersonalities = [
+    { name: 'Friendly', color: 'from-green-400 to-emerald-500', icon: '😊' },
+    { name: 'Formal', color: 'from-blue-400 to-blue-600', icon: '🎩' },
+    { name: 'Witty', color: 'from-purple-400 to-pink-500', icon: '🧠' },
+    { name: 'Sarcastic', color: 'from-orange-400 to-red-500', icon: '😏' },
+    { name: 'Helpful', color: 'from-cyan-400 to-blue-500', icon: '🤝' },
+    { name: 'Concise', color: 'from-gray-400 to-gray-600', icon: '⚡' },
+    { name: 'Creative', color: 'from-pink-400 to-purple-500', icon: '🎨' },
+    { name: 'Analytical', color: 'from-indigo-400 to-purple-600', icon: '📊' },
+    { name: 'Empathetic', color: 'from-rose-400 to-pink-500', icon: '💝' },
+    { name: 'Direct', color: 'from-yellow-400 to-orange-500', icon: '🎯' }
+  ];
 
-    return (
-        <div className={`p-6 max-w-2xl mx-auto ${darkMode ? "bg-gray-900" : "bg-white"}`}>
-          <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? "text-white" : "text-gray-800"}`}>Profile</h2>
-          {authToken ? (
-            <div className={`space-y-4 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-              <p>
-                <strong>Name:</strong> {userName}
-              </p>
-              <p>
-                <strong>Email:</strong> {userEmail}
-              </p>
+  const sections = [
+    { id: 'profile', name: 'Profile', icon: User2 },
+    { id: 'ai', name: 'AI Settings', icon: Brain },
+    { id: 'preferences', name: 'Preferences', icon: Settings }
+  ];
 
-              <div className="pt-4">
-                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Your Profile Picture
-                </label>
-                <div className="flex items-center space-x-4 mb-2">
-                  {userAvatarUrl ? (
-                    <img src={userAvatarUrl} alt="User Avatar" className="w-20 h-20 rounded-full object-cover shadow" />
-                  ) : (
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} shadow`}>
-                      <User size={40} />
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleUserAvatarUpload(e.target.files[0])}
-                    className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                      darkMode
-                        ? "text-gray-400 file:bg-gray-800 file:text-orange-400 hover:file:bg-gray-700"
-                        : "text-gray-500 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    }`}
-                    disabled={isLoading}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">Upload your profile picture (e.g., JPEG, PNG).</p>
-              </div>
+  return (
+    <div className={`min-h-screen transition-all duration-500 ${
+      darkMode 
+        ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900' 
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+    }`}>
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="text-center mb-8">
+          <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-full backdrop-blur-sm border transition-all duration-300 ${
+            darkMode 
+              ? 'bg-white/10 border-white/20 text-white' 
+              : 'bg-white/60 border-white/40 text-gray-800'
+          }`}>
+            <Sparkles className="w-6 h-6 text-purple-500" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text">
+              Profile Center
+            </h1>
+          </div>
+        </div>
 
-              <div className="pt-4">
-                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  AI Profile Picture
-                </label>
-                <div className="flex items-center space-x-4 mb-2">
-                  {aiAvatarUrl ? (
-                    <img src={aiAvatarUrl} alt="AI Avatar" className="w-20 h-20 rounded-full object-cover shadow" />
-                  ) : (
-                    <div className={`w-20 h-20 rounded-full flex items-center justify-center ${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} shadow`}>
-                      <Bot size={40} />
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleAIAvatarUpload(e.target.files[0])}
-                    className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                      darkMode
-                        ? "text-gray-400 file:bg-gray-800 file:text-orange-400 hover:file:bg-gray-700"
-                        : "text-gray-500 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    }`}
-                    disabled={isLoading}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">Upload a picture for the AI's avatar (e.g., JPEG, PNG).</p>
-              </div>
-
-              <div className="pt-4">
-                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  AI Name
-                </label>
-                <input
-                  type="text"
-                  value={aiName}
-                  onChange={(e) => handleAINameChange(e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                    darkMode
-                      ? "bg-gray-800 text-white border-gray-700 focus:ring-orange-500"
-                      : "bg-white text-gray-700 border-gray-300 focus:ring-blue-500"
-                  }`}
-                  placeholder="Enter the AI's name"
-                />
-              </div>
-
-              <div className="pt-4">
-                <label className={`block text-sm font-medium mb-2 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  AI Personalities
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {availablePersonalities.map((personality) => (
+        {authToken ? (
+          <div className="grid lg:grid-cols-4 gap-6">
+            <div className={`lg:col-span-1 rounded-2xl backdrop-blur-sm border p-6 transition-all duration-300 ${
+              darkMode 
+                ? 'bg-white/10 border-white/20' 
+                : 'bg-white/60 border-white/40'
+            }`}>
+              <nav className="space-y-2">
+                {sections.map((section) => {
+                  const Icon = section.icon;
+                  return (
                     <button
-                      key={personality}
-                      type="button"
-                      onClick={() => togglePersonality(personality)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${
-                        aiPersonalities.includes(personality)
-                          ? (darkMode ? "bg-orange-600 text-white" : "bg-blue-600 text-white")
-                          : (darkMode ? "bg-gray-700 text-gray-300 hover:bg-gray-600" : "bg-gray-200 text-gray-700 hover:bg-gray-300")
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${
+                        activeSection === section.id
+                          ? darkMode
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25'
+                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-black shadow-lg shadow-blue-500/25'
+                          : darkMode
+                            ? 'text-gray-300 hover:bg-white/10 hover:text-white'
+                            : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
                       }`}
                     >
-                      {personality}
+                      <Icon className="w-5 h-5" />
+                      <span className="font-medium">{section.name}</span>
                     </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">Select one or more personalities for your AI.</p>
-              </div>
+                  );
+                })}
+              </nav>
 
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Chat Preferences (System Prompt)
-                </label>
-                <textarea
-                  value={chatPrefs}
-                  onChange={(e) => handleChatPrefsChange(e.target.value)}
-                  rows={6}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+              <div className="mt-8 pt-6 border-t border-white/20">
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                     darkMode
-                      ? "bg-gray-800 text-white border-gray-700 focus:ring-orange-500"
-                      : "bg-white text-gray-700 border-gray-300 focus:ring-blue-500"
+                      ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:shadow-lg hover:shadow-yellow-500/25'
+                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-black hover:shadow-lg hover:shadow-indigo-500/25'
                   }`}
-                  placeholder="Enter preferences or custom instructions for the AI..."
-                />
-              </div>
-
-              <div
-                id="doc-result"
-                className={`mt-4 p-3 rounded-md text-sm ${
-                  darkMode
-                    ? "bg-gray-800 text-gray-300"
-                    : "bg-blue-50 text-gray-700"
-                }`}
-              >
-              </div>
-              <div className="flex items-center mt-4">
-                <label className={`mr-2 text-sm font-medium ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Dark Mode
-                </label>
-                <input
-                  type="checkbox"
-                  checked={darkMode}
-                  onChange={() => setDarkMode(!darkMode)}
-                  className={`toggle ${darkMode ? "toggle-warning" : "toggle-primary"}`}
-                />
-                {darkMode ? (
-                  <Sun className="ml-2 text-yellow-500" />
-                ) : (
-                  <Moon className="ml-2 text-gray-500" />
-                )}
-              </div>
-              <div className="mt-6">
-                <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Upload Document (.txt only)
-                </label>
-                <input
-                  type="file"
-                  accept=".txt"
-                  onChange={(e) => sendMessageWithDoc(e.target.files[0])}
-                  className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold ${
-                    darkMode
-                      ? "text-gray-400 file:bg-gray-800 file:text-orange-400 hover:file:bg-gray-700"
-                      : "text-gray-500 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  }`}
-                  disabled={isLoading}
-                />
+                >
+                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  <span className="font-medium">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
               </div>
             </div>
-          ) : (
-            <p className={darkMode ? "text-gray-400" : "text-gray-600"}>Please log in to view your profile.</p>
-          )}
-        </div>
-      );
+
+            <div className="lg:col-span-3">
+              {activeSection === 'profile' && (
+                <div className={`rounded-2xl backdrop-blur-sm border p-8 transition-all duration-500 ${
+                  darkMode 
+                    ? 'bg-white/10 border-white/20' 
+                    : 'bg-white/60 border-white/40'
+                }`}>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600">
+                      <User2 className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Your Profile
+                    </h2>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                        darkMode 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/40 border-black/30'
+                      }`}>
+                        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          Account Details
+                        </h3>
+                        <div className="space-y-3">
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              Name
+                            </label>
+                            <p className={`text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                              {userName}
+                            </p>
+                          </div>
+                          <div>
+                            <label className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                              Email
+                            </label>
+                            <p className={`text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                              {userEmail}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                        darkMode 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/40 border-black/30'
+                      }`}>
+                        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          Profile Picture
+                        </h3>
+                        <div className="flex flex-col items-center space-y-4">
+                          <div className="relative group">
+                            {userAvatarUrl ? (
+                              <img 
+                                src={userAvatarUrl} 
+                                alt="User Avatar" 
+                                className="w-24 h-24 rounded-full object-cover shadow-xl ring-4 ring-white/20 transition-transform duration-300 group-hover:scale-105" 
+                              />
+                            ) : (
+                              <div className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl ring-4 ring-white/20 transition-all duration-300 group-hover:scale-105 ${
+                                darkMode ? 'bg-gradient-to-br from-gray-700 to-gray-800 text-gray-400' : 'bg-gradient-to-br from-gray-200 to-gray-300 text-gray-500'
+                              }`}>
+                                <User size={40} />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                              <Camera className="w-6 h-6 text-white" />
+                            </div>
+                          </div>
+                          <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                            darkMode
+                              ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25'
+                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-black shadow-lg hover:shadow-blue-500/25'
+                          }`}>
+                            <Upload className="w-4 h-4" />
+                            Upload Photo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleUserAvatarUpload(e.target.files[0])}
+                              className="hidden"
+                              disabled={isLoading}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'ai' && (
+                <div className={`rounded-2xl backdrop-blur-sm border p-8 transition-all duration-500 ${
+                  darkMode 
+                    ? 'bg-white/10 border-white/20' 
+                    : 'bg-white/60 border-white/40'
+                }`}>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
+                      <Brain className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      AI Configuration
+                    </h2>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      darkMode 
+                        ? 'bg-white/5 border-white/10' 
+                        : 'bg-white/40 border-white/30'
+                    }`}>
+                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        AI Avatar
+                      </h3>
+                      <div className="flex flex-col items-center space-y-4">
+                        <div className="relative group">
+                          {aiAvatarUrl ? (
+                            <img 
+                              src={aiAvatarUrl} 
+                              alt="AI Avatar" 
+                              className="w-24 h-24 rounded-full object-cover shadow-xl ring-4 ring-purple-500/30 transition-transform duration-300 group-hover:scale-105" 
+                            />
+                          ) : (
+                            <div className={`w-24 h-24 rounded-full flex items-center justify-center shadow-xl ring-4 ring-purple-500/30 transition-all duration-300 group-hover:scale-105 bg-gradient-to-br from-purple-600 to-pink-600 text-white`}>
+                              <Bot size={40} />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <Camera className="w-6 h-6 text-white" />
+                          </div>
+                        </div>
+                        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 ${!darkMode ? 'text-black' : 'text-white'} shadow-lg hover:shadow-purple-500/25`}>
+                          <Upload className="w-4 h-4" />
+                          Upload AI Avatar
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleAIAvatarUpload(e.target.files[0])}
+                            className="hidden"
+                            disabled={isLoading}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      darkMode 
+                        ? 'bg-white/5 border-white/10' 
+                        : 'bg-white/40 border-white/30'
+                    }`}>
+                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        AI Identity
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                            AI Name
+                          </label>
+                          <input
+                            type="text"
+                            value={aiName}
+                            onChange={(e) => handleAINameChange(e.target.value)}
+                            className={`w-full px-4 py-3 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 ${
+                              darkMode
+                                ? "bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25"
+                                : "bg-white/50 text-gray-800 border-gray/30 focus:border-blue-500 focus:ring-blue-500/25"
+                            }`}
+                            placeholder="Enter the AI's name"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`mt-8 p-6 rounded-xl border transition-all duration-300 ${
+                    darkMode 
+                      ? 'bg-white/5 border-white/10' 
+                      : 'bg-white/40 border-white/30'
+                  }`}>
+                    <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      AI Personalities
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {availablePersonalities.map((personality) => (
+                        <button
+                          key={personality.name}
+                          type="button"
+                          onClick={() => togglePersonality(personality.name)}
+                          className={`group relative p-4 rounded-xl text-center transition-all duration-300 transform hover:scale-105 ${
+                            aiPersonalities.includes(personality.name)
+                              ? `bg-gradient-to-br ${personality.color} ${darkMode ? 'text-white' : 'text-gray-30' } shadow-lg`
+                              : darkMode 
+                                ? "bg-white/10 text-gray-300 hover:bg-white/20 border border-white/20" 
+                                : "bg-white/50 text-gray-700 hover:bg-white/70 border border-white/30 text-black"
+                          }`}
+                        >
+                          <div className="text-2xl mb-2">{personality.icon}</div>
+                          <div className="text-sm font-medium">{personality.name}</div>
+                          {aiPersonalities.includes(personality.name) && (
+                            <div className={`absolute top-1 right-1 w-3 h-3 ${darkMode ? 'bg-white' : 'bg-gray-200' } rounded-full shadow-lg`}></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    <p className={`text-sm mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Select personality traits to shape your AI's communication style
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {activeSection === 'preferences' && (
+                <div className={`rounded-2xl backdrop-blur-sm border p-8 transition-all duration-500 ${
+                  darkMode 
+                    ? 'bg-white/10 border-white/20' 
+                    : 'bg-white/60 border-white/40'
+                }`}>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-green-500 to-teal-600">
+                      <Settings className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Preferences & Settings
+                    </h2>
+                  </div>
+
+                  <div className="space-y-8">
+                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      darkMode 
+                        ? 'bg-white/5 border-white/10' 
+                        : 'bg-white/40 border-white/30'
+                    }`}>
+                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        System Prompt
+                      </h3>
+                      <textarea
+                        value={chatPrefs}
+                        onChange={(e) => handleChatPrefsChange(e.target.value)}
+                        rows={8}
+                        className={`w-full px-4 py-3 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 resize-none ${
+                          darkMode
+                            ? "bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25"
+                            : "bg-white/50 text-gray-800 border-black/30 focus:border-blue-500 focus:ring-blue-500/25"
+                        }`}
+                        placeholder="Define how your AI should behave, respond, and interact with you..."
+                      />
+                      <p className={`text-sm mt-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Customize your AI's behavior with detailed instructions and preferences
+                      </p>
+                    </div>
+
+                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      darkMode 
+                        ? 'bg-white/5 border-white/10' 
+                        : 'bg-white/40 border-white/30'
+                    }`}>
+                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Document Upload
+                      </h3>
+                      <div className="flex items-center justify-center w-full">
+                        <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
+                          darkMode 
+                            ? 'border-white/30 hover:border-purple-500 bg-white/5 hover:bg-white/10' 
+                            : 'border-gray-300 hover:border-blue-500 bg-gray/30 hover:bg-gray/50'
+                        }`}>
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <Upload className={`w-8 h-8 mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <p className={`mb-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              <span className="font-semibold">Click to upload</span> or drag and drop
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              TXT files only
+                            </p>
+                          </div>
+                          <input
+                            type="file"
+                            accept=".txt"
+                            onChange={(e) => sendMessageWithDoc(e.target.files[0])}
+                            className="hidden"
+                            disabled={isLoading}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div
+                      id="doc-result"
+                      className={`p-4 rounded-xl border transition-all duration-300 min-h-[50px] ${
+                        darkMode
+                          ? "bg-white/5 border-white/10 text-gray-300"
+                          : "bg-white/40 border-white/30 text-gray-700"
+                      }`}
+                    >
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className={`text-center py-20 rounded-2xl backdrop-blur-sm border ${
+            darkMode 
+              ? 'bg-white/10 border-white/20' 
+              : 'bg-white/60 border-white/40'
+          }`}>
+            <div className="p-4 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+              <User className="w-8 h-8 text-white" />
+            </div>
+            <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Authentication Required
+            </h3>
+            <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Please log in to access your profile and settings
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default ProfileComponent;

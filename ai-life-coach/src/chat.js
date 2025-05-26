@@ -513,7 +513,7 @@ const ChatComponent = ({
   };
 
 
-return (
+  return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
       <div className={`flex flex-col mt-10 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
         isSidebarCollapsed ? 'w-16 items-center' : 'w-64'
@@ -538,7 +538,7 @@ return (
             </button>
           </div>
         </div>
- 
+
         <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
           {isConversationsLoading ? (
             <div className={`flex justify-center items-center ${isSidebarCollapsed ? 'h-full' : 'h-auto'} py-8`}>
@@ -572,7 +572,7 @@ return (
                   )}
                 </>
               )}
- 
+
               {nonStarredChats.length > 0 && (
                 <>
                   {!isSidebarCollapsed && (
@@ -599,7 +599,7 @@ return (
             </>
           )}
         </div>
- 
+
         <div className={`p-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-t ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
           <button
             onClick={logout}
@@ -619,7 +619,7 @@ return (
           </button>
         </div>
       </div>
- 
+
       <div className={`flex-grow flex flex-col ${darkMode ? 'bg-gray-900' : ''}`}>
         <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-b flex justify-between items-center shadow-sm`}>
           <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : ''}`}>
@@ -635,7 +635,7 @@ return (
             </button>
           )}
         </div>
- 
+
         <div className={`flex-grow overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
         {messages.map((message, index) => {
           const parts = message.content.split('\n\n');
@@ -846,7 +846,7 @@ return (
           )}
           <div ref={messagesEndRef} />
         </div>
- 
+
         <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t shadow-md`}>
           <div className="flex items-end">
             <textarea
@@ -856,8 +856,8 @@ return (
               onKeyPress={handleKeyPress}
               placeholder="Send a message..."
               className={`flex-grow p-3 border rounded-lg mr-2 resize-none max-h-40 focus:outline-none focus:ring-2 ${
-                darkMode 
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-orange-500' 
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-orange-500'
                   : 'focus:ring-blue-300 focus:border-blue-300'
               }`}
               rows={1}
@@ -867,8 +867,8 @@ return (
               onClick={handleSendMessage}
               disabled={!inputMessage.trim()}
               className={`${
-                darkMode 
-                  ? 'bg-orange-500 hover:bg-orange-600' 
+                darkMode
+                  ? 'bg-orange-500 hover:bg-orange-600'
                   : 'bg-blue-600 hover:bg-blue-700'
               } text-white p-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm`}
             >
