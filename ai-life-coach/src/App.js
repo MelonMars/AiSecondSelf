@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -738,145 +738,214 @@ const sendMessage = async (messageInput) => {
   };
 
   const renderAuthModal = () => {
-     if (!showAuthModal) return null;
-     let storedMethod;
-    storedMethod = localStorage.getItem('lastUsedLoginMethod');
-     const highlightClass = (method) => {
-      if (storedMethod === method) {
-          return darkMode ? 'ring-2 ring-offset-2 ring-orange-400' : 'ring-2 ring-offset-2 ring-orange-600';
-      }
-      return '';
-  };
-      return (
-        <div className={`fixed inset-0 ${darkMode ? 'bg-gray-900' : 'bg-black'} bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn`}>
-            <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} rounded-lg p-6 w-full max-w-md`}>
-                <h2 className="text-2xl font-medium mb-4">
-                    {authMode === "login" ? "Log in" : "Sign up"}
-                </h2>
+    if (!showAuthModal) return null;
 
-                {authError && (
-                    <div className={`mb-4 p-3 ${darkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'} rounded-md text-sm`}>
-                        {authError}
-                    </div>
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+        <div className={`relative w-full max-w-md transform transition-all duration-300 scale-100 ${
+          darkMode 
+            ? 'bg-gray-900/95 border border-white/20' 
+            : 'bg-white/95 border border-gray-200/50'
+        } rounded-2xl backdrop-blur-xl shadow-2xl`}>
+          
+          <div className="relative overflow-hidden rounded-t-2xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 animate-pulse"></div>
+            <div className={`relative p-8 text-center ${darkMode ? 'text-white' : 'text-white'}`}>
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm mb-4">
+                {authMode === 'login' ? (
+                  <LogIn className="w-8 h-8" />
+                ) : (
+                  <UserPlus className="w-8 h-8" />
                 )}
-                {linkError && (
-                    <div className={`mb-4 p-3 ${darkMode ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-100 text-yellow-700'} rounded-md text-sm`}>
-                        {linkError}
-                    </div>
-                )}
-
-                <div className="space-y-4">
-                    {authMode === "signup" && (
-                        <div>
-                            <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                                placeholder="Your name"
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${highlightClass('email')}`}>Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            placeholder="your@email.com"
-                        />
-                    </div>
-
-                    <div>
-                        <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'} ${highlightClass('email')}`}>Password</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className={`w-full px-3 py-2 border ${darkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            placeholder="••••••••"
-                        />
-                    </div>
-                </div>
-
-                <div className="mt-6">
-                    <button
-                        onClick={authMode === "login" ? login : signup}
-                        disabled={isLoading}
-                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-white ${darkMode ? 'bg-blue-500 hover:bg-blue-600' : 'bg-blue-600 hover:bg-blue-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-                    >
-                        {isLoading ? (
-                            <Loader size={20} className="animate-spin" />
-                        ) : (
-                            authMode === "login" ? "Log in" : "Sign up"
-                        )}
-                    </button>
-                </div>
-
-                <div className="mt-4 text-center">
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Or
-                    </p>
-                    <button
-                        onClick={signInWithGoogle}
-                        disabled={isLoading}
-                        className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-gray-800 ${darkMode ? 'bg-white hover:bg-gray-200' : 'bg-gray-100 hover:bg-gray-200'} mt-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 ${
-                          highlightClass('google')}`}>
-                        {isLoading ? (
-                            <Loader size={20} className="mr-2 animate-spin" />
-                        ) : (
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google logo" className="w-5 h-5 mr-2" />
-                        )}
-                        Sign in with Google
-                    </button>
-                </div>
-
-                <div className="mt-4 text-center">
-                    {authMode === "login" ? (
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Don't have an account?{" "}
-                            <button
-                                onClick={() => {
-                                    setAuthMode("signup");
-                                    setAuthError("");
-                                    setLinkError("");
-                                }}
-                                className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                            >
-                                Sign up
-                            </button>
-                        </p>
-                    ) : (
-                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            Already have an account?{" "}
-                            <button
-                                onClick={() => {
-                                    setAuthMode("login");
-                                    setAuthError("");
-                                    setLinkError("");
-                                }}
-                                className="text-blue-600 hover:text-blue-800 focus:outline-none"
-                            >
-                                Log in
-                            </button>
-                        </p>
-                    )}
-                </div>
-
-                <div className="mt-4 text-center">
-                    <button
-                        onClick={() => setShowAuthModal(false)}
-                        className={`text-sm ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'} focus:outline-none`}
-                    >
-                        Cancel
-                    </button>
-                </div>
+              </div>
+              <h2 className="text-2xl font-bold">
+                {authMode === 'login' ? 'Welcome Back!' : 'Join Us Today!'}
+              </h2>
+              <p className="text-white/80 mt-2">
+                {authMode === 'login' 
+                  ? 'Sign in to continue your journey' 
+                  : 'Create your account and get started'
+                }
+              </p>
             </div>
+          </div>
+
+          <div className="p-8">
+            {authError && (
+              <div className={`mb-6 p-4 rounded-xl border-l-4 ${
+                darkMode 
+                  ? 'bg-red-900/30 border-red-500 text-red-300' 
+                  : 'bg-red-50 border-red-500 text-red-700'
+              }`}>
+                <div className="flex items-center">
+                  <Shield className="w-5 h-5 mr-2" />
+                  <span className="text-sm font-medium">{authError}</span>
+                </div>
+              </div>
+            )}
+
+            {linkError && (
+              <div className={`mb-6 p-4 rounded-xl border-l-4 ${
+                darkMode 
+                  ? 'bg-yellow-900/30 border-yellow-500 text-yellow-300' 
+                  : 'bg-yellow-50 border-yellow-500 text-yellow-700'
+              }`}>
+                <div className="flex items-center">
+                  <Zap className="w-5 h-5 mr-2" />
+                  <span className="text-sm font-medium">{linkError}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-6">
+              {authMode === 'signup' && (
+                <div className="space-y-2">
+                  <label className={`flex items-center text-sm font-medium ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={`w-full px-4 py-3 rounded-xl border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 ${
+                      darkMode
+                        ? 'bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25 placeholder-gray-400'
+                        : 'bg-white/80 text-gray-800 border-gray-200 focus:border-blue-500 focus:ring-blue-500/25 placeholder-gray-500'
+                    }`}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className={`flex items-center text-sm font-medium ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <Mail className="w-4 h-4 mr-2" />
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 ${
+                    darkMode
+                      ? 'bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25 placeholder-gray-400'
+                      : 'bg-white/80 text-gray-800 border-gray-200 focus:border-blue-500 focus:ring-blue-500/25 placeholder-gray-500'
+                  }`}
+                  placeholder="Enter your email"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className={`flex items-center text-sm font-medium ${
+                  darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  <Lock className="w-4 h-4 mr-2" />
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full px-4 py-3 rounded-xl border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 ${
+                    darkMode
+                      ? 'bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25 placeholder-gray-400'
+                      : 'bg-white/80 text-gray-800 border-gray-200 focus:border-blue-500 focus:ring-blue-500/25 placeholder-gray-500'
+                  }`}
+                  placeholder="Enter your password"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4 mt-8">
+              <button
+                onClick={authMode === 'login' ? login : signup}
+                disabled={isLoading}
+                className={`w-full flex justify-center items-center py-4 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-[1.02] focus:outline-none focus:ring-4 ${
+                  darkMode
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25 focus:ring-purple-500/25'
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-blue-500/25 focus:ring-blue-500/25'
+                } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+              >
+                {isLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5 mr-2" />
+                    {authMode === 'login' ? 'Sign In' : 'Create Account'}
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center">
+                <div className={`flex-1 h-px ${darkMode ? 'bg-white/20' : 'bg-gray-300'}`}></div>
+                <span className={`px-4 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  or continue with
+                </span>
+                <div className={`flex-1 h-px ${darkMode ? 'bg-white/20' : 'bg-gray-300'}`}></div>
+              </div>
+
+              <button
+                onClick={signInWithGoogle}
+                disabled={isLoading}
+                className={`w-full flex justify-center items-center py-4 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-[1.02] focus:outline-none focus:ring-4 border-2 ${
+                  darkMode
+                    ? 'bg-white/10 border-white/20 text-white hover:bg-white/20 focus:ring-white/25'
+                    : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50 focus:ring-gray-500/25'
+                } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+              >
+                {isLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Chrome className="w-5 h-5 mr-3 text-blue-500" />
+                    Continue with Google
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="text-center mt-6">
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {authMode === 'login' ? "Don't have an account?" : "Already have an account?"}
+                {' '}
+                <button
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'signup' : 'login');
+                    setAuthError('');
+                    setLinkError('');
+                  }}
+                  className={`font-medium transition-colors ${
+                    darkMode 
+                      ? 'text-purple-400 hover:text-purple-300' 
+                      : 'text-blue-600 hover:text-blue-800'
+                  }`}
+                >
+                  {authMode === 'login' ? 'Sign Up' : 'Sign In'}
+                </button>
+              </p>
+            </div>
+
+            <div className="text-center mt-4">
+              <button
+                onClick={() => setShowAuthModal(false)}
+                className={`text-sm transition-colors ${
+                  darkMode 
+                    ? 'text-gray-500 hover:text-gray-400' 
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
-      );
+      </div>
+    );
   };
 
   const fetchUserPrefs = async (token) => {
@@ -1542,7 +1611,7 @@ const sendMessage = async (messageInput) => {
 
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm`}>
+      <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 via-purple-800 to-gray-900' : 'bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100'} shadow-sm`}>
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex overflow-x-auto hide-scrollbar">
             {TABS.map((t) => {
@@ -1665,32 +1734,63 @@ const sendMessage = async (messageInput) => {
       {renderAuthModal()}
 
       {showSharedModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className={`rounded-lg shadow-lg p-6 w-full max-w-md relative ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
-            <h3 className="text-lg font-semibold mb-4">Share Conversation</h3>
-            <div className={`flex items-center border rounded-md ${darkMode ? 'border-gray-600 bg-gray-700' : 'border-gray-300 bg-gray-100'}`}>
-              <input
-                type="text"
-                value={sharedURL}
-                readOnly
-                className={`flex-grow px-3 py-2 text-sm focus:outline-none rounded-l-md ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}
-              />
-              <button
-                onClick={copySharedURL}
-                className={`px-4 py-2 text-sm font-medium rounded-r-md transition-colors ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}`}
-                aria-label="Copy URL to clipboard"
-                id="copy-button"
-              >
-                <Copy size={16} />
-              </button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+          <div className={`relative w-full max-w-md transform transition-all duration-300 scale-100 ${
+            darkMode 
+              ? 'bg-gray-900/95 border border-white/20' 
+              : 'bg-white/95 border border-gray-200/50'
+          } rounded-2xl backdrop-blur-xl shadow-2xl`}>
+            
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Share Conversation
+                </h3>
+                <button
+                  onClick={() => setShowSharedModal(false)}
+                  className={`p-2 rounded-full transition-all duration-300 hover:scale-110 ${
+                    darkMode 
+                      ? 'text-gray-400 hover:text-white hover:bg-white/10' 
+                      : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                  }`}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <p className={`text-sm mt-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Share this conversation with others
+              </p>
             </div>
-            <button
-              onClick={() => setShowSharedModal(false)}
-              className={`absolute top-2 right-2 rounded-full p-1 transition-colors ${darkMode ? 'text-gray-400 hover:text-gray-300 hover:bg-gray-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-              aria-label="Close modal"
-            >
-              <X size={20} />
-            </button>
+
+            <div className="p-6">
+              <div className={`flex items-center rounded-xl border-2 overflow-hidden ${
+                darkMode 
+                  ? 'border-white/20 bg-white/10' 
+                  : 'border-gray-200 bg-gray-50'
+              }`}>
+                <input
+                  type="text"
+                  value={sharedURL}
+                  readOnly
+                  className={`flex-grow px-4 py-3 text-sm focus:outline-none bg-transparent ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                />
+                <button
+                  onClick={copySharedURL}
+                  className={`px-6 py-3 font-medium transition-all rounded-md duration-300 hover:scale-105 ${
+                    darkMode 
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <Copy size={16} />
+                </button>
+              </div>
+              <p className={`text-xs mt-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                Anyone with this link can view the conversation
+              </p>
+            </div>
           </div>
         </div>
       )}
