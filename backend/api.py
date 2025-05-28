@@ -73,8 +73,10 @@ async def optional_verify_token(authorization: str = Header(None)) -> Optional[D
     if authorization is None:
         return None
     else:
-        return await verify_token(authorization)
-    
+        try:
+            return await verify_token(authorization)
+        except:
+            return None
 
 @app.get("/")
 def read_root():
@@ -179,9 +181,13 @@ async def list_conversations(user_info: dict = Depends(verify_token)):
 async def get_conversation(
     conversation_id: str,
     owner_id: str,
-    user_info: dict = Depends(verify_token)
+    user_info: dict = Depends(optional_verify_token)
 ):
-    caller_uid = user_info["uid"]
+    try:
+        caller_uid = user_info["uid"]
+    except (KeyError, TypeError):
+        caller_uid = None
+        logger.warning("No user info provided, caller_uid will be None")
 
     conversation_ref = db.collection("users").document(owner_id).collection("conversations").document(conversation_id)
 

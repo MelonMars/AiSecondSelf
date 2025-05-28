@@ -102,6 +102,7 @@ export default function App() {
   const [customPersonalityError, setCustomPersonalityError] = useState("");
   const [customPersonalities, setCustomPersonalities] = useState([]);
 
+  const [isHovering, setIsHovering] = useState(false);
   const personalityIconInputRef = useRef(null);
 
   const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
@@ -150,6 +151,7 @@ export default function App() {
              if (graphData === null) {
                fetchUserData(idToken);
                fetchUserPrefs(idToken);
+               fetchUserPictures(idToken);
                fetchPersonalities(idToken);
                fetchAIName(idToken);
              }
@@ -975,7 +977,7 @@ const sendMessage = async (messageInput) => {
       console.error("Error fetching user preferences:", error);
        setChatPrefs(""); 
     } finally {
-      // Don't set loading, bc you need to fetch more than one thing
+      setIsLoading(false);
     }
   };
 
@@ -1008,7 +1010,7 @@ const sendMessage = async (messageInput) => {
           console.error("Error fetching AI personalities:", error);
           setAiPersonalities([]);
     } finally {
-      // Don't set loading, bc you need to fetch more than one thing
+      setIsLoading(false);
     }
     try {
       const response = await fetch("http://127.0.0.1:8000/custom_personalities", {
@@ -1068,7 +1070,7 @@ const sendMessage = async (messageInput) => {
           console.error("Error fetching AI name:", error);
           setAIName("");
     } finally {
-      // Don't set loading, bc you need to fetch more than one thing
+      setIsLoading(false);
     }};
 
     const fetchUserData = async (token) => {
@@ -1121,7 +1123,16 @@ const sendMessage = async (messageInput) => {
               setGraphData({ nodes: [], edges: [] }); 
            }
         }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        setGraphData({ nodes: [], edges: [] });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
+    const fetchUserPictures = async (token) => {
+      try {
         const res = await fetch("http://127.0.0.1:8000/pictures", {
           method: "GET",
           headers: {
@@ -1611,73 +1622,128 @@ const sendMessage = async (messageInput) => {
 
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className={`${darkMode ? 'bg-gradient-to-br from-gray-800 via-purple-800 to-gray-900' : 'bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100'} shadow-sm`}>
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex overflow-x-auto hide-scrollbar">
-            {TABS.map((t) => {
-              const Icon = t.icon;
-              const isActive = tab === t.id;
-
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`flex items-center px-6 py-4 transition-all focus:outline-none border-b-2 ${
-                    isActive
-                      ? 'border-blue-500 text-blue-600'
-                      : `border-transparent ${darkMode ? 'text-gray-400 hover:text-gray-300 hover:border-gray-600' : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'}`
-                  }`}
-                >
-                  <Icon size={18} className="mr-2" />
-                  <span className="font-medium">{t.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="pr-4">
-            {authToken ? (
+      <header
+        className="fixed top-0 left-[25%] w-[50%] z-[1000] py-4"
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+      >
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div
+            className={`relative transition-all duration-500 ease-out rounded-2xl border border-white/20 ${
+              isHovering
+                ? 'bg-white/30 backdrop-blur-xl shadow-2xl shadow-black/10 border-white/30'
+                : 'bg-white/10 backdrop-blur-md shadow-lg shadow-black/5 border-white/10'
+            }`}
+            style={{
+              background: isHovering 
+                ? 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%)'
+                : 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)'
+            }}
+          >
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+            
+            <div className="relative flex items-center justify-between h-16 px-6">
               <div className="flex items-center">
-                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'} mr-3`}>{userName}</span>
-                <button
-                  onClick={logout}
-                  className={`flex items-center text-sm ${darkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'}`}
-                >
-                  <LogOut size={16} className="mr-1" />
-                  Log out
-                </button>
+                <nav className="hidden md:flex md:space-x-2">
+                  {TABS.map((t) => {
+                    const isActive = tab === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={`relative flex items-center px-4 py-2.5 transition-all duration-300 ease-out rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/20 ${
+                          isHovering
+                            ? 'opacity-100 transform translate-y-0'
+                            : 'opacity-70 transform translate-y-1'
+                        } ${
+                          isActive
+                            ? 'bg-white/40 text-gray-800 shadow-lg backdrop-blur-sm border border-white/30'
+                            : `text-gray-700 hover:bg-white/20 hover:text-gray-800 hover:shadow-md hover:backdrop-blur-sm ${
+                                darkMode
+                                  ? 'text-gray-300 hover:text-gray-100'
+                                  : 'text-gray-600 hover:text-gray-800'
+                              }`
+                        }`}
+                      >
+                        {isActive && (
+                          <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
+                        )}
+                        <span className="relative z-10 flex items-center">
+                          <t.icon className="w-5 h-5 mr-2" />
+                          {t.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </nav>
               </div>
-            ) : (
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => {
-                    setAuthMode("login");
-                    setAuthError("");
-                    setShowAuthModal(true);
-                  }}
-                  className={`flex items-center text-sm ${darkMode ? 'text-gray-300 hover:text-gray-100' : 'text-gray-600 hover:text-gray-800'}`}
-                >
-                  <LogIn size={16} className="mr-1" />
-                  Log in
-                </button>
-                <button
-                  onClick={() => {
-                    setAuthMode("signup");
-                    setAuthError("");
-                    setShowAuthModal(true);
-                  }}
-                  className={`flex items-center text-sm ${darkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'}`}
-                >
-                  <UserPlus size={16} className="mr-1" />
-                  Sign up
-                </button>
+
+              <div
+                className={`flex items-center transition-all duration-300 ease-out ${
+                  isHovering 
+                    ? 'opacity-100 transform translate-y-0' 
+                    : 'opacity-60 transform translate-y-1'
+                }`}
+              >
+                {authToken ? (
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3 px-3 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/20">
+                      <div className="w-2 h-2 bg-green-400 rounded-full shadow-sm shadow-green-400/50" />
+                      <span className="text-sm font-medium text-gray-800">
+                        {userName}
+                      </span>
+                    </div>
+                    <button
+                      className={`flex items-center px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 hover:bg-white/20 hover:backdrop-blur-sm hover:border hover:border-white/20 ${
+                        darkMode
+                          ? 'text-gray-300 hover:text-gray-100'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                      onClick={logout}
+                    >
+                      Log out
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => {
+                        setAuthMode('login');
+                        setAuthError('');
+                        setShowAuthModal(true);
+                      }}
+                      className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 hover:bg-white/20 hover:backdrop-blur-sm hover:shadow-md ${
+                        darkMode
+                          ? 'text-gray-300 hover:text-gray-100'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      Log in
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAuthMode('signup');
+                        setAuthError('');
+                        setShowAuthModal(true);
+                      }}
+                      className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 bg-white/30 backdrop-blur-sm border border-white/30 hover:bg-white/40 hover:shadow-lg ${
+                        darkMode
+                          ? 'text-blue-300 hover:text-blue-200'
+                          : 'text-blue-700 hover:text-blue-800'
+                      }`}
+                    >
+                      <div className="absolute inset-0 rounded-lg bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+                      <span className="relative z-10">Sign up</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 overflow-y-auto relative">
+      <div className="flex-1 relative overflow-hidden">
          {tab === "chat" && (
              <ChatComponent
                  messages={messages}

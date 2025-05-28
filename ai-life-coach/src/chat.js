@@ -42,7 +42,7 @@ function DynamicWidget({ key, payload }) {
   );
 }
 
-const ChatMessage = memo(({ content, darkMode }) => {
+const ChatMessage = memo(({ content, darkMode, messager }) => {
   let displayContent = content;
   const unclosedGraph = /<GRAPH(?![^>]*?>[\s\S]*?<\/GRAPH>)/.exec(content);
   const unclosedPref = /<PREF(?![^>]*?>[\s\S]*?<\/PREF>)/.exec(content);
@@ -61,6 +61,8 @@ const ChatMessage = memo(({ content, darkMode }) => {
   const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g;
   let last = 0, match, idx = 0;
 
+  const isUser = messager === 'user';
+
   while ((match = regex.exec(cleanedContent)) !== null) {
     const [full, name, data] = match;
     const start = match.index, end = start + full.length;
@@ -69,7 +71,16 @@ const ChatMessage = memo(({ content, darkMode }) => {
       parts.push(
         <div
           key={`t-${idx++}`}
-          className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
+          className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none ${
+            isUser
+              ? 'bg-orange-500/70 border-orange-600/50 text-white shadow-md' 
+              : darkMode 
+                ? 'prose-invert bg-white/8 border-white/15 text-white shadow-lg' 
+                : 'bg-white/70 border-white/50 text-gray-800 shadow-md'
+          }`}
+          style={{
+            borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
+          }}
         >
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
@@ -78,14 +89,24 @@ const ChatMessage = memo(({ content, darkMode }) => {
               code: ({node, inline, className, children, ...props}) => {
                 const match = /language-(\w+)/.exec(className || '');
                 return !inline && match ? (
-                  <div className="rounded-md overflow-hidden my-2">
-                    <div className={`px-4 py-1 text-xs ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                  <div className="rounded-2xl overflow-hidden my-3 shadow-md">
+                    <div className={`px-3 py-2 text-xs font-medium backdrop-blur-sm border-b ${
+                      darkMode 
+                        ? 'bg-gradient-to-r from-purple-600/25 to-pink-600/25 border-white/15 text-white/80' 
+                        : 'bg-gradient-to-r from-blue-600/25 to-purple-600/25 border-white/30 text-gray-700'
+                    }`}>
                       {match[1].toUpperCase()}
                     </div>
                     <SyntaxHighlighter
                       language={match[1]}
                       style={darkMode ? oneDark : oneLight}
-                      customStyle={{margin: 0, borderRadius: '0 0 0.375rem 0.375rem'}}
+                      customStyle={{
+                        margin: 0, 
+                        borderRadius: '0 0 1rem 1rem',
+                        backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.6)' : 'rgba(249, 250, 251, 0.7)',
+                        backdropFilter: 'blur(8px)',
+                        fontSize: '0.875rem'
+                      }}
                       PreTag="div"
                       {...props}
                     >
@@ -93,40 +114,124 @@ const ChatMessage = memo(({ content, darkMode }) => {
                     </SyntaxHighlighter>
                   </div>
                 ) : (
-                  <code className={`${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100'} px-1 py-0.5 rounded text-sm`} {...props}>
+                  <code className={`px-2 py-0.5 rounded-lg text-sm backdrop-blur-sm border ${
+                    darkMode 
+                      ? 'bg-white/15 border-white/20 text-gray-200' 
+                      : 'bg-white/60 border-white/40 text-gray-700'
+                  }`} {...props}>
                     {children}
                   </code>
                 );
               },
-              p: ({node, children}) => <p className="mb-2 last:mb-0">{children}</p>,
-              ul: ({node, children}) => <ul className="list-disc pl-6 mb-2 space-y-1">{children}</ul>,
-              ol: ({node, children}) => <ol className="list-decimal pl-6 mb-2 space-y-1">{children}</ol>,
-              li: ({node, children}) => <li className="mb-1">{children}</li>,
+              p: ({node, children}) => <p className="mb-2 last:mb-0 leading-relaxed text-sm">{children}</p>,
+              ul: ({node, children}) => (
+                <ul className={`list-none pl-0 mb-3 space-y-1.5 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  {children}
+                </ul>
+              ),
+              ol: ({node, children}) => (
+                <ol className={`list-none pl-0 mb-3 space-y-1.5 ${
+                  darkMode ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  {children}
+                </ol>
+              ),
+              li: ({node, children}) => (
+                <li className={`flex items-start gap-2 p-2 rounded-2xl backdrop-blur-sm border transition-all duration-200 text-sm ${
+                  darkMode 
+                    ? 'bg-white/5 border-white/8 hover:bg-white/8' 
+                    : 'bg-white/40 border-white/30 hover:bg-white/50'
+                }`}>
+                  <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${
+                    darkMode ? 'bg-gradient-to-r from-purple-400 to-pink-400' : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                  }`}></div>
+                  <div className="flex-1">{children}</div>
+                </li>
+              ),
               table: ({node, children}) => (
-                <div className="overflow-x-auto my-2">
-                  <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                <div className={`overflow-x-auto my-3 rounded-2xl backdrop-blur-sm border shadow-md ${
+                  darkMode 
+                    ? 'bg-white/8 border-white/15' 
+                    : 'bg-white/70 border-white/40'
+                }`}>
+                  <table className="min-w-full text-sm">
                     {children}
                   </table>
                 </div>
               ),
               th: ({node, children}) => (
-                <th className={`px-3 py-2 text-left text-sm font-medium ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                <th className={`px-3 py-2 text-left text-xs font-semibold border-b ${
+                  darkMode 
+                    ? 'bg-gradient-to-r from-purple-600/25 to-pink-600/25 border-white/15 text-white/90' 
+                    : 'bg-gradient-to-r from-blue-600/25 to-purple-600/25 border-white/30 text-gray-800'
+                }`}>
                   {children}
                 </th>
               ),
               td: ({node, children}) => (
-                <td className={`px-3 py-2 text-sm ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <td className={`px-3 py-2 text-xs border-b ${
+                  darkMode 
+                    ? 'border-white/8 text-gray-200' 
+                    : 'border-white/25 text-gray-700'
+                }`}>
                   {children}
                 </td>
               ),
-              hr: () => <hr className={`my-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} />,
-              h1: ({node, children}) => <h1 className="text-2xl font-bold mt-6 mb-3 first:mt-0">{children}</h1>,
-              h2: ({node, children}) => <h2 className="text-xl font-bold mt-5 mb-2">{children}</h2>,
-              h3: ({node, children}) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
-              h4: ({node, children}) => <h4 className="text-base font-bold mt-3 mb-1">{children}</h4>,
-              blockquote: ({node, children}) => (
-                <blockquote className={`border-l-4 ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-300 bg-gray-50'} pl-4 py-1 my-3`}>
+              hr: () => (
+                <hr className={`my-4 border-0 h-px bg-gradient-to-r ${
+                  darkMode 
+                    ? 'from-transparent via-white/20 to-transparent' 
+                    : 'from-transparent via-gray-400/40 to-transparent'
+                }`} />
+              ),
+              h1: ({node, children}) => (
+                <h1 className={`text-2xl font-bold mt-4 mb-3 first:mt-0 bg-gradient-to-r bg-clip-text ${
+                  darkMode 
+                    ? 'from-purple-400 to-pink-400 text-transparent' 
+                    : 'from-blue-600 to-purple-600 text-transparent'
+                }`}>
                   {children}
+                </h1>
+              ),
+              h2: ({node, children}) => (
+                <h2 className={`text-xl font-bold mt-4 mb-2 bg-gradient-to-r bg-clip-text ${
+                  darkMode 
+                    ? 'from-purple-400 to-pink-400 text-transparent' 
+                    : 'from-blue-600 to-purple-600 text-transparent'
+                }`}>
+                  {children}
+                </h2>
+              ),
+              h3: ({node, children}) => (
+                <h3 className={`text-lg font-bold mt-3 mb-2 bg-gradient-to-r bg-clip-text ${
+                  darkMode 
+                    ? 'from-purple-400 to-pink-400 text-transparent' 
+                    : 'from-blue-600 to-purple-600 text-transparent'
+                }`}>
+                  {children}
+                </h3>
+              ),
+              h4: ({node, children}) => (
+                <h4 className={`text-base font-bold mt-3 mb-1 bg-gradient-to-r bg-clip-text ${
+                  darkMode 
+                    ? 'from-purple-400 to-pink-400 text-transparent' 
+                    : 'from-blue-600 to-purple-600 text-transparent'
+                }`}>
+                  {children}
+                </h4>
+              ),
+              blockquote: ({node, children}) => (
+                <blockquote className={`relative p-3 my-3 rounded-2xl backdrop-blur-sm border-l-4 ${
+                  darkMode 
+                    ? 'bg-white/8 border-l-purple-400 border-white/15 text-gray-200' 
+                    : 'bg-white/60 border-l-blue-500 border-white/30 text-gray-700'
+                }`}>
+                  <div className={`absolute top-2 left-2 w-1.5 h-1.5 rounded-full ${
+                    darkMode ? 'bg-purple-400' : 'bg-blue-500'
+                  }`}></div>
+                  <div className="ml-3 text-sm">{children}</div>
                 </blockquote>
               ),
             }}
@@ -142,7 +247,16 @@ const ChatMessage = memo(({ content, darkMode }) => {
     catch { payload = { code: `()=><pre>Invalid JSON</pre>` }; }
 
     parts.push(
-      <div key={`w-${idx++}`} className="my-2 w-full">
+      <div key={`w-${idx++}`} className={`max-w-4xl mx-auto mb-3 p-3 rounded-3xl backdrop-blur-sm border transition-all duration-300 ${
+        isUser
+          ? 'bg-orange-500/70 border-orange-600/50 shadow-md' 
+          : darkMode 
+            ? 'bg-white/8 border-white/15 shadow-lg' 
+            : 'bg-white/70 border-white/50 shadow-md'
+      }`}
+      style={{
+        borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
+      }}>
         <DynamicWidget payload={payload} />
       </div>
     );
@@ -154,7 +268,16 @@ const ChatMessage = memo(({ content, darkMode }) => {
     parts.push(
       <div
         key={`t-${idx++}`}
-        className={`m-0 p-0 prose max-w-none ${darkMode ? 'prose-invert' : ''} ${darkMode ? 'text-white' : 'text-black'}`}
+        className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none ${
+          isUser
+            ? 'bg-orange-500/70 border-orange-600/50 text-white shadow-md'
+            : darkMode 
+              ? 'prose-invert bg-white/8 border-white/15 text-white shadow-lg' 
+              : 'bg-white/70 border-white/50 text-gray-800 shadow-md'
+        }`}
+        style={{
+          borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
+        }}
       >
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
@@ -163,14 +286,24 @@ const ChatMessage = memo(({ content, darkMode }) => {
             code: ({node, inline, className, children, ...props}) => {
               const match = /language-(\w+)/.exec(className || '');
               return !inline && match ? (
-                <div className="rounded-md overflow-hidden my-2">
-                  <div className={`px-4 py-1 text-xs ${darkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                <div className="rounded-2xl overflow-hidden my-3 shadow-md">
+                  <div className={`px-3 py-2 text-xs font-medium backdrop-blur-sm border-b ${
+                    darkMode 
+                      ? 'bg-gradient-to-r from-purple-600/25 to-pink-600/25 border-white/15 text-white/80' 
+                      : 'bg-gradient-to-r from-blue-600/25 to-purple-600/25 border-white/30 text-gray-700'
+                  }`}>
                     {match[1].toUpperCase()}
                   </div>
                   <SyntaxHighlighter
                     language={match[1]}
                     style={darkMode ? oneDark : oneLight}
-                    customStyle={{margin: 0, borderRadius: '0 0 0.375rem 0.375rem'}}
+                    customStyle={{
+                      margin: 0, 
+                      borderRadius: '0 0 1rem 1rem',
+                      backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.6)' : 'rgba(249, 250, 251, 0.7)',
+                      backdropFilter: 'blur(8px)',
+                      fontSize: '0.875rem'
+                    }}
                     PreTag="div"
                     {...props}
                   >
@@ -178,40 +311,124 @@ const ChatMessage = memo(({ content, darkMode }) => {
                   </SyntaxHighlighter>
                 </div>
               ) : (
-                <code className={`${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-100'} px-1 py-0.5 rounded text-sm`} {...props}>
+                <code className={`px-2 py-0.5 rounded-lg text-sm backdrop-blur-sm border ${
+                  darkMode 
+                    ? 'bg-white/15 border-white/20 text-gray-200' 
+                    : 'bg-white/60 border-white/40 text-gray-700'
+                }`} {...props}>
                   {children}
                 </code>
               );
             },
-            p: ({node, children}) => <p className="mb-2 last:mb-0">{children}</p>,
-            ul: ({node, children}) => <ul className="list-disc pl-6 mb-2 space-y-1">{children}</ul>,
-            ol: ({node, children}) => <ol className="list-decimal pl-6 mb-2 space-y-1">{children}</ol>,
-            li: ({node, children}) => <li className="mb-1">{children}</li>,
+            p: ({node, children}) => <p className="mb-2 last:mb-0 leading-relaxed text-sm">{children}</p>,
+            ul: ({node, children}) => (
+              <ul className={`list-none pl-0 mb-3 space-y-1.5 ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                {children}
+              </ul>
+            ),
+            ol: ({node, children}) => (
+              <ol className={`list-none pl-0 mb-3 space-y-1.5 ${
+                darkMode ? 'text-gray-200' : 'text-gray-700'
+              }`}>
+                {children}
+              </ol>
+            ),
+            li: ({node, children}) => (
+              <li className={`flex items-start gap-2 p-2 rounded-2xl backdrop-blur-sm border transition-all duration-200 text-sm ${
+                darkMode 
+                  ? 'bg-white/5 border-white/8 hover:bg-white/8' 
+                  : 'bg-white/40 border-white/30 hover:bg-white/50'
+              }`}>
+                <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${
+                  darkMode ? 'bg-gradient-to-r from-purple-400 to-pink-400' : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                }`}></div>
+                <div className="flex-1">{children}</div>
+              </li>
+            ),
             table: ({node, children}) => (
-              <div className="overflow-x-auto my-2">
-                <table className={`min-w-full divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+              <div className={`overflow-x-auto my-3 rounded-2xl backdrop-blur-sm border shadow-md ${
+                darkMode 
+                  ? 'bg-white/8 border-white/15' 
+                  : 'bg-white/70 border-white/40'
+              }`}>
+                <table className="min-w-full text-sm">
                   {children}
                 </table>
               </div>
             ),
             th: ({node, children}) => (
-              <th className={`px-3 py-2 text-left text-sm font-medium ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+              <th className={`px-3 py-2 text-left text-xs font-semibold border-b ${
+                darkMode 
+                  ? 'bg-gradient-to-r from-purple-600/25 to-pink-600/25 border-white/15 text-white/90' 
+                  : 'bg-gradient-to-r from-blue-600/25 to-purple-600/25 border-white/30 text-gray-800'
+              }`}>
                 {children}
               </th>
             ),
             td: ({node, children}) => (
-              <td className={`px-3 py-2 text-sm ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <td className={`px-3 py-2 text-xs border-b ${
+                darkMode 
+                  ? 'border-white/8 text-gray-200' 
+                  : 'border-white/25 text-gray-700'
+              }`}>
                 {children}
               </td>
             ),
-            hr: () => <hr className={`my-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`} />,
-            h1: ({node, children}) => <h1 className="text-2xl font-bold mt-6 mb-3 first:mt-0">{children}</h1>,
-            h2: ({node, children}) => <h2 className="text-xl font-bold mt-5 mb-2">{children}</h2>,
-            h3: ({node, children}) => <h3 className="text-lg font-bold mt-4 mb-2">{children}</h3>,
-            h4: ({node, children}) => <h4 className="text-base font-bold mt-3 mb-1">{children}</h4>,
-            blockquote: ({node, children}) => (
-              <blockquote className={`border-l-4 ${darkMode ? 'border-gray-600 bg-gray-800/50' : 'border-gray-300 bg-gray-50'} pl-4 py-1 my-3`}>
+            hr: () => (
+              <hr className={`my-4 border-0 h-px bg-gradient-to-r ${
+                darkMode 
+                  ? 'from-transparent via-white/20 to-transparent' 
+                  : 'from-transparent via-gray-400/40 to-transparent'
+              }`} />
+            ),
+            h1: ({node, children}) => (
+              <h1 className={`text-2xl font-bold mt-4 mb-3 first:mt-0 bg-gradient-to-r bg-clip-text ${
+                darkMode 
+                  ? 'from-purple-400 to-pink-400 text-transparent' 
+                  : 'from-blue-600 to-purple-600 text-transparent'
+              }`}>
                 {children}
+              </h1>
+            ),
+            h2: ({node, children}) => (
+              <h2 className={`text-xl font-bold mt-4 mb-2 bg-gradient-to-r bg-clip-text ${
+                darkMode 
+                  ? 'from-purple-400 to-pink-400 text-transparent' 
+                  : 'from-blue-600 to-purple-600 text-transparent'
+              }`}>
+                {children}
+              </h2>
+            ),
+            h3: ({node, children}) => (
+              <h3 className={`text-lg font-bold mt-3 mb-2 bg-gradient-to-r bg-clip-text ${
+                darkMode 
+                  ? 'from-purple-400 to-pink-400 text-transparent' 
+                  : 'from-blue-600 to-purple-600 text-transparent'
+              }`}>
+                {children}
+              </h3>
+            ),
+            h4: ({node, children}) => (
+              <h4 className={`text-base font-bold mt-3 mb-1 bg-gradient-to-r bg-clip-text ${
+                darkMode 
+                  ? 'from-purple-400 to-pink-400 text-transparent' 
+                  : 'from-blue-600 to-purple-600 text-transparent'
+              }`}>
+                {children}
+              </h4>
+            ),
+            blockquote: ({node, children}) => (
+              <blockquote className={`relative p-3 my-3 rounded-2xl backdrop-blur-sm border-l-4 ${
+                darkMode 
+                  ? 'bg-white/8 border-l-purple-400 border-white/15 text-gray-200' 
+                  : 'bg-white/60 border-l-blue-500 border-white/30 text-gray-700'
+              }`}>
+                <div className={`absolute top-2 left-2 w-1.5 h-1.5 rounded-full ${
+                  darkMode ? 'bg-purple-400' : 'bg-blue-500'
+                }`}></div>
+                <div className="ml-3 text-sm">{children}</div>
               </blockquote>
             ),
           }}
@@ -222,7 +439,7 @@ const ChatMessage = memo(({ content, darkMode }) => {
     );
   }
 
-  return <div className="max-w-full">{parts}</div>;
+  return <div className="max-w-full px-2">{parts}</div>;
 });
 
 const ConversationItem = ({
@@ -250,7 +467,6 @@ const ConversationItem = ({
         inputRef.current.focus();
     }
   }, [isEditing]);
-
 
   const handleStartEditing = (e) => {
     e.stopPropagation();
@@ -286,19 +502,21 @@ const ConversationItem = ({
     onConversationShare(conversation.id);
   }
 
-
   const isCurrent = currentConversationId === conversation.id;
   const isStarred = starredConversations.includes(conversation.id);
-
 
   return (
     <div
       key={conversation.id}
-      className={`py-2.5 px-3 ${
-        darkMode
-          ? `hover:bg-gray-700 ${isCurrent ? 'bg-gray-700' : 'bg-gray-800'}`
-          : `hover:bg-gray-100 ${isCurrent ? 'bg-gray-200' : ''}`
-      } cursor-pointer flex items-center justify-between ${isSidebarCollapsed ? 'justify-center' : ''} rounded-md mx-2 my-1 group transition-colors duration-200`}
+      className={`relative px-3 py-2.5 mb-2 mx-2 rounded-lg backdrop-blur-sm border cursor-pointer group transition-all duration-300 transform hover:scale-[1.02] ${
+        isCurrent
+          ? darkMode
+            ? 'bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-purple-500/50 shadow-lg shadow-purple-500/25'
+            : 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 border-blue-500/50 shadow-lg shadow-blue-500/25'
+          : darkMode
+            ? 'bg-white/10 border-white/20 hover:bg-white/15 hover:border-white/30'
+            : 'bg-white/60 border-white/40 hover:bg-white/70 hover:border-white/50'
+      } ${isSidebarCollapsed ? 'justify-center' : ''}`}
       onClick={() => {
         if (!isEditing && loadConversation) {
           loadConversation(conversation.id);
@@ -306,79 +524,109 @@ const ConversationItem = ({
       }}
     >
       {isEditing ? (
-        <div className="flex items-center w-full">
+        <div className="flex items-center w-full gap-3">
           <input
             ref={inputRef}
             value={localRenamedTitle}
             onChange={(e) => setLocalRenamedTitle(e.target.value)}
             onKeyPress={handleInputKeyPress}
-            className={`flex-grow mr-2 p-1.5 border rounded text-sm ${
-              darkMode ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500' : 'focus:border-blue-500 focus:ring-blue-500'
-            } focus:outline-none focus:ring-1`}
+            className={`flex-grow px-4 py-2 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 ${
+              darkMode 
+                ? 'bg-white/10 border-white/20 text-white focus:border-purple-500 focus:ring-purple-500/25' 
+                : 'bg-white/50 border-white/40 text-gray-800 focus:border-blue-500 focus:ring-blue-500/25'
+            }`}
             onClick={e => e.stopPropagation()}
           />
-          <button
-            onClick={handleSaveEdit}
-            className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1.5 transition-colors duration-200`}
-            title="Save changes"
-          >
-            <Check size={16} />
-          </button>
-          <button
-            onClick={handleCancelEdit}
-            className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1.5 transition-colors duration-200`}
-            title="Cancel"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSaveEdit}
+              className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
+                darkMode 
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:shadow-lg hover:shadow-green-500/25 text-white' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:shadow-lg hover:shadow-green-500/25 text-white'
+              }`}
+              title="Save changes"
+            >
+              <Check size={16} />
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
+                darkMode 
+                  ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:shadow-lg hover:shadow-red-500/25 text-white' 
+                  : 'bg-gradient-to-r from-red-500 to-rose-600 hover:shadow-lg hover:shadow-red-500/25 text-white'
+              }`}
+              title="Cancel"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
       ) : (
-        <>
+        <div className="flex items-center justify-between">
           {!isSidebarCollapsed && (
-            <div className="flex items-center flex-grow truncate">
-              <div className={`flex items-center justify-center ${darkMode ? 'text-gray-400' : 'text-gray-500'} mr-2`}>
-                <MessageSquare size={16} />
+            <div className="flex items-center flex-1 min-w-0 gap-2">
+              <div className={`p-1.5 rounded-md backdrop-blur-sm border transition-all duration-300 flex-shrink-0 ${
+                darkMode 
+                  ? 'bg-white/10 border-white/20 text-gray-300' 
+                  : 'bg-white/40 border-white/30 text-gray-600'
+              }`}>
+                <MessageSquare size={14} />
               </div>
-              <span className={`truncate text-sm ${darkMode ? 'text-gray-300' : ''} font-medium`}>
+              <span className={`truncate font-medium text-sm flex-1 min-w-0 ${
+                darkMode ? 'text-white' : 'text-gray-800'
+              }`}>
                 {conversation.title}
               </span>
             </div>
           )}
-          <div className={`flex items-center ${isSidebarCollapsed ? '' : 'ml-2'}`}>
+          
+          <div className={`flex items-center gap-1 flex-shrink-0 ${isSidebarCollapsed ? '' : 'ml-2'}`}>
             {!isSidebarCollapsed && (
-              <div className={`flex items-center ${darkMode ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <button
                   onClick={handleStartEditing}
-                  className={`mr-2 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+                  className={`p-1.5 rounded-md transition-all duration-300 hover:scale-110 ${
+                    darkMode 
+                      ? 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:text-white hover:shadow-lg' 
+                      : 'bg-white/40 border-white/30 text-gray-600 hover:bg-white/60 hover:text-gray-800 hover:shadow-lg'
+                  }`}
                   title="Rename"
                 >
-                  <Edit2 size={14} />
+                  <Edit2 size={12} />
                 </button>
                 <button
                   onClick={handleShareConversation}
-                  className={`mr-2 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+                  className={`p-1.5 rounded-md transition-all duration-300 hover:scale-110 ${
+                    darkMode 
+                      ? 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:text-white hover:shadow-lg' 
+                      : 'bg-white/40 border-white/30 text-gray-600 hover:bg-white/60 hover:text-gray-800 hover:shadow-lg'
+                  }`}
                   title="Share"
                 >
-                  <Share size={14} />
+                  <Share size={12} />
                 </button>
               </div>
             )}
+            
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleStar(conversation.id);
               }}
-              className={`${
+              className={`p-1.5 rounded-md transition-all duration-300 hover:scale-110 ${
                 isStarred
-                  ? 'text-yellow-500 hover:text-yellow-600'
-                  : darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
-              } p-1 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'} transition-colors duration-200`}
+                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg hover:shadow-yellow-500/25'
+                  : darkMode 
+                    ? 'bg-white/10 border-white/20 text-gray-300 hover:bg-white/20 hover:text-white hover:shadow-lg' 
+                    : 'bg-white/40 border-white/30 text-gray-600 hover:bg-white/60 hover:text-gray-800 hover:shadow-lg'
+              }`}
               title={isStarred ? "Unstar conversation" : "Star conversation"}
             >
-              <Star size={14} />
+              <Star size={12} />
             </button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -506,53 +754,149 @@ const ChatComponent = ({
     setHoveredMessageIndex(null);
   };
 
-
   const handleCancelEditMessage = () => {
     setEditingMessageIndex(null);
     setEditMessageContent('');
   };
 
+  const isLastMessagePartFromSender = (messages, currentIndex, currentPartIndex, parts) => {
+    if (currentPartIndex !== parts.length - 1) {
+      return false;
+    }
+    
+    const nextMessage = messages[currentIndex + 1];
+    return !nextMessage || nextMessage.role !== messages[currentIndex].role;
+  };
 
   return (
-    <div className={`flex h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
-      <div className={`flex flex-col mt-10 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transition-all duration-300 ease-in-out ${
-        isSidebarCollapsed ? 'w-16 items-center' : 'w-64'
-      } shadow-md`}>
-        <div className="py-6 px-4">
-          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-            {!isSidebarCollapsed && (
-              <button
-                onClick={startNewConversation}
-                className={`p-2 ${darkMode ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'} text-white rounded-lg flex items-center flex-grow justify-center transition-colors duration-200 shadow-sm`}
-              >
-                <MessageSquare className={`${isSidebarCollapsed ? '' : 'mr-2'}`} size={18} />
-                {!isSidebarCollapsed && <span className="font-medium">New Chat</span>}
-              </button>
-            )}
-            <button
-              onClick={toggleSidebar}
-              className={`p-2 rounded-full ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-200'} ${isSidebarCollapsed ? 'ml-0 mt-4' : 'ml-4'} transition-colors duration-200`}
-              title={isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            >
-              {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-            </button>
-          </div>
+    <div className={`flex h-full ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+      <div className={`
+        flex flex-col
+        transition-all duration-500 ease-out overflow-hidden
+        backdrop-blur-xl border-r shadow-2xl
+        ${isSidebarCollapsed ? 'w-16 opacity-100' : 'w-64 opacity-100'}
+        ${darkMode
+          ? 'bg-white/15 border-white/20 shadow-black/20'
+          : 'bg-white/70 border-white/30 shadow-black/10'
+        }
+      `}
+      style={{
+        background: darkMode 
+          ? 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%)'
+      }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-r-lg" />
+      
+      {!isSidebarCollapsed && (
+        <div className={`flex-shrink-0 px-4 py-4 border-b backdrop-blur-sm ${
+          darkMode ? 'border-white/20' : 'border-white/30'
+        }`}>
+          <button
+            onClick={startNewConversation}
+            className={`p-3 rounded-xl flex items-center justify-center w-full transition-all duration-300 hover:scale-105 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+              darkMode 
+                ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30 hover:shadow-xl' 
+                : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60 hover:shadow-xl'
+            }`}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
+            <MessageSquare className="mr-2 relative z-10" size={18} />
+            <span className="font-medium text-sm relative z-10">New Chat</span>
+          </button>
         </div>
+      )}
 
+      <div className={`flex-shrink-0 ${
+        isSidebarCollapsed ? 'px-2 py-4' : 'px-4 py-3'
+      } border-b backdrop-blur-sm ${
+        darkMode ? 'border-white/20' : 'border-white/30'
+      }`}>
+        <div className={`flex ${isSidebarCollapsed ? 'flex-col space-y-2' : 'justify-between items-center'}`}>
+          <button
+            onClick={toggleSidebar}
+            className={`${
+              isSidebarCollapsed ? 'p-3' : 'p-2'
+            } rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+              darkMode 
+                ? 'hover:bg-white/25 text-gray-300 border-white/30 hover:text-white' 
+                : 'hover:bg-white/60 border-white/40 text-gray-600 hover:text-gray-800'
+            }`}
+            title={isSidebarCollapsed ? 'Open Sidebar' : 'Close Sidebar'}
+          >
+            <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+            <div className="relative z-10">
+              {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </div>
+          </button>
+
+          {!isSidebarCollapsed && currentConversationId && (
+            <button
+              onClick={() => shareConversation(currentConversationId)}
+              className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                darkMode 
+                  ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+              }`}
+              title="Share conversation"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+              <Share size={18} className="relative z-10" />
+            </button>
+          )}
+
+          {isSidebarCollapsed && (
+            <button
+              onClick={startNewConversation}
+              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                darkMode 
+                  ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30' 
+                  : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60'
+              }`}
+              title="New Chat"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
+              <MessageSquare size={20} className="relative z-10" />
+            </button>
+          )}
+
+          {isSidebarCollapsed && currentConversationId && (
+            <button
+              onClick={() => shareConversation(currentConversationId)}
+              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                darkMode 
+                  ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+              }`}
+              title="Share conversation"
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+              <Share size={20} className="relative z-10" />
+            </button>
+          )}
+        </div>
+      </div>
+          
+      {!isSidebarCollapsed && (
         <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
           {isConversationsLoading ? (
-            <div className={`flex justify-center items-center ${isSidebarCollapsed ? 'h-full' : 'h-auto'} py-8`}>
-              <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : ''}`} />
+            <div className="flex justify-center items-center py-8">
+              <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
             </div>
           ) : (
             <>
               {starredChats.length > 0 && (
                 <>
-                  {!isSidebarCollapsed && (
-                    <div className={`px-4 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold tracking-wider ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
+                  <div className={`px-4 py-3 text-xs uppercase font-semibold tracking-wider border-b mb-2 backdrop-blur-sm ${
+                    darkMode 
+                      ? 'text-gray-400 border-white/20 bg-white/5' 
+                      : 'text-gray-600 border-white/40 bg-white/20'
+                  }`}>
+                    <div className="flex items-center">
+                      <Star className="mr-2" size={12} />
                       Starred
                     </div>
-                  )}
+                  </div>
                   {starredChats.map(conversation => (
                     <ConversationItem
                       key={conversation.id}
@@ -567,19 +911,21 @@ const ChatComponent = ({
                       onConversationShare={shareConversation}
                     />
                   ))}
-                  {starredChats.length > 0 && nonStarredChats.length > 0 && !isSidebarCollapsed && (
-                    <div className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} my-2`}></div>
-                  )}
                 </>
               )}
 
               {nonStarredChats.length > 0 && (
                 <>
-                  {!isSidebarCollapsed && (
-                    <div className={`px-4 py-2 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} uppercase font-semibold tracking-wider ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
+                  <div className={`px-4 py-3 text-xs mb-2 uppercase font-semibold tracking-wider border-b backdrop-blur-sm ${
+                    darkMode 
+                      ? 'text-gray-400 border-white/20 bg-white/5' 
+                      : 'text-gray-600 border-white/40 bg-white/20'
+                  }`}>
+                    <div className="flex items-center">
+                      <MessageSquare className="mr-2" size={12} />
                       Chats
                     </div>
-                  )}
+                  </div>
                   {nonStarredChats.map(conversation => (
                     <ConversationItem
                       key={conversation.id}
@@ -599,75 +945,45 @@ const ChatComponent = ({
             </>
           )}
         </div>
+      )}
+    </div>
 
-        <div className={`p-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'} border-t ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
-          <button
-            onClick={logout}
-            className={`p-2 text-left ${darkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100'} rounded-lg transition-colors duration-200 ${isSidebarCollapsed ? 'w-auto' : 'w-full'}`}
-            title={isSidebarCollapsed ? 'Logout' : ''}
-          >
-            <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-              <span className={isSidebarCollapsed ? (darkMode ? 'text-gray-300' : 'text-gray-500') : 'mr-2'}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <path d="M16 17l5-5-5-5"/>
-                  <path d="M21 12H9"/>
-                </svg>
-              </span>
-              {!isSidebarCollapsed && <span className={`${darkMode ? 'text-gray-300' : ''} font-medium`}>Logout</span>}
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div className={`flex-grow flex flex-col ${darkMode ? 'bg-gray-900' : ''}`}>
-        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-b flex justify-between items-center shadow-sm`}>
-          <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : ''}`}>
-            {conversations.find(c => c.id === currentConversationId)?.title || 'New Chat'}
-          </h2>
-          {currentConversationId && (
-            <button
-              onClick={() => shareConversation(currentConversationId)}
-              className={`${darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-700'} p-2 rounded-full hover:bg-opacity-10 ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} transition-colors duration-200`}
-              title="Share conversation"
-            >
-              <Share size={20} />
-            </button>
-          )}
-        </div>
-
-        <div className={`flex-grow overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
+      <div className="flex-grow flex flex-col" style={{ height: '100vh' }}>
+        <div className={`flex-1 overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
         {messages.map((message, index) => {
-          const parts = message.content.split('\n\n');
+          const parts = message.content.split('\n\n').filter(part => part.trim() !== '');
 
           return (
             <>
-              {parts.map((part, partIndex) => (
-                <div
-                  key={`${index}-${partIndex}`}
-                  className={`flex flex-col group ${
-                    message.role === 'user' ? 'justify-end items-end' : 'justify-start items-start'
-                  }`}
-                  onMouseEnter={() => setHoveredMessageIndex(index)}
-                  onMouseLeave={() => setHoveredMessageIndex(null)}
-                >
-                  <div className="flex items-end">
-                    {message.role !== 'user' && (
-                      <img
-                        src={aiPicture}
-                        alt="AI Avatar"
-                        className="w-8 h-8 rounded-full mr-2"
-                      />
-                    )}
-                    <div
-                      className={`max-w-2xl px-4 py-3 rounded-lg relative shadow-sm ${
-                        message.role === 'user'
-                          ? darkMode ? 'bg-orange-500 text-white' : 'bg-blue-600 text-white'
-                          : darkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-black'
-                      } ${message.role === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'}`}
-                    >
-                      {editingMessageIndex === index && partIndex === 0 ? (
-                                        <div className="flex flex-col">
+              {parts.map((part, partIndex) => {
+                const shouldShowProfilePicture = isLastMessagePartFromSender(messages, index, partIndex, parts);
+                
+                return (
+                  <div
+                    key={`${index}-${partIndex}`}
+                    className={`flex flex-col group ${
+                      message.role === 'user' ? 'justify-end items-end' : 'justify-start items-start'
+                    }`}
+                    onMouseEnter={() => setHoveredMessageIndex(index)}
+                    onMouseLeave={() => setHoveredMessageIndex(null)}
+                  >
+                    <div className="flex items-end">
+                      {message.role !== 'user' && (
+                        <div className={`w-10 h-10 rounded-full mr-3 p-0.5 backdrop-blur-sm border transition-all duration-300 ${
+                          darkMode 
+                            ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-white/20 shadow-lg' 
+                            : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
+                        } ${shouldShowProfilePicture ? 'opacity-100' : 'opacity-0'}`}>
+                          <img
+                            src={aiPicture}
+                            alt="AI Avatar"
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        {editingMessageIndex === index && partIndex === 0 ? (
+                          <div className="flex flex-col">
                             <textarea
                               ref={editTextareaRef}
                               value={editMessageContent}
@@ -675,204 +991,258 @@ const ChatComponent = ({
                                 setEditMessageContent(e.target.value);
                                 adjustTextareaHeight(e.target);
                               }}
-                              className={`flex-grow p-2 border rounded-lg mb-2 resize-none ${
-                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'border-gray-300'
+                              className={`flex-grow p-3 rounded-2xl mb-3 resize-none backdrop-blur-sm border transition-all duration-300 ${
+                                darkMode 
+                                  ? 'bg-white/10 border-white/20 text-white placeholder-white/60' 
+                                  : 'bg-white/60 border-white/40 text-gray-800 placeholder-gray-500'
+                              } focus:outline-none focus:ring-2 ${
+                                darkMode 
+                                  ? 'focus:ring-purple-400/50' 
+                                  : 'focus:ring-blue-500/50'
                               }`}
                               rows={1}
                               style={{ overflow: 'hidden' }}
+                              placeholder="Edit your message..."
                             />
-                            <div className="flex justify-end">
+                            <div className="flex justify-end space-x-2">
                               <button
                                 onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
-                                className={`mr-1 ${darkMode ? 'text-green-400 hover:bg-green-900' : 'text-green-500 hover:bg-green-100'} rounded-full p-1`}
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                  darkMode 
+                                    ? 'bg-green-500/20 border-green-400/30 text-green-400 hover:bg-green-500/30' 
+                                    : 'bg-green-500/20 border-green-500/40 text-green-600 hover:bg-green-500/30'
+                                }`}
                               >
                                 <Check size={16} />
                               </button>
                               <button
                                 onClick={handleCancelEditMessage}
-                                className={`${darkMode ? 'text-red-400 hover:bg-red-900' : 'text-red-500 hover:bg-red-100'} rounded-full p-1`}
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                  darkMode 
+                                    ? 'bg-red-500/20 border-red-400/30 text-red-400 hover:bg-red-500/30' 
+                                    : 'bg-red-500/20 border-red-500/40 text-red-600 hover:bg-red-500/30'
+                                }`}
                               >
                                 <X size={16} />
                               </button>
                             </div>
                           </div>
-                      ) : (
-                        <ChatMessage content={part} darkMode={darkMode}/>
+                        ) : (
+                          <ChatMessage content={part} darkMode={darkMode} messager={message.role}/>
+                        )}
+                      </div>
+                      {message.role === 'user' && (
+                        <div className={`w-10 h-10 rounded-full ml-3 p-0.5 backdrop-blur-sm border transition-all duration-300 ${
+                          darkMode 
+                            ? 'bg-gradient-to-br from-orange-500/20 to-red-500/20 border-white/20 shadow-lg' 
+                            : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
+                        } ${shouldShowProfilePicture ? 'opacity-100' : 'opacity-0'}`}>
+                          <img
+                            src={userPicture}
+                            alt="User Avatar"
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        </div>
                       )}
                     </div>
-                    {message.role === 'user' && (
-                      <img
-                        src={userPicture}
-                        alt="User Avatar"
-                        className="w-8 h-8 rounded-full ml-2"
-                      />
-                    )}
-                  </div>
-                  {partIndex === parts.length - 1 && (
-                    <>
-                      <div className={`flex mt-1 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
-                          hoveredMessageIndex === index && message.role === 'user'
-                            ? 'opacity-100 group-hover:opacity-100'
-                            : 'opacity-0 group-hover:opacity-0'
-                        } transition-opacity text-sm`}
-                      >
-                        {message.role === 'user' && (
-                          <button
-                            onClick={() => handleStartEditingMessage(index, message.content)}
-                            className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
-                            title="Edit message"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                        )}
-                      </div>
-
-                      <div className={`flex mt-1 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
-                          hoveredMessageIndex === index && message.role !== 'user'
-                            ? 'opacity-100 group-hover:opacity-100'
-                            : 'opacity-0 group-hover:opacity-0'
-                        } transition-opacity text-sm`}
-                      >
-                        {message.role !== 'user' && (
-                          <div>
+                    {partIndex === parts.length - 1 && (
+                      <>
+                        <div className={`flex mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
+                            hoveredMessageIndex === index && message.role === 'user'
+                              ? 'opacity-100 group-hover:opacity-100'
+                              : 'opacity-0 group-hover:opacity-0'
+                          } transition-all duration-300 text-sm`}
+                        >
+                          {message.role === 'user' && (
                             <button
-                              onClick={() => handleLikeMessage(index, message.content)}
-                              className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
-                              title="Like message"
+                              onClick={() => handleStartEditingMessage(index, message.content)}
+                              className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                darkMode 
+                                  ? 'bg-white/10 hover:bg-white/20 border-white/20 text-gray-300 shadow-lg' 
+                                  : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-600 shadow-md'
+                              }`}
+                              title="Edit message"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className={`flex mt-2 space-x-2 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
+                            hoveredMessageIndex === index && message.role !== 'user'
+                              ? 'opacity-100 group-hover:opacity-100'
+                              : 'opacity-0 group-hover:opacity-0'
+                          } transition-all duration-300 text-sm`}
+                        >
+                          {message.role !== 'user' && (
+                            <>
+                              <button
+                                onClick={() => handleLikeMessage(index, message.content)}
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                  darkMode 
+                                    ? 'bg-white/10 hover:bg-green-500/20 border-white/20 hover:border-green-400/30 text-gray-300 hover:text-green-400 shadow-lg' 
+                                    : 'bg-white/60 hover:bg-green-500/20 border-white/40 hover:border-green-500/40 text-gray-600 hover:text-green-600 shadow-md'
+                                }`}
+                                title="Like message"
                               >
                                 <ThumbsUp size={14} />
-                            </button>
-                            <button
+                              </button>
+                              <button
                                 onClick={() => handleDislikeMessage(index, message.content)}
-                                className={`p-1.5 rounded-full ml-1 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-white hover:bg-gray-200 text-gray-600'} shadow-sm`}
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                  darkMode 
+                                    ? 'bg-white/10 hover:bg-red-500/20 border-white/20 hover:border-red-400/30 text-gray-300 hover:text-red-400 shadow-lg' 
+                                    : 'bg-white/60 hover:bg-red-500/20 border-white/40 hover:border-red-500/40 text-gray-600 hover:text-red-600 shadow-md'
+                                }`}
                                 title="Dislike message"
-                                >
-                                  <ThumbsDown size={14} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {(
-                        (currentConversationBranchInfo?.parent_conversation_id && currentConversationBranchInfo.branch_from_message_index === index) ||
-                        (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
-                      ) && (
-                        <div className={`flex mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                          <div className={`relative inline-block text-left ${darkMode ? 'text-white' : 'text-gray-700'}`}>
-                            <button
-                              onClick={() => {
-                                setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
-                              }}
-                              className={`inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 text-sm font-medium ${darkMode ? 'bg-gray-700 hover:bg-gray-600 border-gray-600' : 'bg-white hover:bg-gray-50 text-gray-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 ${darkMode ? 'focus:ring-offset-gray-800 focus:ring-orange-500' : 'focus:ring-offset-gray-100 focus:ring-blue-500'}`}
-                              id={`options-menu-${index}`}
-                              aria-haspopup="true"
-                              aria-expanded="true"
-                            >
-                              Branches
-                              <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
-                            </button>
-
-                            {openBranchDropdownIndex === index && (
-                              <div
-                                className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-md shadow-lg ${darkMode ? 'bg-gray-700 ring-1 ring-black ring-opacity-5' : 'bg-white ring-1 ring-black ring-opacity-5'}`}
-                                role="menu"
-                                aria-orientation="vertical"
-                                aria-labelledby={`options-menu-${index}`}
                               >
-                                <div className="py-1" role="none">
-                                  {currentConversationBranchInfo?.parent_conversation_id &&
-                                    currentConversationBranchInfo.branch_from_message_index === index && (
-                                    <button
-                                      onClick={() => {
-                                        loadConversation(currentConversationBranchInfo.parent_conversation_id);
+                                <ThumbsDown size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {(
+                          (currentConversationBranchInfo?.parent_conversation_id && currentConversationBranchInfo.branch_from_message_index === index) ||
+                          (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
+                        ) && (
+                          <div className={`flex mt-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                            <div className={`relative inline-block text-left ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                              <button
+                                onClick={() => {
+                                  setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
+                                }}
+                                className={`inline-flex justify-center px-4 py-2 text-sm font-medium rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                  darkMode 
+                                    ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
+                                    : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-700 shadow-md'
+                                } focus:outline-none focus:ring-2 ${
+                                  darkMode 
+                                    ? 'focus:ring-purple-400/50' 
+                                    : 'focus:ring-blue-500/50'
+                                }`}
+                                id={`options-menu-${index}`}
+                                aria-haspopup="true"
+                                aria-expanded="true"
+                              >
+                                Branches
+                                <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+                              </button>
+
+                              {openBranchDropdownIndex === index && (
+                                <div
+                                  className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-2xl backdrop-blur-sm border shadow-xl transition-all duration-300 ${
+                                    darkMode 
+                                      ? 'bg-white/10 border-white/20' 
+                                      : 'bg-white/80 border-white/50'
+                                  }`}
+                                  role="menu"
+                                  aria-orientation="vertical"
+                                  aria-labelledby={`options-menu-${index}`}
+                                >
+                                  <div className="py-2" role="none">
+                                    {currentConversationBranchInfo?.parent_conversation_id &&
+                                      currentConversationBranchInfo.branch_from_message_index === index && (
+                                      <button
+                                        onClick={() => {
+                                          loadConversation(currentConversationBranchInfo.parent_conversation_id);
                                           setOpenBranchDropdownIndex(null);
                                         }}
-                                        className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
+                                        className={`${
+                                          darkMode 
+                                            ? 'text-gray-300 hover:bg-white/20' 
+                                            : 'text-gray-700 hover:bg-white/60'
+                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200`}
                                         role="menuitem"
-                                        >
+                                      >
                                         <ArrowLeft className="inline-block mr-2" size={14} /> Go to Parent
-                                        </button>
-                                      )}
+                                      </button>
+                                    )}
 
-                                      {currentConversationBranchInfo?.children_branches
-                                        .filter(b => b.branch_from_message_index === index && b.id !== currentConversationId)
-                                        .map((branch, idx) => (
-                                        <button
-                                          key={branch.id}
-                                          onClick={() => {
+                                    {currentConversationBranchInfo?.children_branches
+                                      .filter(b => b.branch_from_message_index === index && b.id !== currentConversationId)
+                                      .map((branch, idx) => (
+                                      <button
+                                        key={branch.id}
+                                        onClick={() => {
                                           loadConversation(branch.id);
                                           setOpenBranchDropdownIndex(null);
-                                          }}
-                                          className={`${darkMode ? 'text-gray-300 hover:bg-gray-600' : 'text-gray-700 hover:bg-gray-100'} block px-4 py-2 text-sm w-full text-left`}
-                                          role="menuitem"
-                                        >
-                                          <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
-                                        </button>
-                                        ))}
+                                        }}
+                                        className={`${
+                                          darkMode 
+                                            ? 'text-gray-300 hover:bg-white/20' 
+                                            : 'text-gray-700 hover:bg-white/60'
+                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200`}
+                                        role="menuitem"
+                                      >
+                                        <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
+                                      </button>
+                                    ))}
 
-                                        {currentConversationBranchInfo?.parent_conversation_id &&
-                                          currentConversationBranchInfo.branch_from_message_index === index && (
-                                        <button
-                                          onClick={() => {
+                                    {currentConversationBranchInfo?.parent_conversation_id &&
+                                      currentConversationBranchInfo.branch_from_message_index === index && (
+                                      <button
+                                        onClick={() => {
                                           setOpenBranchDropdownIndex(null);
                                         }}
-                                        className={`${darkMode ? 'text-orange-400 bg-gray-600' : 'text-blue-600 bg-blue-50'} block px-4 py-2 text-sm w-full text-left cursor-default`}
+                                        className={`${
+                                          darkMode 
+                                            ? 'text-orange-400 bg-gradient-to-r from-orange-500/20 to-red-500/20' 
+                                            : 'text-blue-600 bg-gradient-to-r from-blue-500/20 to-purple-500/20'
+                                        } block px-4 py-2 text-sm w-full text-left cursor-default rounded-xl mx-2`}
                                         role="menuitem"
                                         disabled
                                       >
-                                         <Check className="inline-block mr-2" size={14} /> Current Branch
+                                        <Check className="inline-block mr-2" size={14} /> Current Branch
                                       </button>
                                     )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </>
           );
-        })}          {isLoading && (
-            <div className="flex justify-start">
-              <div className={`flex items-center space-x-1 p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} shadow-sm`}>
-                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.1s' }}></span>
-                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.2s' }}></span>
-                <span className={`dot w-2 h-2 rounded-full ${darkMode ? 'bg-gray-300' : 'bg-gray-500'} animate-bounce`} style={{ animationDelay: '0.3s' }}></span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
+        })}          
+        <div ref={messagesEndRef} />
         </div>
 
-        <div className={`p-4 ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'} border-t shadow-md`}>
-          <div className="flex items-end">
+        <div className={`flex-shrink-0 p-4 border-t shadow-xl backdrop-blur-sm transition-all duration-300 ${
+          darkMode 
+            ? 'bg-white/10 border-white/20' 
+            : 'bg-white/60 border-white/40'
+        }`}>
+          <div className="flex items-end space-x-3">
             <textarea
               ref={inputRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Send a message..."
-              className={`flex-grow p-3 border rounded-lg mr-2 resize-none max-h-40 focus:outline-none focus:ring-2 ${
+              className={`flex-grow p-4 rounded-2xl resize-none max-h-40 backdrop-blur-sm border transition-all duration-300 ${
                 darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-orange-500'
-                  : 'focus:ring-blue-300 focus:border-blue-300'
-              }`}
+                  ? 'bg-white/10 border-white/20 text-white placeholder-white/60 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20'
+                  : 'bg-white/60 border-white/40 text-gray-800 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
+              } focus:outline-none`}
               rows={1}
               style={{ overflow: 'auto' }}
             />
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim()}
-              className={`${
+              className={`p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
                 darkMode
-                  ? 'bg-orange-500 hover:bg-orange-600'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white p-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm`}
+                  ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 border-orange-400/30 text-orange-400 hover:bg-gradient-to-r hover:from-orange-500/30 hover:to-red-500/30'
+                  : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-500/40 text-blue-600 hover:bg-gradient-to-r hover:from-blue-500/30 hover:to-purple-500/30'
+              }`}
             >
-              <ArrowBigUp />
+              <ArrowBigUp size={20} />
             </button>
           </div>
         </div>
