@@ -4,3 +4,5 @@ __pycache__/
 node_modules/
 aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json
 firebase.json
+stripekey.txt
+geminikey.txt

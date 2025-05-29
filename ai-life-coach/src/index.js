@@ -8,7 +8,7 @@ import SharedComponent from './Shared';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <Router>
+    <Router basename="/ai-life-coach">
       <Routes>
         <Route path="/shared/:ownerId/:conversationId" element={<SharedComponent />} />
         <Route path="/" element={<App />}/>

@@ -15,6 +15,7 @@ import datetime
 import logging
 import os
 import google.generativeai as genai
+import stripe
 
 cred = ""
 gemini_cred = ""
@@ -25,14 +26,28 @@ if not firebase_admin._apps:
         gemini_cred = open("geminikey.txt", "r").read()
     else:
         cred = credentials.Certificate("aisecondself-8a616-firebase-adminsdk-fbsvc-3341d01ff4.json")
+        gemini_cred = open("geminikey.txt", "r").read()
     firebase_admin.initialize_app(cred)
 
 print("Got gemini cred: ", gemini_cred)
-client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+client = genai.configure(api_key=gemini_cred)
+stripe.api_key = open("stripekey.txt", "r").read()
 
 db = firestore.client()
 
 app = FastAPI()
+
+CREDIT_PACKAGES = {
+    "starter": {"credits": 100, "price": 5.00, "price_id": "price_1RTvU2BQFEsZhRVarP1OqCOY"},
+    "standard": {"credits": 500, "price": 20.00, "price_id": "price_1RTvUeBQFEsZhRVaTpDGPvTm"},
+    "premium": {"credits": 1000, "price": 35.00, "price_id": "price_1RTvVOBQFEsZhRVaouCGkPFU"},
+    "unlimited": {"credits": 5000, "price": 100.00, "price_id": "price_1RTvV5BQFEsZhRVa6iu51sbu"}
+}
+
+SUBSCRIPTION_PLANS = {
+    "basic": {"credits_per_month": 500, "price": 9.99, "price_id": "price_1RTvVbBQFEsZhRVaEwejtzyW"},
+    "pro": {"credits_per_month": 2000, "price": 29.99, "price_id": "price_1RTvVpBQFEsZhRVadZlSfhon"},
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -148,6 +163,247 @@ class EditRequest(BaseModel):
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class CreditManager:
+    @staticmethod
+    def get_user_credits(user_ref) -> dict:
+        """Get user's current credit information"""
+        user_doc = user_ref.get()
+        user_data = user_doc.to_dict() if user_doc.exists else {}
+        
+        return {
+            "credits": user_data.get("credits", 0),
+            "subscription_plan": user_data.get("subscription_plan"),
+            "subscription_status": user_data.get("subscription_status"),
+            "subscription_expires": user_data.get("subscription_expires"),
+            "last_credit_refresh": user_data.get("last_credit_refresh")
+        }
+    
+    @staticmethod
+    def deduct_credits(user_ref, amount: int = 1) -> bool:
+        """Deduct credits from user account. Returns True if successful."""
+        try:
+            user_doc = user_ref.get()
+            if not user_doc.exists:
+                return False
+            
+            user_data = user_doc.to_dict()
+            current_credits = user_data.get("credits", 0)
+            
+            CreditManager.refresh_subscription_credits(user_ref, user_data)
+            
+            user_doc = user_ref.get()
+            user_data = user_doc.to_dict()
+            current_credits = user_data.get("credits", 0)
+            
+            if current_credits >= amount:
+                user_ref.update({
+                    "credits": current_credits - amount,
+                    "last_used": datetime.now(datetime.timezone.utc)
+                })
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error deducting credits: {e}")
+            return False
+    
+    @staticmethod
+    def add_credits(user_ref, amount: int):
+        """Add credits to user account"""
+        user_doc = user_ref.get()
+        user_data = user_doc.to_dict() if user_doc.exists else {}
+        current_credits = user_data.get("credits", 0)
+        
+        user_ref.update({
+            "credits": current_credits + amount,
+            "last_credit_addition": datetime.now(datetime.timezone.utc)
+        })
+    
+    @staticmethod
+    def refresh_subscription_credits(user_ref, user_data: dict):
+        """Refresh subscription credits if it's a new month"""
+        subscription_plan = user_data.get("subscription_plan")
+        subscription_status = user_data.get("subscription_status")
+        last_refresh = user_data.get("last_credit_refresh")
+        
+        if not subscription_plan or subscription_status != "active":
+            return
+        
+        now = datetime.now(datetime.timezone.utc)
+        
+        if not last_refresh or (now - last_refresh).days >= 30:
+            plan_info = SUBSCRIPTION_PLANS.get(subscription_plan)
+            if plan_info:
+                monthly_credits = plan_info["credits_per_month"]
+                user_ref.update({
+                    "credits": monthly_credits, 
+                    "last_credit_refresh": now
+                })
+
+@app.get("/user/credits")
+async def get_user_credits(user_info: dict = Depends(verify_token)):
+    """Get user's current credit information"""
+    user_uid = user_info["uid"]
+    user_ref = db.collection("users").document(user_uid)
+    
+    credits_info = CreditManager.get_user_credits(user_ref)
+    return credits_info
+
+@app.post("/create-payment-intent")
+async def create_payment_intent(
+    request: dict,
+    user_info: dict = Depends(verify_token)
+):
+    """Create Stripe checkout session for one-time credit purchase (embedded checkout)"""
+    try:
+        package_id = request.get("package_id")
+        package_info = CREDIT_PACKAGES.get(package_id)
+        
+        if not package_info:
+            raise HTTPException(status_code=400, detail="Invalid package")
+        
+        user_uid = user_info["uid"]
+
+        session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{
+                "price": package_info["price_id"],
+                "quantity": 1,
+            }],
+            mode="payment",
+            metadata={
+                'user_id': user_uid,
+                'package_id': package_id,
+                'credits': package_info["credits"],
+                'type': 'one_time_purchase'
+            },
+            ui_mode="embedded",
+            return_url="http://localhost:3000/payment-complete?session_id={CHECKOUT_SESSION_ID}"
+        )
+
+        return {
+            "client_secret": session.client_secret,
+            "session_id": session.id,
+            "publishable_key": "pk_test_51RIKBKBQFEsZhRVaP4WiDKydGD8wYJHjDzikt3WH39cI0NRSs4p59ZQ6uiz9A78WObKwvgsmcgWKVIhj5i9soLmk00vYT7dcLc"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {e}")
+        raise HTTPException(status_code=500, detail="Payment creation failed")
+
+@app.post("/create-subscription")
+async def create_subscription(
+    request: dict,
+    user_info: dict = Depends(verify_token)
+):
+    """Create Stripe subscription"""
+    try:
+        plan_id = request.get("plan_id")
+        plan_info = SUBSCRIPTION_PLANS.get(plan_id)
+        
+        if not plan_info:
+            raise HTTPException(status_code=400, detail="Invalid plan")
+        
+        user_uid = user_info["uid"]
+        user_ref = db.collection("users").document(user_uid)
+        user_doc = user_ref.get()
+        user_data = user_doc.to_dict() if user_doc.exists else {}
+        
+        stripe_customer_id = user_data.get("stripe_customer_id")
+        if not stripe_customer_id:
+            customer = stripe.Customer.create(
+                email=user_data.get("email"),
+                metadata={"user_id": user_uid}
+            )
+            stripe_customer_id = customer.id
+            user_ref.update({"stripe_customer_id": stripe_customer_id})
+        
+        subscription = stripe.Subscription.create(
+            customer=stripe_customer_id,
+            items=[{"price": plan_info["price_id"]}],
+            metadata={
+                "user_id": user_uid,
+                "plan_id": plan_id
+            }
+        )
+        
+        return {"subscription_id": subscription.id, "client_secret": subscription.latest_invoice.payment_intent.client_secret}
+    
+    except Exception as e:
+        logger.error(f"Error creating subscription: {e}")
+        raise HTTPException(status_code=500, detail="Subscription creation failed")
+
+# @app.post("/webhook/stripe")
+# async def stripe_webhook(request: Request):
+#     """Handle Stripe webhooks"""
+#     payload = await request.body()
+#     sig_header = request.headers.get('stripe-signature')
+#     endpoint_secret = "whsec_..."
+    
+#     try:
+#         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+#     except ValueError:
+#         raise HTTPException(status_code=400, detail="Invalid payload")
+#     except stripe.error.SignatureVerificationError:
+#         raise HTTPException(status_code=400, detail="Invalid signature")
+    
+#     # Handle the event
+#     if event['type'] == 'payment_intent.succeeded':
+#         payment_intent = event['data']['object']
+        
+#         if payment_intent.metadata.get('type') == 'one_time_purchase':
+#             # Add credits for one-time purchase
+#             user_id = payment_intent.metadata.get('user_id')
+#             credits = int(payment_intent.metadata.get('credits'))
+            
+#             user_ref = db.collection("users").document(user_id)
+#             CreditManager.add_credits(user_ref, credits)
+            
+#             # Log transaction
+#             user_ref.collection("transactions").add({
+#                 "type": "credit_purchase",
+#                 "credits": credits,
+#                 "amount": payment_intent.amount / 100,
+#                 "stripe_payment_intent": payment_intent.id,
+#                 "timestamp": datetime.now(datetime.timezone.utc),
+#                 "status": "completed"
+#             })
+    
+#     elif event['type'] == 'invoice.payment_succeeded':
+#         invoice = event['data']['object']
+#         subscription_id = invoice.subscription
+        
+#         # Update subscription status
+#         subscription = stripe.Subscription.retrieve(subscription_id)
+#         user_id = subscription.metadata.get('user_id')
+#         plan_id = subscription.metadata.get('plan_id')
+        
+#         if user_id and plan_id:
+#             user_ref = db.collection("users").document(user_id)
+#             plan_info = SUBSCRIPTION_PLANS.get(plan_id)
+            
+#             user_ref.update({
+#                 "subscription_plan": plan_id,
+#                 "subscription_status": "active",
+#                 "subscription_id": subscription_id,
+#                 "subscription_expires": datetime.now(datetime.timezone.utc) + timedelta(days=30),
+#                 "credits": plan_info["credits_per_month"],
+#                 "last_credit_refresh": datetime.now(datetime.timezone.utc)
+#             })
+    
+#     elif event['type'] == 'customer.subscription.deleted':
+#         subscription = event['data']['object']
+#         user_id = subscription.metadata.get('user_id')
+        
+#         if user_id:
+#             user_ref = db.collection("users").document(user_id)
+#             user_ref.update({
+#                 "subscription_status": "cancelled",
+#                 "subscription_plan": None,
+#                 "subscription_id": None
+#             })
+    
+#     return {"status": "success"}
 
 @app.get("/conversations", response_model=List[ConversationSummary])
 async def list_conversations(user_info: dict = Depends(verify_token)):
@@ -373,6 +629,9 @@ async def chat_stream(
 ):
     user_uid = user_info["uid"]
     user_ref = db.collection("users").document(user_uid)
+    if not CreditManager.deduct_credits(user_ref, 1):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+
     conversation_id = request.conversation_id
     now = datetime.datetime.now(datetime.timezone.utc)
     is_brand_new_conversation_this_call = False

@@ -58,6 +58,10 @@ function ProfileComponent({
         ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900' 
         : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
     }`}>
+      <br />
+      <br />
+      <br />
+
       <div className="max-w-6xl mx-auto p-6">
         <div className="text-center mb-8">
           <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-full backdrop-blur-sm border transition-all duration-300 ${

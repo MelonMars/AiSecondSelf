@@ -647,7 +647,9 @@ const handleZoomOut = (event) => {
         ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50" 
         : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-200/50"
     }`}>
-
+      <br />
+      <br />
+      <br />
       <div className="mb-6 flex justify-between items-center">
         <div className="flex items-center space-x-3">
           <div className={`w-2 h-2 rounded-full animate-pulse ${darkMode ? "bg-orange-500" : "bg-blue-500"}`} />

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -51,6 +51,490 @@ const saveGraphData = async (graphData) => {
   }
 };
 
+const loadStripe = () => {
+  return new Promise((resolve, reject) => {
+    if (window.Stripe) {
+      resolve(window.Stripe);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://js.stripe.com/v3/';
+    script.async = true;
+    script.onload = () => {
+      if (window.Stripe) {
+        resolve(window.Stripe); 
+      } else {
+        reject(new Error('Stripe failed to load after script execution.'));
+      }
+    };
+    script.onerror = () => {
+      reject(new Error('Failed to load Stripe script. Network error or invalid URL.'));
+    };
+    document.head.appendChild(script);
+  });
+};
+
+
+function CreditModal({
+  isOpen,
+  onClose,
+  darkMode,
+  authToken
+}) {
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [activeTab, setActiveTab] = useState('credits');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState('');
+  const [showStripeCheckout, setShowStripeCheckout] = useState(false);
+
+  const STRIPE_PUBLISHABLE_KEY = 'pk_test_51RIKBKBQFEsZhRVaP4WiDKydGD8wYJHjDzikt3WH39cI0NRSs4p59ZQ6uiz9A78WObKwvgsmcgWKVIhj5i9soLmk00vYT7dcLc';
+
+  const creditPackages = [
+    {
+      id: 'starter',
+      name: 'Starter Pack',
+      credits: 100,
+      price: 5.00,
+      popular: false,
+      icon: '💡',
+      color: 'from-blue-400 to-blue-600',
+      description: 'Perfect for trying out'
+    },
+    {
+      id: 'standard',
+      name: 'Standard Pack',
+      credits: 500,
+      price: 20.00,
+      popular: true,
+      icon: '⚡',
+      color: 'from-purple-400 to-purple-600',
+      description: 'Most popular choice'
+    },
+    {
+      id: 'premium',
+      name: 'Premium Pack',
+      credits: 1000,
+      price: 35.00,
+      popular: false,
+      icon: '🚀',
+      color: 'from-pink-400 to-pink-600',
+      description: 'Great value for heavy users'
+    },
+    {
+      id: 'unlimited',
+      name: 'Power User',
+      credits: 5000,
+      price: 100.00,
+      popular: false,
+      icon: '👑',
+      color: 'from-yellow-400 to-orange-500',
+      description: 'For unlimited conversations'
+    }
+  ];
+
+  const subscriptionPlans = [
+    {
+      id: 'basic',
+      name: 'Basic Plan',
+      credits: 500,
+      price: 9.99,
+      popular: false,
+      features: ['500 credits/month', 'Standard support', 'Basic features'],
+      color: 'from-green-400 to-green-600',
+      description: 'Essential features for regular use'
+    },
+    {
+      id: 'pro',
+      name: 'Pro Plan',
+      credits: 2000,
+      price: 29.99,
+      popular: true,
+      features: ['2,000 credits/month', 'Priority support', 'Advanced features', 'Early access'],
+      color: 'from-purple-400 to-purple-600',
+      description: 'Perfect for power users'
+    },
+    {
+      id: 'enterprise',
+      name: 'Enterprise',
+      credits: 10000,
+      price: 99.99,
+      popular: false,
+      features: ['10,000 credits/month', 'Dedicated support', 'All features', 'Custom integrations'],
+      color: 'from-orange-400 to-red-500',
+      description: 'For teams and businesses'
+    }
+  ];
+
+  const handlePurchase = async (type, itemId) => {
+    setIsProcessing(true);
+    setMessage('');
+    setShowStripeCheckout(true);
+
+    console.log(`Starting purchase for ${type} with item ID:`, itemId);
+    try {
+      const endpoint = type === 'credit' ? 'create-payment-intent' : 'create-subscription';
+      const body = type === 'credit' ? { package_id: itemId } : { plan_id: itemId };
+
+      const response = await fetch(`http://127.0.0.1:8000/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to create ${type} session`);
+      }
+
+      const { client_secret } = await response.json();
+
+      console.log("Received client secret:", client_secret);
+      const Stripe = await loadStripe();
+      if (!Stripe) {
+        throw new Error('Stripe object not available after loading script.');
+      }
+      const stripe = Stripe(STRIPE_PUBLISHABLE_KEY); 
+      const embeddedCheckoutDiv = document.getElementById('embedded-checkout');
+      if (embeddedCheckoutDiv && embeddedCheckoutDiv.firstChild) {
+        embeddedCheckoutDiv.innerHTML = '';
+      }
+      const checkout = await stripe.initEmbeddedCheckout({
+        clientSecret: client_secret,
+        onComplete: () => {
+          setMessage('Payment successful! Your purchase has been completed.');
+          setTimeout(() => {
+            onClose();
+            setSelectedPackage(null);
+            setSelectedPlan(null);
+            setShowStripeCheckout(false);
+          }, 2000);
+        },
+        // onReady: () => {
+        //   // You can add logic here when the checkout is ready
+        //   setIsProcessing(false);
+        // },
+        // onEscape: () => {
+        //   // User closed the embedded checkout
+        //   setMessage('Payment process cancelled.');
+        //   setIsProcessing(false);
+        //   setShowStripeCheckout(false); // Reset this if user escapes
+        // },
+        // Optional: Customize appearance
+        // appearance: {
+        //   theme: darkMode ? 'night' : 'stripe',
+        //   variables: {
+        //     colorPrimary: '#8b5cf6',
+        //     colorBackground: darkMode ? '#1f2937' : '#ffffff',
+        //     colorText: darkMode ? '#f9fafb' : '#374151',
+        //     colorDanger: '#ef4444',
+        //     fontFamily: 'system-ui, sans-serif',
+        //     spacingUnit: '4px',
+        //     borderRadius: '8px'
+        //   }
+        // }
+      });
+
+      checkout.mount('#embedded-checkout');
+
+    } catch (error) {
+      console.error(`${type} error:`, error);
+      setMessage(`Error: ${error.message}`);
+      setIsProcessing(false);
+      setShowStripeCheckout(false); 
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl backdrop-blur-md border transition-all duration-300 ${
+        darkMode
+          ? 'bg-white/10 border-white/20'
+          : 'bg-white/80 border-white/40'
+      }`}>
+        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b border-white/20 backdrop-blur-md bg-inherit rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                {showStripeCheckout ? 'Complete Your Purchase' : 'Get More Credits'}
+              </h2>
+              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {showStripeCheckout ? 'Complete your purchase securely' : 'Choose your plan to continue chatting'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              onClose();
+              setSelectedPackage(null);
+              setSelectedPlan(null);
+              setActiveTab('credits');
+              setMessage('');
+              setIsProcessing(false);
+              setShowStripeCheckout(false); 
+            }}
+            className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 ${
+              darkMode ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray/20 text-gray-600'
+            }`}
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {showStripeCheckout ? (
+            <div id="embedded-checkout" className="min-h-[500px] w-full">
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center mb-8">
+                <div className={`flex rounded-xl p-1 ${darkMode ? 'bg-white/10' : 'bg-gray/20'}`}>
+                  <button
+                    onClick={() => {
+                        setActiveTab('credits');
+                        setSelectedPackage(null);
+                        setSelectedPlan(null);
+                    }}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                      activeTab === 'credits'
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                        : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <CreditCard className="w-5 h-5 inline mr-2" />
+                    Buy Credits
+                  </button>
+                  <button
+                    onClick={() => {
+                        setActiveTab('subscription');
+                        setSelectedPackage(null); 
+                        setSelectedPlan(null); 
+                    }}
+                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
+                      activeTab === 'subscription'
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                        : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    <Crown className="w-5 h-5 inline mr-2" />
+                    Subscription
+                  </button>
+                </div>
+              </div>
+
+              {activeTab === 'credits' && (
+                <div className="space-y-6">
+                  <div className="text-center mb-8">
+                    <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      One-Time Credit Packages
+                    </h3>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Purchase credits once and use them anytime
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {creditPackages.map((pkg) => (
+                      <div
+                        key={pkg.id}
+                        className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 ${
+                          selectedPackage === pkg.id
+                            ? 'border-purple-500 shadow-lg shadow-purple-500/25'
+                            : darkMode
+                              ? 'border-white/20 hover:border-white/40'
+                              : 'border-gray/30 hover:border-gray/50'
+                        } ${darkMode ? 'bg-white/5' : 'bg-white/40'}`}
+                        onClick={() => setSelectedPackage(pkg.id)}
+                      >
+                        {pkg.popular && (
+                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                              <Star className="w-3 h-3" />
+                              Popular
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="text-center">
+                          <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-2xl`}>
+                            {pkg.icon}
+                          </div>
+                          <h4 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {pkg.name}
+                          </h4>
+                          <div className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            ${pkg.price.toFixed(2)}
+                          </div>
+                          <div className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {pkg.credits.toLocaleString()} credits
+                          </div>
+                          <div className={`text-xs mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {pkg.description}
+                          </div>
+                          <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {(pkg.price / pkg.credits * 100).toFixed(2)} per 100 credits
+                          </div>
+                        </div>
+
+                        {selectedPackage === pkg.id && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle className="w-6 h-6 text-purple-500" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedPackage && (
+                    <div className="flex justify-center mt-8">
+                      <button
+                        onClick={() => handlePurchase('credit', selectedPackage)}
+                        disabled={isProcessing}
+                        className={`px-8 py-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                          isProcessing
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
+                        } text-white`}
+                      >
+                        {isProcessing ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="w-5 h-5" />
+                            Purchase Credits
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'subscription' && (
+                <div className="space-y-6">
+                  <div className="text-center mb-8">
+                    <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Monthly Subscription Plans
+                    </h3>
+                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Get recurring credits automatically each month
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-6">
+                    {subscriptionPlans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 ${
+                          selectedPlan === plan.id
+                            ? 'border-purple-500 shadow-lg shadow-purple-500/25'
+                            : darkMode
+                              ? 'border-white/20 hover:border-white/40'
+                              : 'border-gray/30 hover:border-gray/50'
+                        } ${darkMode ? 'bg-white/5' : 'bg-white/40'}`}
+                        onClick={() => setSelectedPlan(plan.id)}
+                      >
+                        {plan.popular && (
+                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                              <Star className="w-3 h-3" />
+                              Most Popular
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="text-center mb-6">
+                          <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${plan.color} flex items-center justify-center`}>
+                            <Crown className="w-8 h-8 text-white" />
+                          </div>
+                          <h4 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            {plan.name}
+                          </h4>
+                          <div className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            ${plan.price.toFixed(2)}
+                            <span className={`text-sm font-normal ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>/month</span>
+                          </div>
+                          <div className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {plan.description}
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                          {plan.features.map((feature, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                {feature}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {selectedPlan === plan.id && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle className="w-6 h-6 text-purple-500" />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedPlan && (
+                    <div className="flex justify-center mt-8">
+                      <button
+                        onClick={() => handlePurchase('subscription', selectedPlan)}
+                        disabled={isProcessing}
+                        className={`px-8 py-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                          isProcessing
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
+                        } text-white`}
+                      >
+                        {isProcessing ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Crown className="w-5 h-5" />
+                            Subscribe Now
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {message && (
+            <div className={`mt-6 p-4 rounded-lg text-center ${
+              message.includes('successful') || message.includes('completed')
+                ? 'bg-green-500/20 text-green-400'
+                : 'bg-red-500/20 text-red-400'
+            }`}>
+              {message}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [tab, setTab] = useState("chat");
@@ -86,6 +570,13 @@ export default function App() {
   const [aiName, setAIName] = useState("AI");
   const [aiPersonalities, setAiPersonalities] = useState([]); 
 
+  const [authLoading, setAuthLoading] = useState(true);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [userDataLoading, setUserDataLoading] = useState(true);
+  const [picturesLoading, setPicturesLoading] = useState(true);
+  const [personalitiesLoading, setPersonalitiesLoading] = useState(true);
+
+
   const messagesEndRef = useRef(null);
 
   const inputRef = useRef(null);
@@ -101,6 +592,9 @@ export default function App() {
   const [customPersonalityIcon, setCustomPersonalityIcon] = useState("");
   const [customPersonalityError, setCustomPersonalityError] = useState("");
   const [customPersonalities, setCustomPersonalities] = useState([]);
+
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [showCreditModal, setShowCreditModal] = useState(false);
 
   const [isHovering, setIsHovering] = useState(false);
   const personalityIconInputRef = useRef(null);
@@ -135,31 +629,39 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, user => {
       if (user) {
         user.getIdToken().then(idToken => {
-           setAuthToken(idToken);
-           setUid(user.uid);
-           setUserName(user.displayName || "User");
-           setUserEmail(user.email || "");
-           localStorage.setItem("authToken", idToken);
-           localStorage.setItem("uid", user.uid);
-           localStorage.setItem("userName", user.displayName || "User");
-           localStorage.setItem("userEmail", user.email || "");
+          setAuthToken(idToken);
+          setUid(user.uid);
+          setUserName(user.displayName || "User");
+          setUserEmail(user.email || "");
+          localStorage.setItem("authToken", idToken);
+          localStorage.setItem("uid", user.uid);
+          localStorage.setItem("userName", user.displayName || "User");
+          localStorage.setItem("userEmail", user.email || "");
 
-           console.log("Firebase auth state changed. User logged in.");
-           setIsLoading(false);
+          console.log("Firebase auth state changed. User logged in.");
+          setAuthLoading(false);
 
-           setTimeout(() => {
-             if (graphData === null) {
-               fetchUserData(idToken);
-               fetchUserPrefs(idToken);
-               fetchUserPictures(idToken);
-               fetchPersonalities(idToken);
-               fetchAIName(idToken);
-             }
-           }, 0);
+          fetchConversations(idToken);
+
+          Promise.allSettled([
+            fetchUserPrefs(idToken), 
+            fetchAIName(idToken)
+          ]).then(() => {
+            console.log("High priority user data loaded");
+          });
+
+          Promise.allSettled([
+            fetchUserData(idToken),
+            fetchUserPictures(idToken),
+            fetchPersonalities(idToken)
+          ]).then(() => {
+            console.log("All user data loaded");
+          });
+
         }).catch(error => {
-             console.error("Failed to get ID token:", error);
-             setIsLoading(false);
-             logout();
+          console.error("Failed to get ID token:", error);
+          setAuthLoading(false);
+          logout();
         });
       } else {
         setAuthToken(null);
@@ -172,24 +674,16 @@ export default function App() {
         localStorage.removeItem("userEmail");
 
         setMessages([]);
-        setConversations([]); 
+        setConversations([]);
         setCurrentConversationId(null);
-        setGraphData({ nodes: [], edges: [] }); 
-        setIsLoading(false);
-        setIsConversationsLoading(false); 
+        setGraphData({ nodes: [], edges: [] });
+        setAuthLoading(false);
+        setConversationsLoading(false);
         console.log("Firebase auth state changed. User logged out.");
       }
     });
     return () => unsubscribe();
   }, []);
-
-  useEffect(() => {
-    if (authToken) {
-      fetchConversations();
-    } else {
-      setConversations([]);
-    }
-  }, [authToken]);
 
 
   useEffect(() => {
@@ -198,41 +692,46 @@ export default function App() {
     }
   }, [tab]);
 
-  const fetchConversations = async () => {
-    if (!authToken) {
-        setConversations([]);
-        return;
+  const fetchConversations = async (token = authToken) => {
+    if (!token) {
+      setConversations([]);
+      return;
     }
 
-    setIsConversationsLoading(true);
+    if (conversationsLoading) {
+      console.log("fetchConversations already in progress, skipping duplicate call");
+      return;
+    }
+
+    setConversationsLoading(true);
     try {
-        const headers = { "Authorization": `Bearer ${authToken}` };
-        const res = await fetch("http://127.0.0.1:8000/conversations", { headers });
+      const headers = { "Authorization": `Bearer ${token}` };
+      const res = await fetch("http://127.0.0.1:8000/conversations", { headers });
 
-        if (!res.ok) {
-            if (res.status === 401) {
-                setAuthError("Authentication failed. Please log in again.");
-                setShowAuthModal(true);
-                logout();
-            }
-            throw new Error(`Server error: ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
         }
+        throw new Error(`Server error: ${res.status}`);
+      }
 
-        const data = await res.json();
-        setConversations(data);
-        console.log("Fetched conversations:", data);
-        for (const conversation of data) {
-            if (conversation.starred) {
-                console.log("Starred conversation found:", conversation);
-                setStarredConversations((prev) => [...prev, conversation]);
-            }
-        }
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
+      const data = await res.json();
+      setConversations(data);
+      console.log("Fetched conversations:", data);
+      
+      const starred = data.filter(conv => conv.starred);
+      setStarredConversations(starred);
+      
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
     } finally {
-        setIsConversationsLoading(false);
+      setConversationsLoading(false);
     }
   };
+
+
 
   useEffect(() => {
     console.log("Starred conversations updated:", starredConversations);
@@ -249,7 +748,7 @@ export default function App() {
           "Authorization": `Bearer ${authToken}`,
       };
       try {
-          const res = await fetch("http://127.0.1:8000/star_conversation", {
+          const res = await fetch("http://127.0.0.1:8000/star_conversation", {
               method: "POST",
               headers: headers,
               body: JSON.stringify(conversationId)
@@ -328,14 +827,18 @@ export default function App() {
   }
 
   const loadConversation = async (conversationId) => {
-    if (isLoading) return;
+    if (!authToken) {
+      console.log("No auth token available for loadConversation");
+      return;
+    }
+
     setIsLoading(true);
     setAuthError(null);
     try {
         const headers = {
             "Authorization": `Bearer ${authToken}`,
         };
-        const res = await fetch(`http://127.0.1:8000/conversations/${uid}/${conversationId}`, {
+        const res = await fetch(`http://127.0.0.1:8000/conversations/${uid}/${conversationId}`, {
             headers: headers
         });
 
@@ -347,10 +850,10 @@ export default function App() {
                 setShowAuthModal(true);
                 logout();
             } else if (res.status === 403 || res.status === 404) {
-                 setMessages([{ role: "assistant", content: "Conversation not found or unauthorized access." }]);
-                 setCurrentConversationId(null);
-                 setCurrentConversationBranchInfo(null);
-                 return;
+                setMessages([{ role: "assistant", content: "Conversation not found or unauthorized access." }]);
+                setCurrentConversationId(null);
+                setCurrentConversationBranchInfo(null);
+                return;
             }
             setMessages([{
                 role: "assistant",
@@ -382,116 +885,123 @@ export default function App() {
         setIsLoading(false);
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-};
+  };
 
 
-const sendMessage = async (messageInput) => {
-  console.log("Attempting to send message in App.js");
-  console.log("Input state:", messageInput, "AuthToken exists:", !!authToken, "IsLoading state:", isLoading);
+  const sendMessage = async (messageInput) => {
+    console.log("Attempting to send message in App.js");
+    console.log("Input state:", messageInput, "AuthToken exists:", !!authToken, "IsLoading state:", isLoading);
 
-  if (!messageInput.trim()) {
-    console.log("Input is empty, returning.");
-    return;
-  }
-  if (!authToken) {
-    console.log("Auth token missing, cannot send.");
-    setAuthError("Please log in to send messages.");
-    setShowAuthModal(true);
-    return;
-  }
-  if (isLoading) {
-    console.log("Already loading, ignoring send.");
-    return;
-  }
-
-  const userMessage = { role: "user", content: messageInput };
-  const bulletProse = graphData ? JSON.stringify(graphData) : null;
-
-  const messagesForApi = [...messages, userMessage];
-
-  const placeholderAiMessage = { role: "assistant", content: "" };
-  setMessages(prev => [...prev, userMessage, placeholderAiMessage]);
-
-  setInput("");
-  setIsLoading(true);
-
-  try {
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${authToken}`,
-    };
-
-    const requestBody = {
-      messages: messagesForApi, 
-      conversation_id: currentConversationId,
-      bulletProse: bulletProse
-    };
-
-    console.log("Sending message to streaming server from App.js:", requestBody);
-
-    const res = await fetch("http://127.0.0.1:8000/chat-stream", {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(requestBody)
-    });
-
-    console.log("Got response from server in App.js:", res.ok, res.status);
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Server error ${res.status}:`, errorText);
-      if (res.status === 401) {
-        setAuthError("Authentication failed. Please log in again.");
-        setShowAuthModal(true);
-        logout();
-      }
-      setMessages(prev => prev.map((msg, index) => 
-        index === prev.length - 1 
-        ? { ...msg, content: `Error from server: ${res.status}. ${errorText.substring(0, 150)}...` } 
-        : msg
-      ));
+    if (!messageInput.trim()) {
+      console.log("Input is empty, returning.");
+      return;
+    }
+    if (!authToken) {
+      console.log("Auth token missing, cannot send.");
+      setAuthError("Please log in to send messages.");
+      setShowAuthModal(true);
+      return;
+    }
+    if (isLoading) {
+      console.log("Already loading, ignoring send.");
       return;
     }
 
-    const newConvId = res.headers.get('X-Conversation-Id');
-    if (newConvId && newConvId !== currentConversationId) {
-        console.log("Received new conversation ID from header:", newConvId);
-        setCurrentConversationId(newConvId);
-    }
+    const userMessage = { role: "user", content: messageInput };
+    const bulletProse = graphData ? JSON.stringify(graphData) : null;
+    const messagesForApi = [...messages, userMessage];
+    const placeholderAiMessage = { role: "assistant", content: "" };
     
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulatedResponse = "";
+    setMessages(prev => [...prev, userMessage, placeholderAiMessage]);
+    setInput("");
+    setIsLoading(true);
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break; 
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      };
 
-      const chunk = decoder.decode(value, { stream: true });
-      accumulatedResponse += chunk;
+      const requestBody = {
+        messages: messagesForApi, 
+        conversation_id: currentConversationId,
+        bulletProse: bulletProse
+      };
 
-      console.log("Received chunk from server in App.js:", chunk);
+      console.log("Sending message to streaming server from App.js:", requestBody);
 
+      const res = await fetch("http://127.0.0.1:8000/chat-stream", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log("Got response from server in App.js:", res.ok, res.status);
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status}:`, errorText);
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        } else if (res.status === 402) {
+          console.log("User has run out of credits, showing credit modal.");
+          setAuthError("You have run out of credits. Please purchase more to continue.");
+          setShowCreditModal(true);
+        }
+        setMessages(prev => prev.map((msg, index) => 
+          index === prev.length - 1 
+          ? { ...msg, content: `Error from server: ${res.status}. ${errorText.substring(0, 150)}...` } 
+          : msg
+        ));
+        return;
+      }
+
+      const newConvId = res.headers.get('X-Conversation-Id');
+      const wasNewConversation = !currentConversationId;
+      
+      if (newConvId && newConvId !== currentConversationId) {
+          console.log("Received new conversation ID from header:", newConvId);
+          setCurrentConversationId(newConvId);
+      }
+      
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedResponse = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break; 
+
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedResponse += chunk;
+
+        console.log("Received chunk from server in App.js:", chunk);
+
+        setMessages(prev => prev.map((msg, index) => 
+          index === prev.length - 1 
+          ? { ...msg, content: accumulatedResponse } 
+          : msg
+        ));
+      }
+
+      if (wasNewConversation && newConvId) {
+        fetchConversations();
+      }
+
+    } catch (error) {
+      console.error("Network or processing error in App.js sendMessage:", error);
       setMessages(prev => prev.map((msg, index) => 
         index === prev.length - 1 
-        ? { ...msg, content: accumulatedResponse } 
+        ? { ...msg, content: "Sorry, there was a connection or processing error. Please try again later." } 
         : msg
       ));
+    } finally {
+      console.log("sendMessage finally block reached in App.js");
+      setIsLoading(false);
     }
-
-  } catch (error) {
-    console.error("Network or processing error in App.js sendMessage:", error);
-    setMessages(prev => prev.map((msg, index) => 
-      index === prev.length - 1 
-      ? { ...msg, content: "Sorry, there was a connection or processing error. Please try again later." } 
-      : msg
-    ));
-  } finally {
-    console.log("sendMessage finally block reached in App.js");
-    setIsLoading(false);
-    fetchConversations();
-  }
-};
+  };
 
   const sendMessages = async (messages) => {
     console.log("Attempting to send messages in App.js");
@@ -519,7 +1029,7 @@ const sendMessage = async (messageInput) => {
         conversation_id: currentConversationId,
         bulletProse: bulletProse
       };
-      const res = await fetch("http://127.0.1:8000/chat", {
+      const res = await fetch("http://127.0.0.1/chat", {
         method: "POST",
         headers: headers,
         body: JSON.stringify(requestBody)
@@ -609,7 +1119,7 @@ const sendMessage = async (messageInput) => {
         bulletProse: bulletProse
       };
 
-      const res = await fetch("http://127.0.1:8000/edit", {
+      const res = await fetch("http://127.0.0.1:8000/edit", {
         method: "POST",
         headers: headers,
         body: JSON.stringify(editRequestBody)
@@ -983,6 +1493,7 @@ const sendMessage = async (messageInput) => {
 
   const fetchPersonalities = async (token) => {
     if (!token) return;
+    setPersonalitiesLoading(true);
     try {
       console.log("Fetching AI personalities with token:", token);
       const response = await fetch("http://127.0.0.1:8000/personalities", {
@@ -1010,7 +1521,7 @@ const sendMessage = async (messageInput) => {
           console.error("Error fetching AI personalities:", error);
           setAiPersonalities([]);
     } finally {
-      setIsLoading(false);
+      setPersonalitiesLoading(false);
     }
     try {
       const response = await fetch("http://127.0.0.1:8000/custom_personalities", {
@@ -1075,19 +1586,18 @@ const sendMessage = async (messageInput) => {
 
     const fetchUserData = async (token) => {
       if (!token) {
-          setGraphData({ nodes: [], edges: [] });
-          return;
+        setGraphData({ nodes: [], edges: [] });
+        return;
       }
-      setIsLoading(true);
+      
+      setUserDataLoading(true);
       try {
         console.log("Fetching user data with token:", token);
         const response = await fetch("http://127.0.0.1:8000/user_data", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
-  
+
         if (response.ok) {
           const data = await response.json();
           if (data && data.user_data && (Array.isArray(data.user_data.nodes) || Array.isArray(data.user_data.edges))) {
@@ -1108,37 +1618,36 @@ const sendMessage = async (messageInput) => {
                })) : [];
                const edges = Array.isArray(data.edges) ? data.edges : [];
                setGraphData({ nodes, edges });
-  
           }
            else {
             console.warn("Fetched user data is not in expected format. Loading empty graph.", data);
             setGraphData({ nodes: [], edges: [] });
           }
         } else {
-           if (response.status === 401) {
-              console.error("Auth failed fetching user data. Logging out.");
-              logout();
-           } else {
-              console.error("Failed to fetch user data", response.status);
-              setGraphData({ nodes: [], edges: [] }); 
-           }
+          if (response.status === 401) {
+            console.error("Auth failed fetching user data. Logging out.");
+            logout();
+          } else {
+            console.error("Failed to fetch user data", response.status);
+            setGraphData({ nodes: [], edges: [] });
+          }
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
         setGraphData({ nodes: [], edges: [] });
       } finally {
-        setIsLoading(false);
+        setUserDataLoading(false);
       }
     };
 
     const fetchUserPictures = async (token) => {
+      setPicturesLoading(true);
       try {
         const res = await fetch("http://127.0.0.1:8000/pictures", {
           method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
+          headers: { "Authorization": `Bearer ${token}` }
         });
+        
         if (res.ok) {
           const data = await res.json();
           if (data && data.userAvatarUrl) {
@@ -1166,9 +1675,8 @@ const sendMessage = async (messageInput) => {
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
-         setGraphData({ nodes: [], edges: [] });
       } finally {
-          setIsLoading(false); 
+        setPicturesLoading(false);
       }
     };
     
@@ -1603,7 +2111,7 @@ const sendMessage = async (messageInput) => {
     const requestBody = {
       newName: newName
     }
-    const res = await fetch("http://127.0.1:8000/rename_ai", {
+    const res = await fetch("http://127.0.0.1:8000/rename_ai", {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody)
@@ -1651,10 +2159,10 @@ const sendMessage = async (messageInput) => {
                       <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
-                        className={`relative flex items-center px-4 py-2.5 transition-all duration-300 ease-out rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/20 ${
+                        className={`relative flex items-center px-4 py-2.5 transition-opacity duration-300 ease-in-out rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/20 ${
                           isHovering
-                            ? 'opacity-100 transform translate-y-0'
-                            : 'opacity-70 transform translate-y-1'
+                            ? 'opacity-100'
+                            : 'opacity-70'
                         } ${
                           isActive
                             ? 'bg-white/40 text-gray-800 shadow-lg backdrop-blur-sm border border-white/30'
@@ -1743,7 +2251,7 @@ const sendMessage = async (messageInput) => {
         </div>
       </header>
 
-      <div className="flex-1 relative overflow-hidden">
+      <div className={`flex-1 relative ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
          {tab === "chat" && (
              <ChatComponent
                  messages={messages}
@@ -1798,6 +2306,13 @@ const sendMessage = async (messageInput) => {
       </div>
 
       {renderAuthModal()}
+
+      <CreditModal
+        isOpen={showCreditModal}
+        onClose={() => setShowCreditModal(false)}
+        darkMode={darkMode}
+        authToken={authToken}
+      />
 
       {showSharedModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
@@ -1934,6 +2449,14 @@ const sendMessage = async (messageInput) => {
             </div>
           </div>
         </div>
+        )}
+        {authLoading && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+              <Loader className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Authenticating...</p>
+            </div>
+          </div>
         )}
         </div>
   );
