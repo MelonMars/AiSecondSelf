@@ -80,7 +80,8 @@ function CreditModal({
   isOpen,
   onClose,
   darkMode,
-  authToken
+  authToken,
+  onCreditsUpdate
 }) {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -167,6 +168,25 @@ function CreditModal({
     }
   ];
 
+  const refreshUserCredits = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/user/credits', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const creditsData = await response.json();
+        if (onCreditsUpdate) {
+          onCreditsUpdate(creditsData);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing credits:', error);
+    }
+  };
+
   const handlePurchase = async (type, itemId) => {
     setIsProcessing(true);
     setMessage('');
@@ -207,36 +227,15 @@ function CreditModal({
         clientSecret: client_secret,
         onComplete: () => {
           setMessage('Payment successful! Your purchase has been completed.');
-          setTimeout(() => {
+          
+          setTimeout(async () => {
+            await refreshUserCredits();
             onClose();
             setSelectedPackage(null);
             setSelectedPlan(null);
             setShowStripeCheckout(false);
           }, 2000);
-        },
-        // onReady: () => {
-        //   // You can add logic here when the checkout is ready
-        //   setIsProcessing(false);
-        // },
-        // onEscape: () => {
-        //   // User closed the embedded checkout
-        //   setMessage('Payment process cancelled.');
-        //   setIsProcessing(false);
-        //   setShowStripeCheckout(false); // Reset this if user escapes
-        // },
-        // Optional: Customize appearance
-        // appearance: {
-        //   theme: darkMode ? 'night' : 'stripe',
-        //   variables: {
-        //     colorPrimary: '#8b5cf6',
-        //     colorBackground: darkMode ? '#1f2937' : '#ffffff',
-        //     colorText: darkMode ? '#f9fafb' : '#374151',
-        //     colorDanger: '#ef4444',
-        //     fontFamily: 'system-ui, sans-serif',
-        //     spacingUnit: '4px',
-        //     borderRadius: '8px'
-        //   }
-        // }
+        }
       });
 
       checkout.mount('#embedded-checkout');
@@ -576,6 +575,8 @@ export default function App() {
   const [picturesLoading, setPicturesLoading] = useState(true);
   const [personalitiesLoading, setPersonalitiesLoading] = useState(true);
 
+  const [userCredits, setUserCredits] = useState(0);
+
 
   const messagesEndRef = useRef(null);
 
@@ -907,8 +908,24 @@ export default function App() {
       return;
     }
 
+    const waitForGraphData = () => {
+      return new Promise((resolve) => {
+        const checkGraphData = () => {
+          if (graphData !== null && graphData !== undefined) {
+            console.log("GraphData is now available, proceeding with message send.");
+            resolve();
+          } else {
+            console.log("GraphData not yet available, waiting...");
+            setTimeout(checkGraphData, 100);
+          }
+        };
+        checkGraphData();
+      });
+    };  
+
+    await waitForGraphData();
     const userMessage = { role: "user", content: messageInput };
-    const bulletProse = graphData ? JSON.stringify(graphData) : null;
+    const bulletProse = JSON.stringify(graphData);
     const messagesForApi = [...messages, userMessage];
     const placeholderAiMessage = { role: "assistant", content: "" };
     
@@ -1831,6 +1848,8 @@ export default function App() {
               console.error("Error fetching sign-in methods:", e);
               setAuthError("Login failed. Please check your network connection and try again.");
             }
+          } else {
+            setAuthError("Error " + error.code)
           }
       } finally {
           setIsLoading(false);
@@ -2044,6 +2063,10 @@ export default function App() {
       console.error("Error sharing conversation:", error);
     }
   };
+
+  const handleCreditsUpdate = (creditsData) => {
+    setUserCredits(creditsData.credits);
+  }
 
   const copySharedURL = async () => {
     try {
@@ -2312,6 +2335,7 @@ export default function App() {
         onClose={() => setShowCreditModal(false)}
         darkMode={darkMode}
         authToken={authToken}
+        onCreditsUpdate={handleCreditsUpdate}
       />
 
       {showSharedModal && (

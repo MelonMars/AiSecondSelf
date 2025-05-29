@@ -4,6 +4,7 @@ import App from './App';
 import './index.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import SharedComponent from './Shared';
+import PaymentSuccess from './PaymentSuccess';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -12,6 +13,7 @@ root.render(
       <Routes>
         <Route path="/shared/:ownerId/:conversationId" element={<SharedComponent />} />
         <Route path="/" element={<App />}/>
+        <Route path="/payment-success" element={<PaymentSuccess />}/>
       </Routes>
     </Router>
   </React.StrictMode>

@@ -72,7 +72,6 @@ async def verify_token(authorization: str = Header(...)) -> Dict:
     id_token = authorization.split(" ")[1]
     print(f"ID Token: {id_token}")
     try:
-        time.sleep(0.5)
         decoded_token = auth.verify_id_token(id_token)
         print(f"Decoded token: {decoded_token}")
         return decoded_token
@@ -199,7 +198,7 @@ class CreditManager:
             if current_credits >= amount:
                 user_ref.update({
                     "credits": current_credits - amount,
-                    "last_used": datetime.now(datetime.timezone.utc)
+                    "last_used": datetime.datetime.now(datetime.timezone.utc)
                 })
                 return True
             return False
@@ -216,7 +215,7 @@ class CreditManager:
         
         user_ref.update({
             "credits": current_credits + amount,
-            "last_credit_addition": datetime.now(datetime.timezone.utc)
+            "last_credit_addition": datetime.datetime.now(datetime.timezone.utc)
         })
     
     @staticmethod
@@ -229,7 +228,7 @@ class CreditManager:
         if not subscription_plan or subscription_status != "active":
             return
         
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.timezone.utc)
         
         if not last_refresh or (now - last_refresh).days >= 30:
             plan_info = SUBSCRIPTION_PLANS.get(subscription_plan)
@@ -254,7 +253,6 @@ async def create_payment_intent(
     request: dict,
     user_info: dict = Depends(verify_token)
 ):
-    """Create Stripe checkout session for one-time credit purchase (embedded checkout)"""
     try:
         package_id = request.get("package_id")
         package_info = CREDIT_PACKAGES.get(package_id)
@@ -278,7 +276,7 @@ async def create_payment_intent(
                 'type': 'one_time_purchase'
             },
             ui_mode="embedded",
-            return_url="http://localhost:3000/payment-complete?session_id={CHECKOUT_SESSION_ID}"
+            return_url="http://localhost:3000/ai-life-coach/payment-success"
         )
 
         return {
@@ -296,7 +294,6 @@ async def create_subscription(
     request: dict,
     user_info: dict = Depends(verify_token)
 ):
-    """Create Stripe subscription"""
     try:
         plan_id = request.get("plan_id")
         plan_info = SUBSCRIPTION_PLANS.get(plan_id)
@@ -333,77 +330,66 @@ async def create_subscription(
         logger.error(f"Error creating subscription: {e}")
         raise HTTPException(status_code=500, detail="Subscription creation failed")
 
-# @app.post("/webhook/stripe")
-# async def stripe_webhook(request: Request):
-#     """Handle Stripe webhooks"""
-#     payload = await request.body()
-#     sig_header = request.headers.get('stripe-signature')
-#     endpoint_secret = "whsec_..."
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get('stripe-signature')
+    endpoint_secret = "whsec_bkjqJhF4z5S8sp9uRpqjZkDFqIcNAAHl"
     
-#     try:
-#         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
-#     except ValueError:
-#         raise HTTPException(status_code=400, detail="Invalid payload")
-#     except stripe.error.SignatureVerificationError:
-#         raise HTTPException(status_code=400, detail="Invalid signature")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
     
-#     # Handle the event
-#     if event['type'] == 'payment_intent.succeeded':
-#         payment_intent = event['data']['object']
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
         
-#         if payment_intent.metadata.get('type') == 'one_time_purchase':
-#             # Add credits for one-time purchase
-#             user_id = payment_intent.metadata.get('user_id')
-#             credits = int(payment_intent.metadata.get('credits'))
+        if session.get('metadata', {}).get('type') == 'one_time_purchase':
+            user_id = session['metadata']['user_id']
+            credits = int(session['metadata']['credits'])
             
-#             user_ref = db.collection("users").document(user_id)
-#             CreditManager.add_credits(user_ref, credits)
+            user_ref = db.collection("users").document(user_id)
+            CreditManager.add_credits(user_ref, credits)
             
-#             # Log transaction
-#             user_ref.collection("transactions").add({
-#                 "type": "credit_purchase",
-#                 "credits": credits,
-#                 "amount": payment_intent.amount / 100,
-#                 "stripe_payment_intent": payment_intent.id,
-#                 "timestamp": datetime.now(datetime.timezone.utc),
-#                 "status": "completed"
-#             })
+            logger.info(f"Added {credits} credits to user {user_id}")
     
-#     elif event['type'] == 'invoice.payment_succeeded':
-#         invoice = event['data']['object']
-#         subscription_id = invoice.subscription
+    elif event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        subscription_id = invoice['subscription']
         
-#         # Update subscription status
-#         subscription = stripe.Subscription.retrieve(subscription_id)
-#         user_id = subscription.metadata.get('user_id')
-#         plan_id = subscription.metadata.get('plan_id')
+        subscription = stripe.Subscription.retrieve(subscription_id)
+        user_id = subscription['metadata']['user_id']
+        plan_id = subscription['metadata']['plan_id']
         
-#         if user_id and plan_id:
-#             user_ref = db.collection("users").document(user_id)
-#             plan_info = SUBSCRIPTION_PLANS.get(plan_id)
+        user_ref = db.collection("users").document(user_id)
+        plan_info = SUBSCRIPTION_PLANS.get(plan_id)
+        
+        if plan_info:
+            user_ref.update({
+                "subscription_plan": plan_id,
+                "subscription_status": "active",
+                "subscription_expires": datetime.fromtimestamp(subscription['current_period_end']),
+                "stripe_subscription_id": subscription_id
+            })
             
-#             user_ref.update({
-#                 "subscription_plan": plan_id,
-#                 "subscription_status": "active",
-#                 "subscription_id": subscription_id,
-#                 "subscription_expires": datetime.now(datetime.timezone.utc) + timedelta(days=30),
-#                 "credits": plan_info["credits_per_month"],
-#                 "last_credit_refresh": datetime.now(datetime.timezone.utc)
-#             })
+            CreditManager.add_credits(user_ref, plan_info["credits_per_month"])
+            logger.info(f"Added {plan_info['credits_per_month']} credits to user {user_id} for subscription")
     
-#     elif event['type'] == 'customer.subscription.deleted':
-#         subscription = event['data']['object']
-#         user_id = subscription.metadata.get('user_id')
+    elif event['type'] == 'customer.subscription.deleted':
+        subscription = event['data']['object']
+        user_id = subscription['metadata']['user_id']
         
-#         if user_id:
-#             user_ref = db.collection("users").document(user_id)
-#             user_ref.update({
-#                 "subscription_status": "cancelled",
-#                 "subscription_plan": None,
-#                 "subscription_id": None
-#             })
+        user_ref = db.collection("users").document(user_id)
+        user_ref.update({
+            "subscription_status": "cancelled",
+            "subscription_expires": datetime.datetime.now(datetime.timezone.utc)
+        })
+        
+        logger.info(f"Cancelled subscription for user {user_id}")
     
-#     return {"status": "success"}
+    return {"status": "success"}
 
 @app.get("/conversations", response_model=List[ConversationSummary])
 async def list_conversations(user_info: dict = Depends(verify_token)):
