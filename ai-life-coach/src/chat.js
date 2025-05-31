@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch } from 'lucide-react';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -770,15 +770,23 @@ const ChatComponent = ({
 
   return (
     <div className={`flex h-full ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+      {!isSidebarCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-10 md:hidden"
+          onClick={() => setIsSidebarCollapsed(true)}
+        />
+      )}
+
       <div className={`
-        flex flex-col
+        flex flex-col fixed md:relative z-20 md:z-auto
         transition-all duration-500 ease-out overflow-hidden
         backdrop-blur-xl border-r shadow-2xl
-        ${isSidebarCollapsed ? 'w-16 opacity-100' : 'w-64 opacity-100'}
+        ${isSidebarCollapsed ? 'w-0 md:w-16 opacity-0 md:opacity-100 -translate-x-full md:translate-x-0' : 'w-80 md:w-64 opacity-100 translate-x-0'}
         ${darkMode
           ? 'bg-white/15 border-white/20 shadow-black/20'
           : 'bg-white/70 border-white/30 shadow-black/10'
         }
+        h-full
       `}
       style={{
         background: darkMode 
@@ -794,7 +802,7 @@ const ChatComponent = ({
         }`}>
           <button
             onClick={startNewConversation}
-            className={`p-3 rounded-xl flex items-center justify-center w-full transition-all duration-300 hover:scale-105 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+            className={`p-3 rounded-xl flex items-center justify-center w-full transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
               darkMode 
                 ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30 hover:shadow-xl' 
                 : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60 hover:shadow-xl'
@@ -817,7 +825,7 @@ const ChatComponent = ({
             onClick={toggleSidebar}
             className={`${
               isSidebarCollapsed ? 'p-3' : 'p-2'
-            } rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+            } rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
               darkMode 
                 ? 'hover:bg-white/25 text-gray-300 border-white/30 hover:text-white' 
                 : 'hover:bg-white/60 border-white/40 text-gray-600 hover:text-gray-800'
@@ -833,7 +841,7 @@ const ChatComponent = ({
           {!isSidebarCollapsed && currentConversationId && (
             <button
               onClick={() => shareConversation(currentConversationId)}
-              className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+              className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
                 darkMode 
                   ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
                   : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
@@ -848,7 +856,7 @@ const ChatComponent = ({
           {isSidebarCollapsed && (
             <button
               onClick={startNewConversation}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
                 darkMode 
                   ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30' 
                   : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60'
@@ -863,7 +871,7 @@ const ChatComponent = ({
           {isSidebarCollapsed && currentConversationId && (
             <button
               onClick={() => shareConversation(currentConversationId)}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
                 darkMode 
                   ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
                   : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
@@ -949,7 +957,39 @@ const ChatComponent = ({
     </div>
 
       <div className="flex-grow flex flex-col" style={{ height: '100vh' }}>
-        <div className={`flex-1 overflow-y-auto p-6 space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
+        <div className={`md:hidden flex items-center justify-between p-4 border-b backdrop-blur-sm ${
+          darkMode ? 'bg-white/10 border-white/20' : 'bg-white/60 border-white/40'
+        }`}>
+          <button
+            onClick={() => setIsSidebarCollapsed(false)}
+            className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg ${
+              darkMode 
+                ? 'hover:bg-white/25 text-gray-300 border-white/30 hover:text-white' 
+                : 'hover:bg-white/60 border-white/40 text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            <Menu size={20} />
+          </button>
+          
+          <h1 className={`font-semibold text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            Chat
+          </h1>
+          
+          {currentConversationId && (
+            <button
+              onClick={() => shareConversation(currentConversationId)}
+              className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg ${
+                darkMode 
+                  ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+              }`}
+            >
+              <Share size={18} />
+            </button>
+          )}
+        </div>
+
+        <div className={`flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
         {messages.map((message, index) => {
           const parts = message.content.split('\n\n').filter(part => part.trim() !== '');
 
@@ -967,9 +1007,9 @@ const ChatComponent = ({
                     onMouseEnter={() => setHoveredMessageIndex(index)}
                     onMouseLeave={() => setHoveredMessageIndex(null)}
                   >
-                    <div className="flex items-end">
+                    <div className="flex items-end max-w-full md:max-w-none">
                       {message.role !== 'user' && (
-                        <div className={`w-10 h-10 rounded-full mr-3 p-0.5 backdrop-blur-sm border transition-all duration-300 ${
+                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full mr-2 md:mr-3 p-0.5 backdrop-blur-sm border transition-all duration-300 flex-shrink-0 ${
                           darkMode 
                             ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-white/20 shadow-lg' 
                             : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
@@ -981,7 +1021,7 @@ const ChatComponent = ({
                           />
                         </div>
                       )}
-                      <div>
+                      <div className="flex-1 min-w-0">
                         {editingMessageIndex === index && partIndex === 0 ? (
                           <div className="flex flex-col">
                             <textarea
@@ -991,7 +1031,7 @@ const ChatComponent = ({
                                 setEditMessageContent(e.target.value);
                                 adjustTextareaHeight(e.target);
                               }}
-                              className={`flex-grow p-3 rounded-2xl mb-3 resize-none backdrop-blur-sm border transition-all duration-300 ${
+                              className={`flex-grow p-3 rounded-2xl mb-3 resize-none backdrop-blur-sm border transition-all duration-300 w-full ${
                                 darkMode 
                                   ? 'bg-white/10 border-white/20 text-white placeholder-white/60' 
                                   : 'bg-white/60 border-white/40 text-gray-800 placeholder-gray-500'
@@ -1007,7 +1047,7 @@ const ChatComponent = ({
                             <div className="flex justify-end space-x-2">
                               <button
                                 onClick={() => handleSaveEditMessage(index, editMessageContent, setEditMessageContent, setEditingMessageIndex)}
-                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-green-500/20 border-green-400/30 text-green-400 hover:bg-green-500/30' 
                                     : 'bg-green-500/20 border-green-500/40 text-green-600 hover:bg-green-500/30'
@@ -1017,7 +1057,7 @@ const ChatComponent = ({
                               </button>
                               <button
                                 onClick={handleCancelEditMessage}
-                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-red-500/20 border-red-400/30 text-red-400 hover:bg-red-500/30' 
                                     : 'bg-red-500/20 border-red-500/40 text-red-600 hover:bg-red-500/30'
@@ -1032,7 +1072,7 @@ const ChatComponent = ({
                         )}
                       </div>
                       {message.role === 'user' && (
-                        <div className={`w-10 h-10 rounded-full ml-3 p-0.5 backdrop-blur-sm border transition-all duration-300 ${
+                        <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full ml-2 md:ml-3 p-0.5 backdrop-blur-sm border transition-all duration-300 flex-shrink-0 ${
                           darkMode 
                             ? 'bg-gradient-to-br from-orange-500/20 to-red-500/20 border-white/20 shadow-lg' 
                             : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
@@ -1050,13 +1090,13 @@ const ChatComponent = ({
                         <div className={`flex mt-2 ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${
                             hoveredMessageIndex === index && message.role === 'user'
                               ? 'opacity-100 group-hover:opacity-100'
-                              : 'opacity-0 group-hover:opacity-0'
-                          } transition-all duration-300 text-sm`}
+                              : 'opacity-0 group-hover:opacity-100 md:group-hover:opacity-0'
+                          } md:opacity-0 transition-all duration-300 text-sm`}
                         >
                           {message.role === 'user' && (
                             <button
                               onClick={() => handleStartEditingMessage(index, message.content)}
-                              className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                              className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                 darkMode 
                                   ? 'bg-white/10 hover:bg-white/20 border-white/20 text-gray-300 shadow-lg' 
                                   : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-600 shadow-md'
@@ -1071,14 +1111,14 @@ const ChatComponent = ({
                         <div className={`flex mt-2 space-x-2 ${message.role !== 'user' ? 'justify-end' : 'justify-start'} ${
                             hoveredMessageIndex === index && message.role !== 'user'
                               ? 'opacity-100 group-hover:opacity-100'
-                              : 'opacity-0 group-hover:opacity-0'
-                          } transition-all duration-300 text-sm`}
+                              : 'opacity-0 group-hover:opacity-100 md:group-hover:opacity-0'
+                          } md:opacity-0 transition-all duration-300 text-sm`}
                         >
                           {message.role !== 'user' && (
                             <>
                               <button
                                 onClick={() => handleLikeMessage(index, message.content)}
-                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-green-500/20 border-white/20 hover:border-green-400/30 text-gray-300 hover:text-green-400 shadow-lg' 
                                     : 'bg-white/60 hover:bg-green-500/20 border-white/40 hover:border-green-500/40 text-gray-600 hover:text-green-600 shadow-md'
@@ -1089,7 +1129,7 @@ const ChatComponent = ({
                               </button>
                               <button
                                 onClick={() => handleDislikeMessage(index, message.content)}
-                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-red-500/20 border-white/20 hover:border-red-400/30 text-gray-300 hover:text-red-400 shadow-lg' 
                                     : 'bg-white/60 hover:bg-red-500/20 border-white/40 hover:border-red-500/40 text-gray-600 hover:text-red-600 shadow-md'
@@ -1112,7 +1152,7 @@ const ChatComponent = ({
                                 onClick={() => {
                                   setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
                                 }}
-                                className={`inline-flex justify-center px-4 py-2 text-sm font-medium rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 ${
+                                className={`inline-flex justify-center px-3 md:px-4 py-2 text-sm font-medium rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
                                     : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-700 shadow-md'
@@ -1131,7 +1171,7 @@ const ChatComponent = ({
 
                               {openBranchDropdownIndex === index && (
                                 <div
-                                  className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-2xl backdrop-blur-sm border shadow-xl transition-all duration-300 ${
+                                  className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-2xl backdrop-blur-sm border shadow-xl transition-all duration-300 z-50 ${
                                     darkMode 
                                       ? 'bg-white/10 border-white/20' 
                                       : 'bg-white/80 border-white/50'
@@ -1152,7 +1192,7 @@ const ChatComponent = ({
                                           darkMode 
                                             ? 'text-gray-300 hover:bg-white/20' 
                                             : 'text-gray-700 hover:bg-white/60'
-                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200`}
+                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200 active:scale-95`}
                                         role="menuitem"
                                       >
                                         <ArrowLeft className="inline-block mr-2" size={14} /> Go to Parent
@@ -1172,7 +1212,7 @@ const ChatComponent = ({
                                           darkMode 
                                             ? 'text-gray-300 hover:bg-white/20' 
                                             : 'text-gray-700 hover:bg-white/60'
-                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200`}
+                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200 active:scale-95`}
                                         role="menuitem"
                                       >
                                         <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
@@ -1213,19 +1253,19 @@ const ChatComponent = ({
         <div ref={messagesEndRef} />
         </div>
 
-        <div className={`flex-shrink-0 p-4 border-t shadow-xl backdrop-blur-sm transition-all duration-300 ${
+        <div className={`flex-shrink-0 p-3 md:p-4 border-t shadow-xl backdrop-blur-sm transition-all duration-300 ${
           darkMode 
             ? 'bg-white/10 border-white/20' 
             : 'bg-white/60 border-white/40'
         }`}>
-          <div className="flex items-end space-x-3">
+          <div className="flex items-end space-x-2 md:space-x-3">
             <textarea
               ref={inputRef}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Send a message..."
-              className={`flex-grow p-4 rounded-2xl resize-none max-h-40 backdrop-blur-sm border transition-all duration-300 ${
+              className={`flex-grow p-3 md:p-4 rounded-2xl resize-none max-h-32 md:max-h-40 backdrop-blur-sm border transition-all duration-300 text-sm md:text-base ${
                 darkMode
                   ? 'bg-white/10 border-white/20 text-white placeholder-white/60 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20'
                   : 'bg-white/60 border-white/40 text-gray-800 placeholder-gray-500 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20'
@@ -1236,19 +1276,21 @@ const ChatComponent = ({
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim()}
-              className={`p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+              className={`p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex-shrink-0 ${
                 darkMode
                   ? 'bg-gradient-to-r from-orange-500/20 to-red-500/20 border-orange-400/30 text-orange-400 hover:bg-gradient-to-r hover:from-orange-500/30 hover:to-red-500/30'
                   : 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-blue-500/40 text-blue-600 hover:bg-gradient-to-r hover:from-blue-500/30 hover:to-purple-500/30'
               }`}
             >
-              <ArrowBigUp size={20} />
+              <ArrowBigUp size={18} className="md:hidden" />
+              <ArrowBigUp size={20} className="hidden md:block" />
             </button>
           </div>
         </div>
       </div>
     </div>
   );
+
 };
 
 export default ChatComponent;

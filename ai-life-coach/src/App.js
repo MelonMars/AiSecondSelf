@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Menu, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -251,286 +251,236 @@ function CreditModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl backdrop-blur-md border transition-all duration-300 ${
-        darkMode
-          ? 'bg-white/10 border-white/20'
-          : 'bg-white/80 border-white/40'
-      }`}>
-        <div className="sticky top-0 z-10 flex items-center justify-between p-6 border-b border-white/20 backdrop-blur-md bg-inherit rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600">
-              <Zap className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                {showStripeCheckout ? 'Complete Your Purchase' : 'Get More Credits'}
-              </h2>
-              <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                {showStripeCheckout ? 'Complete your purchase securely' : 'Choose your plan to continue chatting'}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              onClose();
-              setSelectedPackage(null);
-              setSelectedPlan(null);
-              setActiveTab('credits');
-              setMessage('');
-              setIsProcessing(false);
-              setShowStripeCheckout(false); 
-            }}
-            className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 ${
-              darkMode ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray/20 text-gray-600'
-            }`}
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-purple-900/30 to-pink-900/30 backdrop-blur-xl animate-pulse"></div>
+      
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-purple-400/30 rounded-full animate-bounce delay-100"></div>
+        <div className="absolute top-3/4 right-1/4 w-1 h-1 bg-pink-400/40 rounded-full animate-bounce delay-300"></div>
+        <div className="absolute top-1/2 left-3/4 w-1.5 h-1.5 bg-blue-400/30 rounded-full animate-bounce delay-500"></div>
+      </div>
 
-        <div className="p-6">
-          {showStripeCheckout ? (
-            <div id="embedded-checkout" className="min-h-[500px] w-full">
-            </div>
-          ) : (
-            <>
-              <div className="flex justify-center mb-8">
-                <div className={`flex rounded-xl p-1 ${darkMode ? 'bg-white/10' : 'bg-gray/20'}`}>
-                  <button
-                    onClick={() => {
-                        setActiveTab('credits');
-                        setSelectedPackage(null);
-                        setSelectedPlan(null);
-                    }}
-                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                      activeTab === 'credits'
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                        : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5 inline mr-2" />
-                    Buy Credits
-                  </button>
-                  <button
-                    onClick={() => {
-                        setActiveTab('subscription');
-                        setSelectedPackage(null); 
-                        setSelectedPlan(null); 
-                    }}
-                    className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 ${
-                      activeTab === 'subscription'
-                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                        : darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-800'
-                    }`}
-                  >
-                    <Crown className="w-5 h-5 inline mr-2" />
-                    Subscription
-                  </button>
+      <div className={`relative w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-3xl transition-all duration-500 transform hover:scale-[1.01] ${
+        darkMode
+          ? 'bg-gradient-to-br from-gray-900/95 via-gray-800/90 to-gray-900/95 shadow-2xl shadow-purple-500/20 border border-white/10'
+          : 'bg-gradient-to-br from-white/95 via-gray-50/90 to-white/95 shadow-2xl shadow-gray-500/20 border border-gray-200/50'
+      }`}>
+        
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-purple-600/20 via-pink-600/20 to-blue-600/20 blur-xl animate-pulse"></div>
+        
+        <div className={`relative z-10 backdrop-blur-xl border-b transition-all duration-300 ${
+          darkMode ? 'bg-gray-900/50 border-white/10' : 'bg-white/50 border-gray-200/50'
+        }`}>
+          <div className="flex items-center justify-between p-8">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl blur-lg animate-pulse"></div>
+                <div className="relative p-3 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-600 shadow-lg">
+                  <Zap className="w-8 h-8 text-white" />
                 </div>
               </div>
+              <div>
+                <h2 className={`text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-1`}>
+                  {showStripeCheckout ? 'Complete Your Purchase' : 'Supercharge Your Experience'}
+                </h2>
+                <p className={`text-base ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  {showStripeCheckout ? 'Secure payment powered by Stripe' : 'Choose the perfect credit package for your needs'}
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                onClose();
+                setSelectedPackage(null);
+                setActiveTab('credits');
+                setMessage('');
+                setIsProcessing(false);
+                setShowStripeCheckout(false); 
+              }}
+              className={`group p-3 rounded-2xl transition-all duration-300 hover:scale-110 hover:rotate-90 ${
+                darkMode 
+                  ? 'hover:bg-red-500/20 text-gray-300 hover:text-red-400 border border-white/10 hover:border-red-500/30' 
+                  : 'hover:bg-red-500/20 text-gray-600 hover:text-red-500 border border-gray-200/50 hover:border-red-500/30'
+              }`}
+            >
+              <X className="w-6 h-6 transition-transform duration-300 group-hover:scale-110" />
+            </button>
+          </div>
+        </div>
 
-              {activeTab === 'credits' && (
-                <div className="space-y-6">
-                  <div className="text-center mb-8">
-                    <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      One-Time Credit Packages
+        <div className="relative z-10 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="p-8">
+            {showStripeCheckout ? (
+              <div className="relative">
+                <div className={`rounded-2xl overflow-hidden border-2 ${
+                  darkMode ? 'border-white/10 bg-white/5' : 'border-gray-200/50 bg-white/50'
+                }`}>
+                  <div id="embedded-checkout" className="min-h-[500px] w-full"></div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-8">
+                  <div className="text-center">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 mb-4">
+                      <div className="w-2 h-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+                      <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        One-Time Purchase
+                      </span>
+                    </div>
+                    <h3 className={`text-2xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Choose Your Credit Package
                     </h3>
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Purchase credits once and use them anytime
+                    <p className={`text-base max-w-2xl mx-auto ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      Get instant access to premium features with our flexible credit packages. 
+                      No recurring charges, use credits at your own pace.
                     </p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {creditPackages.map((pkg) => (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {creditPackages.map((pkg, index) => (
                       <div
                         key={pkg.id}
-                        className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 ${
+                        className={`group relative rounded-2xl cursor-pointer transition-all duration-500 hover:scale-105 ${
                           selectedPackage === pkg.id
-                            ? 'border-purple-500 shadow-lg shadow-purple-500/25'
-                            : darkMode
-                              ? 'border-white/20 hover:border-white/40'
-                              : 'border-gray/30 hover:border-gray/50'
-                        } ${darkMode ? 'bg-white/5' : 'bg-white/40'}`}
+                            ? 'transform scale-105'
+                            : ''
+                        }`}
+                        style={{ 
+                          animationDelay: `${index * 100}ms`,
+                          animation: 'fadeInUp 0.6s ease-out forwards'
+                        }}
                         onClick={() => setSelectedPackage(pkg.id)}
                       >
-                        {pkg.popular && (
-                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                              <Star className="w-3 h-3" />
-                              Popular
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="text-center">
-                          <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-2xl`}>
-                            {pkg.icon}
-                          </div>
-                          <h4 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            {pkg.name}
-                          </h4>
-                          <div className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            ${pkg.price.toFixed(2)}
-                          </div>
-                          <div className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {pkg.credits.toLocaleString()} credits
-                          </div>
-                          <div className={`text-xs mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {pkg.description}
-                          </div>
-                          <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                            {(pkg.price / pkg.credits * 100).toFixed(2)} per 100 credits
+                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${pkg.color} p-0.5 transition-all duration-300 ${
+                          selectedPackage === pkg.id ? 'opacity-100 shadow-lg' : 'opacity-50 group-hover:opacity-75'
+                        }`}>
+                          <div className={`h-full w-full rounded-2xl ${
+                            darkMode ? 'bg-gray-900/95' : 'bg-white/95'
+                          } backdrop-blur-sm`}>
                           </div>
                         </div>
 
-                        {selectedPackage === pkg.id && (
-                          <div className="absolute top-2 right-2">
-                            <CheckCircle className="w-6 h-6 text-purple-500" />
+                        <div className="relative p-6 h-full">
+                          {pkg.popular && (
+                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                              <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg animate-bounce">
+                                <Star className="w-3 h-3" />
+                                MOST POPULAR
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="text-center h-full flex flex-col">
+                            <div className="relative mb-4">
+                              <div className={`w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-3xl shadow-lg transform transition-all duration-300 group-hover:scale-110 group-hover:rotate-6`}>
+                                {pkg.icon}
+                              </div>
+                              {selectedPackage === pkg.id && (
+                                <div className="absolute -top-2 -right-2">
+                                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
+                                    <CheckCircle className="w-5 h-5 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <h4 className={`text-xl font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                              {pkg.name}
+                            </h4>
+                            
+                            <div className="flex-1 space-y-2">
+                              <div className={`text-4xl font-black ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                ${pkg.price.toFixed(2)}
+                              </div>
+                              
+                              <div className={`text-lg font-semibold ${darkMode ? 'text-purple-300' : 'text-purple-600'}`}>
+                                {pkg.credits.toLocaleString()} credits
+                              </div>
+                              
+                              <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-3`}>
+                                {pkg.description}
+                              </div>
+                              
+                              <div className={`text-xs px-3 py-1 rounded-full inline-block ${
+                                darkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                ${(pkg.price / pkg.credits * 100).toFixed(2)} per 100 credits
+                              </div>
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
 
                   {selectedPackage && (
-                    <div className="flex justify-center mt-8">
-                      <button
-                        onClick={() => handlePurchase('credit', selectedPackage)}
-                        disabled={isProcessing}
-                        className={`px-8 py-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-                          isProcessing
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
-                        } text-white`}
-                      >
-                        {isProcessing ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Processing...
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-5 h-5" />
-                            Purchase Credits
-                          </div>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'subscription' && (
-                <div className="space-y-6">
-                  <div className="text-center mb-8">
-                    <h3 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      Monthly Subscription Plans
-                    </h3>
-                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                      Get recurring credits automatically each month
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-3 gap-6">
-                    {subscriptionPlans.map((plan) => (
-                      <div
-                        key={plan.id}
-                        className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:scale-105 ${
-                          selectedPlan === plan.id
-                            ? 'border-purple-500 shadow-lg shadow-purple-500/25'
-                            : darkMode
-                              ? 'border-white/20 hover:border-white/40'
-                              : 'border-gray/30 hover:border-gray/50'
-                        } ${darkMode ? 'bg-white/5' : 'bg-white/40'}`}
-                        onClick={() => setSelectedPlan(plan.id)}
-                      >
-                        {plan.popular && (
-                          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                              <Star className="w-3 h-3" />
-                              Most Popular
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="text-center mb-6">
-                          <div className={`w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br ${plan.color} flex items-center justify-center`}>
-                            <Crown className="w-8 h-8 text-white" />
-                          </div>
-                          <h4 className={`text-xl font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            {plan.name}
-                          </h4>
-                          <div className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                            ${plan.price.toFixed(2)}
-                            <span className={`text-sm font-normal ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>/month</span>
-                          </div>
-                          <div className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            {plan.description}
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 mb-6">
-                          {plan.features.map((feature, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                              <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                {feature}
-                              </span>
+                    <div className="flex justify-center mt-12">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur-xl opacity-50 animate-pulse"></div>
+                        
+                        <button
+                          onClick={() => handlePurchase('credit', selectedPackage)}
+                          disabled={isProcessing}
+                          className={`relative px-12 py-4 rounded-2xl font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                            isProcessing
+                              ? 'bg-gray-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-2xl hover:shadow-purple-500/25'
+                          } text-white`}
+                        >
+                          {isProcessing ? (
+                            <div className="flex items-center gap-3">
+                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                              Processing Payment...
                             </div>
-                          ))}
-                        </div>
-
-                        {selectedPlan === plan.id && (
-                          <div className="absolute top-2 right-2">
-                            <CheckCircle className="w-6 h-6 text-purple-500" />
-                          </div>
-                        )}
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <CreditCard className="w-6 h-6" />
+                              Purchase Credits Securely
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            </div>
+                          )}
+                        </button>
                       </div>
-                    ))}
-                  </div>
-
-                  {selectedPlan && (
-                    <div className="flex justify-center mt-8">
-                      <button
-                        onClick={() => handlePurchase('subscription', selectedPlan)}
-                        disabled={isProcessing}
-                        className={`px-8 py-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
-                          isProcessing
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg hover:shadow-purple-500/25'
-                        } text-white`}
-                      >
-                        {isProcessing ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Processing...
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Crown className="w-5 h-5" />
-                            Subscribe Now
-                          </div>
-                        )}
-                      </button>
                     </div>
                   )}
                 </div>
-              )}
-            </>
-          )}
+              </>
+            )}
 
-          {message && (
-            <div className={`mt-6 p-4 rounded-lg text-center ${
-              message.includes('successful') || message.includes('completed')
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-red-500/20 text-red-400'
-            }`}>
-              {message}
-            </div>
-          )}
+            {message && (
+              <div className={`mt-8 p-6 rounded-2xl text-center font-medium transition-all duration-300 ${
+                message.includes('successful') || message.includes('completed')
+                  ? 'bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/30'
+                  : 'bg-gradient-to-r from-red-500/20 to-pink-500/20 text-red-400 border border-red-500/30'
+              }`}>
+                <div className="flex items-center justify-center gap-2">
+                  {message.includes('successful') ? (
+                    <CheckCircle className="w-5 h-5 animate-bounce" />
+                  ) : (
+                    <X className="w-5 h-5" />
+                  )}
+                  {message}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -599,6 +549,9 @@ export default function App() {
 
   const [isHovering, setIsHovering] = useState(false);
   const personalityIconInputRef = useRef(null);
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
 
   const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
 
@@ -2151,10 +2104,52 @@ export default function App() {
     console.log("Rename AI response:", data);
   }
 
-  return (
+return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+      <header className="md:hidden fixed top-0 left-0 right-0 z-[1000] py-3 px-4">
+        <div className={`flex items-center justify-between rounded-xl border border-white/20 px-4 py-3 ${
+          darkMode 
+            ? 'bg-gray-900/90 backdrop-blur-lg' 
+            : 'bg-white/90 backdrop-blur-lg'
+        }`}>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`p-2 rounded-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}
+          >
+            <Menu size={20} />
+          </button>
+          
+          <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+            {TABS.find(t => t.id === tab)?.label || 'App'}
+          </h1>
+          
+          {authToken ? (
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full" />
+              <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                {userName || 'User'}
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setAuthMode('login');
+                setShowAuthModal(true);
+              }}
+              className={`px-3 py-1.5 text-sm rounded-lg ${
+                darkMode 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-blue-600 text-white'
+              }`}
+            >
+              Login
+            </button>
+          )}
+        </div>
+      </header>
+
       <header
-        className="fixed top-0 left-[25%] w-[50%] z-[1000] py-4"
+        className="hidden md:block fixed top-0 left-[25%] w-[50%] z-[1000] py-4"
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
@@ -2175,17 +2170,16 @@ export default function App() {
             
             <div className="relative flex items-center justify-between h-16 px-6">
               <div className="flex items-center">
-                <nav className="hidden md:flex md:space-x-2">
+                <nav className="flex space-x-2">
                   {TABS.map((t) => {
                     const isActive = tab === t.id;
+                    const Icon = t.icon;
                     return (
                       <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
                         className={`relative flex items-center px-4 py-2.5 transition-opacity duration-300 ease-in-out rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/20 ${
-                          isHovering
-                            ? 'opacity-100'
-                            : 'opacity-70'
+                          isHovering ? 'opacity-100' : 'opacity-70'
                         } ${
                           isActive
                             ? 'bg-white/40 text-gray-800 shadow-lg backdrop-blur-sm border border-white/30'
@@ -2200,7 +2194,7 @@ export default function App() {
                           <div className="absolute inset-0 rounded-xl bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
                         )}
                         <span className="relative z-10 flex items-center">
-                          <t.icon className="w-5 h-5 mr-2" />
+                          <Icon className="w-5 h-5 mr-2" />
                           {t.label}
                         </span>
                       </button>
@@ -2209,19 +2203,17 @@ export default function App() {
                 </nav>
               </div>
 
-              <div
-                className={`flex items-center transition-all duration-300 ease-out ${
-                  isHovering 
-                    ? 'opacity-100 transform translate-y-0' 
-                    : 'opacity-60 transform translate-y-1'
-                }`}
-              >
+              <div className={`flex items-center transition-all duration-300 ease-out ${
+                isHovering 
+                  ? 'opacity-100 transform translate-y-0' 
+                  : 'opacity-60 transform translate-y-1'
+              }`}>
                 {authToken ? (
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-3 px-3 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/20">
                       <div className="w-2 h-2 bg-green-400 rounded-full shadow-sm shadow-green-400/50" />
                       <span className="text-sm font-medium text-gray-800">
-                        {userName}
+                        {userName || 'User'}
                       </span>
                     </div>
                     <button
@@ -2274,10 +2266,89 @@ export default function App() {
         </div>
       </header>
 
-      <div className={`flex-1 relative ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
-         {tab === "chat" && (
-             <ChatComponent
-                 messages={messages}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-[999] bg-black/50 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)}>
+          <div 
+            className={`fixed left-0 top-0 h-full w-64 ${
+              darkMode ? 'bg-gray-900' : 'bg-white'
+            } shadow-xl transform transition-transform duration-300 ease-out`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                  Navigation
+                </h2>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`p-2 rounded-lg ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            
+            <nav className="p-4 space-y-2">
+              {TABS.map((t) => {
+                const Icon = t.icon;
+                const isActive = tab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setTab(t.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center px-4 py-3 rounded-lg text-left transition-colors ${
+                      isActive
+                        ? darkMode 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-blue-600 text-white'
+                        : darkMode
+                          ? 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5 mr-3" />
+                    {t.label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            {authToken && (
+              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-2 h-2 bg-green-400 rounded-full" />
+                    <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      {userName || 'User'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`px-3 py-1.5 text-sm rounded-lg ${
+                      darkMode 
+                        ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                    }`}
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={`flex-1 relative pt-20 md:pt-0 ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
+        {tab === "chat" && (
+          <ChatComponent
+            messages={messages}
                  conversations={conversations}
                  currentConversationId={currentConversationId}
                  isLoading={isLoading}
@@ -2301,31 +2372,36 @@ export default function App() {
                  currentConversationBranchInfo={currentConversationBranchInfo}
                  aiPicture={aiAvatarImage}
                  userPicture={userAvatarImage}
-             />
-         )}
-         {tab === "graph" && (<GraphView 
-                                data={graphData} 
-                                onDataChange={handleGraphDataChange} 
-                                darkMode={darkMode}/>)}
-         {tab === "profile" && (<ProfileComponent 
-                    authToken={authToken} 
-                    userName={userName} 
-                    userEmail={userEmail} 
-                    chatPrefs={chatPrefs}
-                    handleChatPrefsChange={handleChatPrefsChange}
-                    sendMessageWithDoc={sendMessageWithDoc}
-                    isLoading={isLoading}
-                    darkMode={darkMode}
-                    setDarkMode={setDarkMode}
-                    handleUserAvatarUpload={handleUserAvatarUpload}
-                    handleAIAvatarUpload={handleAIAvatarUpload}
-                    aiAvatarUrl={aiAvatarImage}
-                    userAvatarUrl={userAvatarImage}
-                    handleAINameChange={renameAI}
-                    aiName={aiName}
-                    aiPersonalities={aiPersonalities}
-                    togglePersonality={handleTogglePersonality}
-                    customPersonalities={customPersonalities}/>)}
+          />
+        )}
+        {tab === "graph" && (
+          <GraphView 
+            darkMode={darkMode}
+            data={graphData} 
+            onDataChange={handleGraphDataChange} 
+           />
+        )}
+        {tab === "profile" && (
+          <ProfileComponent 
+            authToken={authToken} 
+            userName={userName} 
+            userEmail={userEmail} 
+            chatPrefs={chatPrefs}
+            handleChatPrefsChange={handleChatPrefsChange}
+            sendMessageWithDoc={sendMessageWithDoc}
+            isLoading={isLoading}
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            handleUserAvatarUpload={handleUserAvatarUpload}
+            handleAIAvatarUpload={handleAIAvatarUpload}
+            aiAvatarUrl={aiAvatarImage}
+            userAvatarUrl={userAvatarImage}
+            handleAINameChange={renameAI}
+            aiName={aiName}
+            aiPersonalities={aiPersonalities}
+            togglePersonality={handleTogglePersonality}
+            customPersonalities={customPersonalities}          />
+        )}
       </div>
 
       {renderAuthModal()}
@@ -2334,8 +2410,6 @@ export default function App() {
         isOpen={showCreditModal}
         onClose={() => setShowCreditModal(false)}
         darkMode={darkMode}
-        authToken={authToken}
-        onCreditsUpdate={handleCreditsUpdate}
       />
 
       {showSharedModal && (
@@ -2368,7 +2442,7 @@ export default function App() {
             </div>
 
             <div className="p-6">
-              <div className={`flex items-center rounded-xl border-2 overflow-hidden ${
+              <div className={`flex flex-col sm:flex-row items-stretch sm:items-center rounded-xl border-2 overflow-hidden ${
                 darkMode 
                   ? 'border-white/20 bg-white/10' 
                   : 'border-gray-200 bg-gray-50'
@@ -2383,7 +2457,7 @@ export default function App() {
                 />
                 <button
                   onClick={copySharedURL}
-                  className={`px-6 py-3 font-medium transition-all rounded-md duration-300 hover:scale-105 ${
+                  className={`px-6 py-3 mt-2 sm:mt-0 font-medium transition-all rounded-md duration-300 hover:scale-105 ${
                     darkMode 
                       ? 'bg-purple-600 hover:bg-purple-700 text-white' 
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -2435,7 +2509,6 @@ export default function App() {
                 <input
                   type="text"
                   id="personalityIcon"
-                  ref={personalityIconInputRef}
                   value={customPersonalityIcon}
                   onChange={(e) => setCustomPersonalityIcon(e.target.value)}
                   className={`w-full px-3 py-2 rounded-md border focus:outline-none focus:ring-2 ${darkMode ? 'bg-gray-700 border-gray-600 text-gray-300 focus:ring-blue-500' : 'bg-gray-100 border-gray-300 text-gray-800 focus:ring-blue-400'}`}
@@ -2444,7 +2517,7 @@ export default function App() {
 
                 <button
                   type="button"
-                  onClick={handleOpenEmojiPicker}
+                  onClick={() => setShowCustomPersonalityModal(false)}
                   className={`p-2 rounded-md transition-colors flex items-center justify-center ${darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
                   aria-label="Open emoji picker"
                 >
@@ -2457,31 +2530,32 @@ export default function App() {
               <p className="text-red-500 text-sm mb-4 text-center">{customPersonalityError}</p>
             )}
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={handleCloseCustomPersonalityModal}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center ${darkMode ? 'bg-gray-600 hover:bg-gray-700 text-white' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
               >
                 <Eraser size={16} className="mr-2" /> Cancel
               </button>
               <button
                 onClick={handleSaveCustomPersonality}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center justify-center ${darkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
               >
                 <Save size={16} className="mr-2" /> Save Personality
               </button>
             </div>
           </div>
         </div>
-        )}
-        {authLoading && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-              <Loader className="w-8 h-8 animate-spin mx-auto mb-4" />
-              <p>Authenticating...</p>
-            </div>
+      )}
+
+      {authLoading && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6`}>
+            <Loader className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p className={darkMode ? 'text-white' : 'text-gray-800'}>Authenticating...</p>
           </div>
-        )}
         </div>
+      )}
+    </div>
   );
 }

@@ -18,13 +18,8 @@ const PaymentSuccess = () => {
     const timer = setTimeout(() => setShowContent(true), 500);
     return () => clearTimeout(timer);
   }, []);
-
-  const handleGoHome = () => {
-    window.location.href = '/';
-  };
-
   const handleStartChatting = () => {
-    window.location.href = '/chat';
+    window.location.href = '/ai-life-coach';
   };
 
   return (
@@ -100,16 +95,6 @@ const PaymentSuccess = () => {
             <span className="flex items-center justify-center gap-2">
               Start Chatting
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </span>
-          </button>
-          
-          <button
-            onClick={handleGoHome}
-            className="px-8 py-4 bg-white/10 backdrop-blur-md rounded-xl font-semibold text-white border border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105"
-          >
-            <span className="flex items-center justify-center gap-2">
-              <Home className="w-5 h-5" />
-              Go Home
             </span>
           </button>
         </div>
