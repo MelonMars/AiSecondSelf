@@ -2104,6 +2104,11 @@ export default function App() {
     console.log("Rename AI response:", data);
   }
 
+  const onCreditsUpdate = (newCredits) => {
+    setUserCredits(newCredits);
+    console.log("User credits updated:", newCredits);
+  }
+
 return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <header className="md:hidden fixed top-0 left-0 right-0 z-[1000] py-3 px-4">
@@ -2406,10 +2411,12 @@ return (
 
       {renderAuthModal()}
 
-      <CreditModal
+      <CreditModal 
         isOpen={showCreditModal}
         onClose={() => setShowCreditModal(false)}
         darkMode={darkMode}
+        authToken={authToken}
+        onCreditsUpdate={onCreditsUpdate}
       />
 
       {showSharedModal && (

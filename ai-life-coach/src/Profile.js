@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain, CreditCard, Coins } from 'lucide-react';
 
 function ProfileComponent({
   authToken,
@@ -22,6 +22,36 @@ function ProfileComponent({
   customPersonalities,
 }) {
   const [activeSection, setActiveSection] = useState('profile');
+  const [creditsInfo, setCreditsInfo] = useState(null);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+
+  // Fetch user credits
+  const fetchUserCredits = async () => {
+    if (!authToken) return;
+    
+    setLoadingCredits(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/user/credits', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const credit_info = await response.json();
+        setCreditsInfo(credit_info.credits || null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch credits:', error);
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserCredits();
+  }, [authToken]);
 
   const newLocal = '';
   const availablePersonalities = [
@@ -39,6 +69,7 @@ function ProfileComponent({
 
   const sections = [
     { id: 'profile', name: 'Profile', icon: User2 },
+    { id: 'credits', name: 'Credits', icon: CreditCard },
     { id: 'ai', name: 'AI Settings', icon: Brain },
     { id: 'preferences', name: 'Preferences', icon: Settings }
   ];
@@ -52,6 +83,7 @@ function ProfileComponent({
   }));
   
   const allPersonalitiesToDisplay = [...availablePersonalities, ...customPersonalityObjects];
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${
       darkMode 
@@ -94,7 +126,7 @@ function ProfileComponent({
                         activeSection === section.id
                           ? darkMode
                             ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25'
-                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-black shadow-lg shadow-blue-500/25'
+                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
                           : darkMode
                             ? 'text-gray-300 hover:bg-white/10 hover:text-white'
                             : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
@@ -113,7 +145,7 @@ function ProfileComponent({
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                     darkMode
                       ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:shadow-lg hover:shadow-yellow-500/25'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-black hover:shadow-lg hover:shadow-indigo-500/25'
+                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/25'
                   }`}
                 >
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -200,7 +232,7 @@ function ProfileComponent({
                           <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                             darkMode
                               ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25'
-                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-black shadow-lg hover:shadow-blue-500/25'
+                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-blue-500/25'
                           }`}>
                             <Upload className="w-4 h-4" />
                             Upload Photo
@@ -216,6 +248,162 @@ function ProfileComponent({
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {activeSection === 'credits' && (
+                <div className={`rounded-2xl backdrop-blur-sm border p-8 transition-all duration-500 ${
+                  darkMode 
+                    ? 'bg-white/10 border-white/20' 
+                    : 'bg-white/60 border-white/40'
+                }`}>
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600">
+                      <CreditCard className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                      Credits & Usage
+                    </h2>
+                  </div>
+
+                  {loadingCredits ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${
+                        darkMode ? 'border-purple-500' : 'border-blue-500'
+                      }`}></div>
+                    </div>
+                  ) : creditsInfo ? (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                        darkMode 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/40 border-white/30'
+                      }`}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 rounded-lg bg-gradient-to-r from-emerald-500 to-green-600">
+                            <Coins className="w-5 h-5 text-white" />
+                          </div>
+                          <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            Available Credits
+                          </h3>
+                        </div>
+                        <div className="text-center py-6">
+                          <div className={`text-4xl font-bold mb-2 ${
+                            creditsInfo.remaining_credits > 10 
+                              ? 'text-emerald-500' 
+                              : creditsInfo.remaining_credits > 5 
+                                ? 'text-yellow-500' 
+                                : 'text-red-500'
+                          }`}>
+                            {creditsInfo.remaining_credits || 0}
+                          </div>
+                          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Credits remaining
+                          </p>
+                        </div>
+                        {creditsInfo.remaining_credits <= 10 && (
+                          <div className={`p-3 rounded-lg ${
+                            creditsInfo.remaining_credits <= 5 
+                              ? 'bg-red-500/20 border border-red-500/30' 
+                              : 'bg-yellow-500/20 border border-yellow-500/30'
+                          }`}>
+                            <p className={`text-sm text-center ${
+                              creditsInfo.remaining_credits <= 5 ? 'text-red-400' : 'text-yellow-400'
+                            }`}>
+                              {creditsInfo.remaining_credits <= 5 
+                                ? 'Low credits - consider purchasing more!' 
+                                : 'Credits running low'}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                        darkMode 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/40 border-white/30'
+                      }`}>
+                        {/* <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          Usage Statistics
+                        </h3>
+                        <div className="space-y-4">
+                          {creditsInfo.total_credits && (
+                            <div className="flex justify-between items-center">
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Total Credits
+                              </span>
+                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                {creditsInfo.total_credits}
+                              </span>
+                            </div>
+                          )}
+                          {creditsInfo.used_credits !== undefined && (
+                            <div className="flex justify-between items-center">
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Used Credits
+                              </span>
+                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                {creditsInfo.used_credits}
+                              </span>
+                            </div>
+                          )}
+                          {creditsInfo.last_reset && (
+                            <div className="flex justify-between items-center">
+                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                Last Reset
+                              </span>
+                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                {new Date(creditsInfo.last_reset).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {creditsInfo.total_credits && creditsInfo.remaining_credits !== undefined && (
+                          <div className="mt-6">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Usage Progress</span>
+                              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                {Math.round(((creditsInfo.total_credits - creditsInfo.remaining_credits) / creditsInfo.total_credits) * 100)}%
+                              </span>
+                            </div>
+                            <div className={`w-full bg-gray-200 rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                              <div 
+                                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2 rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${((creditsInfo.total_credits - creditsInfo.remaining_credits) / creditsInfo.total_credits) * 100}%`
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </div> */}
+                    </div>
+                  ) : (
+                    <div className={`text-center py-12 rounded-xl border ${
+                      darkMode 
+                        ? 'bg-white/5 border-white/10' 
+                        : 'bg-white/40 border-white/30'
+                    }`}>
+                      <CreditCard className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                      <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Credits Unavailable
+                      </h3>
+                      <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                        Unable to load credit information at this time
+                      </p>
+                      <button
+                        onClick={fetchUserCredits}
+                        className={`mt-4 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                          darkMode
+                            ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
+                            : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white'
+                        }`}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -260,7 +448,7 @@ function ProfileComponent({
                             <Camera className="w-6 h-6 text-white" />
                           </div>
                         </div>
-                        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 ${!darkMode ? 'text-black' : 'text-white'} shadow-lg hover:shadow-purple-500/25`}>
+                        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25`}>
                           <Upload className="w-4 h-4" />
                           Upload AI Avatar
                           <input
@@ -319,10 +507,10 @@ function ProfileComponent({
                           onClick={() => togglePersonality(personality.name)}
                           className={`group relative p-4 rounded-xl text-center transition-all duration-300 transform hover:scale-105 ${
                             aiPersonalities.includes(personality.name)
-                              ? `bg-gradient-to-br ${personality.color} ${darkMode ? 'text-white' : 'text-gray-30' } shadow-lg`
+                              ? `bg-gradient-to-br ${personality.color} text-white shadow-lg`
                               : darkMode 
                                 ? "bg-white/10 text-gray-300 hover:bg-white/20 border border-white/20" 
-                                : "bg-white/50 text-gray-700 hover:bg-white/70 border border-white/30 text-black"
+                                : "bg-white/50 text-gray-700 hover:bg-white/70 border border-white/30"
                           }`}
                         >
                           <div className="text-2xl mb-2">{personality.icon}</div>

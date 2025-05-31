@@ -30,7 +30,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 print("Got gemini cred: ", gemini_cred)
-client = genai.configure(api_key=gemini_cred)
+client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
 stripe.api_key = open("stripekey.txt", "r").read()
 
 db = firestore.client()
@@ -100,6 +100,7 @@ class Message(BaseModel):
     role: str
     content: str
     timestamp: Optional[datetime.datetime] = Field(default_factory=datetime.datetime.now)
+    reaction: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -246,6 +247,7 @@ async def get_user_credits(user_info: dict = Depends(verify_token)):
     user_ref = db.collection("users").document(user_uid)
     
     credits_info = CreditManager.get_user_credits(user_ref)
+    print(f"User {user_uid} credits info: {credits_info}")
     return credits_info
 
 @app.post("/create-payment-intent")
@@ -615,8 +617,6 @@ async def chat_stream(
 ):
     user_uid = user_info["uid"]
     user_ref = db.collection("users").document(user_uid)
-    if not CreditManager.deduct_credits(user_ref, 1):
-        raise HTTPException(status_code=402, detail="Insufficient credits")
 
     conversation_id = request.conversation_id
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -684,6 +684,11 @@ async def chat_stream(
     )
 
     messages_for_gemini_processing = list(all_messages) 
+
+    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 1
+    total_tokens = 3 # I think it is so cheap that this is fine, I'm charging like $1 per 10 messages, and 10 messages costs me maybe like .2$
+    if not CreditManager.deduct_credits(user_ref, total_tokens/3):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
     
     processed_messages_for_gemini = await summarize_long_chat_history(
         messages_for_gemini_processing,

@@ -42,20 +42,29 @@ function DynamicWidget({ key, payload }) {
   );
 }
 
-const ChatMessage = memo(({ content, darkMode, messager }) => {
+const ChatMessage = memo(({ content, darkMode, messager, reaction }) => {
   let displayContent = content;
   const unclosedGraph = /<GRAPH(?![^>]*?>[\s\S]*?<\/GRAPH>)/.exec(content);
   const unclosedPref = /<PREF(?![^>]*?>[\s\S]*?<\/PREF>)/.exec(content);
+  const unclosedReaction = /REACTION\{[^}]*$/.exec(content);
 
   if (unclosedGraph) {
     displayContent = content.substring(0, unclosedGraph.index);
   } else if (unclosedPref) {
     displayContent = content.substring(0, unclosedPref.index);
+  } else if (unclosedReaction) {
+    displayContent = content.substring(0, unclosedReaction.index);
   }
 
   let cleanedContent = displayContent
     .replace(/<GRAPH[\s\S]*?<\/GRAPH>/g, '')
     .replace(/<PREF[\s\S]*?<\/PREF>/g, '');
+    // .replace(/REACTION\{[^}]*\}/g, '');
+
+  if (messager === 'user') {
+  } else {
+    cleanedContent = cleanedContent.replace(/REACTION\{([^}]*)\}/g);
+  }
 
   const parts = [];
   const regex = /<WIDGET\s+name="([^"]+)">([\s\S]*?)<\/WIDGET>/g;
@@ -71,7 +80,7 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
       parts.push(
         <div
           key={`t-${idx++}`}
-          className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none ${
+          className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none relative ${
             isUser
               ? 'bg-orange-500/70 border-orange-600/50 text-white shadow-md' 
               : darkMode 
@@ -82,6 +91,11 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
             borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
           }}
         >
+          {isUser && reaction && (
+            <div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-lg border-2 border-orange-200 z-10">
+              <span className="text-lg leading-none block">{reaction}</span>
+            </div>
+          )}
           <ReactMarkdown
             remarkPlugins={[remarkMath]}
             rehypePlugins={[rehypeKatex]}
@@ -247,7 +261,7 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
     catch { payload = { code: `()=><pre>Invalid JSON</pre>` }; }
 
     parts.push(
-      <div key={`w-${idx++}`} className={`max-w-4xl mx-auto mb-3 p-3 rounded-3xl backdrop-blur-sm border transition-all duration-300 ${
+      <div key={`w-${idx++}`} className={`max-w-4xl mx-auto mb-3 p-3 rounded-3xl backdrop-blur-sm border transition-all duration-300 relative ${
         isUser
           ? 'bg-orange-500/70 border-orange-600/50 shadow-md' 
           : darkMode 
@@ -257,6 +271,11 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
       style={{
         borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
       }}>
+        {isUser && reaction && (
+          <div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-lg border-2 border-orange-200 z-10">
+            <span className="text-lg leading-none block">{reaction}</span>
+          </div>
+        )}
         <DynamicWidget payload={payload} />
       </div>
     );
@@ -268,7 +287,7 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
     parts.push(
       <div
         key={`t-${idx++}`}
-        className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none ${
+        className={`max-w-4xl mx-auto mb-3 p-4 rounded-3xl backdrop-blur-sm border transition-all duration-300 prose max-w-none relative ${
           isUser
             ? 'bg-orange-500/70 border-orange-600/50 text-white shadow-md'
             : darkMode 
@@ -279,6 +298,11 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
           borderRadius: isUser ? '24px 24px 8px 24px' : '24px 24px 24px 8px'
         }}
       >
+        {isUser && reaction && (
+          <div className="absolute -top-2 -right-2 bg-white rounded-full p-1.5 shadow-lg border-2 border-orange-200 z-10">
+            <span className="text-lg leading-none block">{reaction}</span>
+          </div>
+        )}
         <ReactMarkdown
           remarkPlugins={[remarkMath]}
           rehypePlugins={[rehypeKatex]}
@@ -441,6 +465,11 @@ const ChatMessage = memo(({ content, darkMode, messager }) => {
 
   return <div className="max-w-full px-2">{parts}</div>;
 });
+
+export const extractReaction = (content) => {
+  const reactionMatch = /REACTION\{([^}]*)\}/.exec(content);
+  return reactionMatch ? reactionMatch[1] : null;
+};
 
 const ConversationItem = ({
   conversation,
@@ -670,12 +699,46 @@ const ChatComponent = ({
   const inputRef = useRef(null);
   const editTextareaRef = useRef(null);
 
+  const [gradientPhase, setGradientPhase] = useState(0);
+  const [gradientTone, setGradientTone] = useState('classic');
+
   useEffect(() => {
     if (editingMessageIndex !== null && editTextareaRef.current) {
       editTextareaRef.current.focus();
       adjustTextareaHeight(editTextareaRef.current);
     }
   }, [editingMessageIndex]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGradientPhase(prev => (prev + 1) % 360);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const gradientTones = {
+    classic: {
+      colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+      speed: 0.8,
+      intensity: 0.6
+    },
+    vibrant: {
+      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'],
+      speed: 1.2,
+      intensity: 0.8
+    },
+    calm: {
+      colors: ['#a8edea', '#fed6e3', '#e0c3fc', '#8ec5fc'],
+      speed: 0.5,
+      intensity: 0.4
+    },
+    cosmic: {
+      colors: ['#8360c3', '#2ebf91', '#fc466b', '#3fcdc7', '#fd79a8'],
+      speed: 1.5,
+      intensity: 0.9
+    }
+  };
 
   const adjustTextareaHeight = (textarea) => {
     if (textarea) {
@@ -700,8 +763,40 @@ const ChatComponent = ({
   }, [editingMessageIndex]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (window.innerWidth >= 768) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
+
+  const getAnimatedGradientStyle = () => {
+    const tone = gradientTones[gradientTone];
+    const phase1 = (gradientPhase * tone.speed) % 360;
+    const phase2 = (gradientPhase * tone.speed + 120) % 360;
+    const phase3 = (gradientPhase * tone.speed + 240) % 360;
+    
+    const colors = tone.colors;
+    const baseOpacity = darkMode ? 0.15 : 0.25;
+    const intensity = tone.intensity;
+    
+    return {
+      background: `
+        radial-gradient(circle at ${20 + Math.sin(phase1 * Math.PI / 180) * 30}% ${30 + Math.cos(phase1 * Math.PI / 180) * 20}%, 
+          ${colors[0]}${Math.floor((baseOpacity + Math.sin(phase1 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
+        radial-gradient(circle at ${70 + Math.sin(phase2 * Math.PI / 180) * 25}% ${60 + Math.cos(phase2 * Math.PI / 180) * 30}%, 
+          ${colors[1]}${Math.floor((baseOpacity + Math.cos(phase2 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
+        radial-gradient(circle at ${40 + Math.sin(phase3 * Math.PI / 180) * 35}% ${80 + Math.cos(phase3 * Math.PI / 180) * 15}%, 
+          ${colors[2]}${Math.floor((baseOpacity + Math.sin(phase3 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
+        ${colors.length > 3 ? `
+        radial-gradient(circle at ${60 + Math.sin((phase1 + 180) * Math.PI / 180) * 20}% ${20 + Math.cos((phase1 + 180) * Math.PI / 180) * 25}%, 
+          ${colors[3]}${Math.floor((baseOpacity * 0.7 + Math.cos((phase1 + 180) * Math.PI / 180) * 0.08 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),` : ''}
+        ${colors.length > 4 ? `
+        radial-gradient(circle at ${80 + Math.sin((phase2 + 90) * Math.PI / 180) * 15}% ${50 + Math.cos((phase2 + 90) * Math.PI / 180) * 20}%, 
+          ${colors[4]}${Math.floor((baseOpacity * 0.5 + Math.sin((phase2 + 90) * Math.PI / 180) * 0.06 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),` : ''}
+        ${darkMode ? '#111827' : '#f3f4f6'}
+      `.replace(/\s+/g, ' ').trim()
+    };
+  };
+
 
   const handleSendMessage = () => {
     if (inputMessage.trim()) {
@@ -769,7 +864,10 @@ const ChatComponent = ({
   };
 
   return (
-    <div className={`flex h-full ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
+    <div 
+      className="flex h-full relative"
+      style={getAnimatedGradientStyle()}
+    >
       {!isSidebarCollapsed && (
         <div 
           className="fixed inset-0 bg-black/50 z-10 md:hidden"
@@ -989,9 +1087,17 @@ const ChatComponent = ({
           )}
         </div>
 
-        <div className={`flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 ${darkMode ? 'bg-gray-900' : ''} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
         {messages.map((message, index) => {
           const parts = message.content.split('\n\n').filter(part => part.trim() !== '');
+
+          let userReaction = null;
+          if (message.role === 'user' && index < messages.length - 1) {
+            const nextMessage = messages[index + 1];
+            if (nextMessage && nextMessage.role === 'assistant') {
+              userReaction = extractReaction(nextMessage.content);
+            }
+          }
 
           return (
             <>
@@ -1014,11 +1120,17 @@ const ChatComponent = ({
                             ? 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 border-white/20 shadow-lg' 
                             : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
                         } ${shouldShowProfilePicture ? 'opacity-100' : 'opacity-0'}`}>
-                          <img
-                            src={aiPicture}
-                            alt="AI Avatar"
-                            className="w-full h-full rounded-full object-cover"
-                          />
+                          {aiPicture ? (
+                            <img
+                              src={aiPicture}
+                              alt="AI Avatar"
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-full flex items-center justify-center text-xs font-bold">
+                              <span className={darkMode ? 'text-purple-200' : 'text-blue-700'}>AI</span>
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
@@ -1068,7 +1180,7 @@ const ChatComponent = ({
                             </div>
                           </div>
                         ) : (
-                          <ChatMessage content={part} darkMode={darkMode} messager={message.role}/>
+                          <ChatMessage content={part} darkMode={darkMode} messager={message.role} reaction={message.role === 'user' ? userReaction : null}/>
                         )}
                       </div>
                       {message.role === 'user' && (
@@ -1077,11 +1189,17 @@ const ChatComponent = ({
                             ? 'bg-gradient-to-br from-orange-500/20 to-red-500/20 border-white/20 shadow-lg' 
                             : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-white/40 shadow-md'
                         } ${shouldShowProfilePicture ? 'opacity-100' : 'opacity-0'}`}>
-                          <img
-                            src={userPicture}
-                            alt="User Avatar"
-                            className="w-full h-full rounded-full object-cover"
-                          />
+                          {userPicture ? (
+                            <img
+                              src={userPicture}
+                              alt="User Avatar"
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full rounded-full flex items-center justify-center text-xs font-bold">
+                              <span className={darkMode ? 'text-orange-200' : 'text-blue-700'}>You</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
