@@ -240,7 +240,7 @@ class CreditManager:
                     "last_credit_refresh": now
                 })
 
-@app.get("/user/credits")
+@app.get("/user_credits")
 async def get_user_credits(user_info: dict = Depends(verify_token)):
     """Get user's current credit information"""
     user_uid = user_info["uid"]
@@ -248,7 +248,7 @@ async def get_user_credits(user_info: dict = Depends(verify_token)):
     
     credits_info = CreditManager.get_user_credits(user_ref)
     print(f"User {user_uid} credits info: {credits_info}")
-    return credits_info
+    return credits_info 
 
 @app.post("/create-payment-intent")
 async def create_payment_intent(

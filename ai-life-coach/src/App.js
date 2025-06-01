@@ -170,7 +170,7 @@ function CreditModal({
 
   const refreshUserCredits = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/user/credits', {
+      const response = await fetch('http://127.0.0.1:8000/user_credits', {
         headers: {
           'Authorization': `Bearer ${authToken}`
         }
@@ -524,6 +524,8 @@ export default function App() {
   const [userDataLoading, setUserDataLoading] = useState(true);
   const [picturesLoading, setPicturesLoading] = useState(true);
   const [personalitiesLoading, setPersonalitiesLoading] = useState(true);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [creditsInfo, setCreditsInfo] = useState(null);
 
   const [userCredits, setUserCredits] = useState(0);
 
@@ -607,7 +609,8 @@ export default function App() {
           Promise.allSettled([
             fetchUserData(idToken),
             fetchUserPictures(idToken),
-            fetchPersonalities(idToken)
+            fetchPersonalities(idToken),
+            fetchUserCredits(idToken),
           ]).then(() => {
             console.log("All user data loaded");
           });
@@ -685,7 +688,30 @@ export default function App() {
     }
   };
 
-
+  const fetchUserCredits = async () => {
+    if (!authToken) return;
+    
+    console.log("Fetching user credits with auth token:", authToken);
+    setLoadingCredits(true);
+    try {
+      const response = await fetch('http://127.0.0.1:8000/user_credits', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const credit_info = await response.json();
+        console.log("Fetched user credits:", credit_info);
+        setCreditsInfo(credit_info.credits || null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch credits:', error);
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
 
   useEffect(() => {
     console.log("Starred conversations updated:", starredConversations);
@@ -2405,7 +2431,12 @@ return (
             aiName={aiName}
             aiPersonalities={aiPersonalities}
             togglePersonality={handleTogglePersonality}
-            customPersonalities={customPersonalities}          />
+            customPersonalities={customPersonalities}
+            fetchUserCredits={fetchUserCredits}
+            setShowPaymentModal={setShowCreditModal}
+            creditsInfo={creditsInfo}
+            loadingCredits={loadingCredits}
+          />
         )}
       </div>
 

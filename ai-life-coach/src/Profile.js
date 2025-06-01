@@ -20,34 +20,12 @@ function ProfileComponent({
   aiPersonalities,
   togglePersonality,
   customPersonalities,
+  fetchUserCredits,
+  setShowPaymentModal,
+  creditsInfo,
+  loadingCredits
 }) {
   const [activeSection, setActiveSection] = useState('profile');
-  const [creditsInfo, setCreditsInfo] = useState(null);
-  const [loadingCredits, setLoadingCredits] = useState(false);
-
-  // Fetch user credits
-  const fetchUserCredits = async () => {
-    if (!authToken) return;
-    
-    setLoadingCredits(true);
-    try {
-      const response = await fetch('http://127.0.0.1:8000/user/credits', {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const credit_info = await response.json();
-        setCreditsInfo(credit_info.credits || null);
-      }
-    } catch (error) {
-      console.error('Failed to fetch credits:', error);
-    } finally {
-      setLoadingCredits(false);
-    }
-  };
 
   useEffect(() => {
     fetchUserCredits();
@@ -257,13 +235,25 @@ function ProfileComponent({
                     ? 'bg-white/10 border-white/20' 
                     : 'bg-white/60 border-white/40'
                 }`}>
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600">
-                      <CreditCard className="w-6 h-6 text-white" />
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600">
+                        <CreditCard className="w-6 h-6 text-white" />
+                      </div>
+                      <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Credits & Usage
+                      </h2>
                     </div>
-                    <h2 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                      Credits & Usage
-                    </h2>
+                    <button
+                      onClick={() => setShowPaymentModal(true)}
+                      className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 ${
+                        darkMode
+                          ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg shadow-purple-500/25'
+                          : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-500/25'
+                      }`}
+                    >
+                      Purchase Credits
+                    </button>
                   </div>
 
                   {loadingCredits ? (
@@ -289,28 +279,28 @@ function ProfileComponent({
                         </div>
                         <div className="text-center py-6">
                           <div className={`text-4xl font-bold mb-2 ${
-                            creditsInfo.remaining_credits > 10 
+                            creditsInfo > 10 
                               ? 'text-emerald-500' 
-                              : creditsInfo.remaining_credits > 5 
+                              : creditsInfo > 5 
                                 ? 'text-yellow-500' 
                                 : 'text-red-500'
                           }`}>
-                            {creditsInfo.remaining_credits || 0}
+                            {creditsInfo || 0}
                           </div>
                           <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                             Credits remaining
                           </p>
                         </div>
-                        {creditsInfo.remaining_credits <= 10 && (
+                        {creditsInfo <= 10 && (
                           <div className={`p-3 rounded-lg ${
-                            creditsInfo.remaining_credits <= 5 
+                            creditsInfo <= 5 
                               ? 'bg-red-500/20 border border-red-500/30' 
                               : 'bg-yellow-500/20 border border-yellow-500/30'
                           }`}>
                             <p className={`text-sm text-center ${
-                              creditsInfo.remaining_credits <= 5 ? 'text-red-400' : 'text-yellow-400'
+                              creditsInfo <= 5 ? 'text-red-400' : 'text-yellow-400'
                             }`}>
-                              {creditsInfo.remaining_credits <= 5 
+                              {creditsInfo <= 5 
                                 ? 'Low credits - consider purchasing more!' 
                                 : 'Credits running low'}
                             </p>
@@ -318,66 +308,36 @@ function ProfileComponent({
                         )}
                       </div>
 
-                      {/* <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      {/* Second card can be used for additional info or stats */}
+                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
                         darkMode 
                           ? 'bg-white/5 border-white/10' 
                           : 'bg-white/40 border-white/30'
                       }`}>
-                        {/* <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                          Usage Statistics
-                        </h3>
-                        <div className="space-y-4">
-                          {creditsInfo.total_credits && (
-                            <div className="flex justify-between items-center">
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                Total Credits
-                              </span>
-                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                {creditsInfo.total_credits}
-                              </span>
-                            </div>
-                          )}
-                          {creditsInfo.used_credits !== undefined && (
-                            <div className="flex justify-between items-center">
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                Used Credits
-                              </span>
-                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                {creditsInfo.used_credits}
-                              </span>
-                            </div>
-                          )}
-                          {creditsInfo.last_reset && (
-                            <div className="flex justify-between items-center">
-                              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                Last Reset
-                              </span>
-                              <span className={`font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                                {new Date(creditsInfo.last_reset).toLocaleDateString()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {creditsInfo.total_credits && creditsInfo.remaining_credits !== undefined && (
-                          <div className="mt-6">
-                            <div className="flex justify-between text-sm mb-2">
-                              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Usage Progress</span>
-                              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                                {Math.round(((creditsInfo.total_credits - creditsInfo.remaining_credits) / creditsInfo.total_credits) * 100)}%
-                              </span>
-                            </div>
-                            <div className={`w-full bg-gray-200 rounded-full h-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
-                              <div 
-                                className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2 rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${((creditsInfo.total_credits - creditsInfo.remaining_credits) / creditsInfo.total_credits) * 100}%`
-                                }}
-                              ></div>
-                            </div>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600">
+                            <CreditCard className="w-5 h-5 text-white" />
                           </div>
-                        )}
-                      </div> */}
+                          <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            Quick Purchase
+                          </h3>
+                        </div>
+                        <div className="text-center py-6">
+                          <p className={`text-sm mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Need more credits? Purchase them instantly to continue using our services without interruption.
+                          </p>
+                          <button
+                            onClick={() => setShowPaymentModal(true)}
+                            className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 ${
+                              darkMode
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'
+                                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white'
+                            }`}
+                          >
+                            Buy Credits Now
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <div className={`text-center py-12 rounded-xl border ${
