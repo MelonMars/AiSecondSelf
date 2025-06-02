@@ -9,6 +9,7 @@ import { Cloudinary } from '@cloudinary/url-gen';
 import { auto } from '@cloudinary/url-gen/actions/resize';
 import { autoGravity } from '@cloudinary/url-gen/qualifiers/gravity';
 import { render } from "katex";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
@@ -554,6 +555,9 @@ export default function App() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const navigate = useNavigate();
+  const { tab: urlTab, conversationId: urlConversationId} = useParams();
+  const location = useLocation();
 
   const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
 
@@ -580,6 +584,50 @@ export default function App() {
         fetchConversations();
     }
 };
+
+  useEffect(() => {
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    
+    const filteredParts = pathParts.filter(part => part !== 'ai-life-coach');
+    
+    if (filteredParts.length === 0) {
+      if (tab !== 'chat') {
+        setTab('chat');
+      }
+    } else if (filteredParts.length >= 1) {
+      const tabFromUrl = filteredParts[0];
+      
+      if (['chat', 'profile', 'graph'].includes(tabFromUrl)) {
+        if (tab !== tabFromUrl) {
+          setTab(tabFromUrl);
+        }
+        
+        if (tabFromUrl === 'chat' && filteredParts.length >= 2) {
+          const conversationIdFromUrl = filteredParts[1];
+          if (conversationIdFromUrl && conversationIdFromUrl !== currentConversationId) {
+            loadConversation(conversationIdFromUrl);
+          }
+        } else if (tabFromUrl === 'chat' && filteredParts.length === 1) {
+          if (currentConversationId) {
+          }
+        }
+      }
+    }
+  }, [location.pathname, tab, currentConversationId]);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    
+    if (newTab === 'chat') {
+      if (currentConversationId) {
+        navigate(`/chat/${currentConversationId}`);
+      } else {
+        navigate('/chat');
+      }
+    } else {
+      navigate(`/${newTab}`);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -2135,7 +2183,17 @@ export default function App() {
     console.log("User credits updated:", newCredits);
   }
 
-return (
+  const handleLoadConversation = (conversationId) => {
+    loadConversation(conversationId);
+    navigate(`/chat/${conversationId}`);
+  };
+
+  const handleStartNewConversation = () => {
+    startNewConversation();
+    navigate('/chat');
+  };
+
+  return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <header className="md:hidden fixed top-0 left-0 right-0 z-[1000] py-3 px-4">
         <div className={`flex items-center justify-between rounded-xl border border-white/20 px-4 py-3 ${
@@ -2208,7 +2266,7 @@ return (
                     return (
                       <button
                         key={t.id}
-                        onClick={() => setTab(t.id)}
+                        onClick={() => handleTabChange(t.id)}
                         className={`relative flex items-center px-4 py-2.5 transition-opacity duration-300 ease-in-out rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-white/20 ${
                           isHovering ? 'opacity-100' : 'opacity-70'
                         } ${
@@ -2384,7 +2442,7 @@ return (
                  currentConversationId={currentConversationId}
                  isLoading={isLoading}
                  isConversationsLoading={isConversationsLoading}
-                 loadConversation={loadConversation}
+                 loadConversation={handleLoadConversation}
                  startNewConversation={startNewConversation}
                  setAuthError={setAuthError} 
                  setShowAuthModal={setShowAuthModal}

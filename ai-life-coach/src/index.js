@@ -12,8 +12,13 @@ root.render(
     <Router basename="/ai-life-coach">
       <Routes>
         <Route path="/shared/:ownerId/:conversationId" element={<SharedComponent />} />
-        <Route path="/" element={<App />}/>
         <Route path="/payment-success" element={<PaymentSuccess />}/>
+        
+        <Route path="/chat/:conversationId" element={<App />} />
+        <Route path="/chat" element={<App />} />
+        <Route path="/profile" element={<App />} />
+        <Route path="/graph" element={<App />} />
+        <Route path="/" element={<App />}/>
       </Routes>
     </Router>
   </React.StrictMode>

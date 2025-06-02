@@ -1472,7 +1472,8 @@ async def signup_user(user_data: UserRegistration):
         user_ref.set({
             "name": user_data.name,
             "email": user_data.email,
-            "Graph": {}
+            "Graph": {},
+            "credits": 50,
         })
         
         custom_token = auth.create_custom_token(user.uid)
