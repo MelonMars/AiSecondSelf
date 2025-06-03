@@ -16,6 +16,7 @@ import logging
 import os
 import google.generativeai as genai
 import stripe
+import io
 
 cred = ""
 gemini_cred = ""
@@ -30,7 +31,8 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 print("Got gemini cred: ", gemini_cred)
-client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+
 stripe.api_key = open("stripekey.txt", "r").read()
 
 db = firestore.client()
@@ -146,10 +148,11 @@ class Conversation(BaseModel):
     forked_from_message_id: Optional[str] = None
     children_branches: Optional[List[dict]] = []
 
-class ChatRequest(BaseModel):
-    messages: List[dict]
-    bulletProse: str
+class ChatRequestWithDocs(BaseModel):
     conversation_id: Optional[str] = None
+    messages: List[dict]
+    bulletProse: str = ""
+    documents: Optional[List[dict]] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -610,15 +613,24 @@ async def summarize_long_chat_history(
 
 @app.post("/chat-stream")
 async def chat_stream(
-    request: ChatRequest,
     raw_request: Request,
     background_tasks: BackgroundTasks,
-    user_info: dict = Depends(verify_token)
+    user_info: dict = Depends(verify_token),
+    request: str = Form(...),
+    files: Optional[List[UploadFile]] = File(None),
 ):
+    try:
+        request_data = json.loads(request)
+        chat_request = ChatRequestWithDocs(**request_data)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON in request field: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
+
     user_uid = user_info["uid"]
     user_ref = db.collection("users").document(user_uid)
 
-    conversation_id = request.conversation_id
+    conversation_id = chat_request.conversation_id
     now = datetime.datetime.now(datetime.timezone.utc)
     is_brand_new_conversation_this_call = False
 
@@ -646,7 +658,7 @@ async def chat_stream(
     else:
         logger.info(f"Continuing conversation: {conversation_id} for user {user_uid}")
 
-    all_messages: List[Message] = [Message(**msg) for msg in request.messages]
+    all_messages: List[Message] = [Message(**msg) for msg in chat_request.messages]
     if all_messages and not all_messages[-1].timestamp:
         all_messages[-1].timestamp = now
 
@@ -668,7 +680,7 @@ async def chat_stream(
             "Context: {bulletProse}"
         )
 
-    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    system_prompt = prompt_template.replace("{bulletProse}", chat_request.bulletProse)
     system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
     system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
     system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
@@ -685,7 +697,7 @@ async def chat_stream(
 
     messages_for_gemini_processing = list(all_messages) 
 
-    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 1
+    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 
     total_tokens = 3 # I think it is so cheap that this is fine, I'm charging like $1 per 10 messages, and 10 messages costs me maybe like .2$
     if not CreditManager.deduct_credits(user_ref, total_tokens/3):
         raise HTTPException(status_code=402, detail="Insufficient credits")
@@ -701,6 +713,16 @@ async def chat_stream(
     for msg in processed_messages_for_gemini:
         role = 'model' if msg.role == 'assistant' else 'user'
         messages_for_gemini.append({'role': role, 'parts': [msg.content]})
+
+    if files:
+        file = files[0]
+        file_content = await file.read()
+        file_name = file.filename
+        logger.info(f"Received file: {file_name} with size {len(file_content)} bytes")
+        
+        file_data = io.BytesIO(file_content)
+        doc = genai.upload_file(path=file_data, mime_type=file.content_type)
+        messages_for_gemini[-1]['parts'].append(doc)
 
     async def stream_generator() -> AsyncGenerator[str, None]:
         full_response_content = []
