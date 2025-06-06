@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain, CreditCard, Coins } from 'lucide-react';
+import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain, CreditCard, Coins, Trash2 } from 'lucide-react';
 
 function ProfileComponent({
   authToken,
@@ -23,7 +23,9 @@ function ProfileComponent({
   fetchUserCredits,
   setShowPaymentModal,
   creditsInfo,
-  loadingCredits
+  loadingCredits,
+  uploadBackgroundImage,
+  removeBackgroundImage
 }) {
   const [activeSection, setActiveSection] = useState('profile');
 
@@ -174,6 +176,47 @@ function ProfileComponent({
                             <p className={`text-lg ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                               {userEmail}
                             </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                        darkMode 
+                          ? 'bg-white/5 border-white/10' 
+                          : 'bg-white/40 border-black/30'
+                      }`}>
+                        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          Background Image
+                        </h3>
+                        <div className="flex flex-col items-center space-y-4">
+                          <div className="flex gap-3">
+                            <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                              darkMode
+                                ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-green-500/25'
+                                : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-green-500/25'
+                            }`}>
+                              <Upload className="w-4 h-4" />
+                              Upload Background
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => uploadBackgroundImage(e.target.files[0])}
+                                className="hidden"
+                                disabled={isLoading}
+                              />
+                            </label>
+                            <button
+                              onClick={removeBackgroundImage}
+                              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                                darkMode
+                                  ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg hover:shadow-red-500/25'
+                                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg hover:shadow-red-500/25'
+                              }`}
+                              disabled={isLoading}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                              Remove Background
+                            </button>
                           </div>
                         </div>
                       </div>

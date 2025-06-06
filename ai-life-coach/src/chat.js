@@ -689,6 +689,7 @@ const ChatComponent = ({
   aiPicture,
   userPicture,
   handleDocumentUpload,
+  backgroundImageUrl,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -904,12 +905,21 @@ const ChatComponent = ({
   };
 
   return (
-    <div 
+    <div
       className="flex h-full relative"
-      style={getAnimatedGradientStyle()}
+      style={
+        backgroundImageUrl && backgroundImageUrl.trim() !== ''
+          ? {
+              backgroundImage: `url(${backgroundImageUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }
+          : getAnimatedGradientStyle()
+      }
     >
       {!isSidebarCollapsed && (
-        <div 
+       <div
           className="fixed inset-0 bg-black/50 z-10 md:hidden"
           onClick={() => setIsSidebarCollapsed(true)}
         />

@@ -556,6 +556,8 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
+  const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+
   const navigate = useNavigate();
   const { tab: urlTab, conversationId: urlConversationId} = useParams();
   const location = useLocation();
@@ -660,6 +662,7 @@ export default function App() {
             fetchUserPictures(idToken),
             fetchPersonalities(idToken),
             fetchUserCredits(idToken),
+            getBackgroundImage(),
           ]).then(() => {
             console.log("All user data loaded");
           });
@@ -1318,6 +1321,86 @@ export default function App() {
     }
   };
 
+  const uploadBackgroundImage = async (file) => {
+    if (!file || !auth.currentUser) return;
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', 'background-image');
+      const cloudinaryUploadRes = await fetch(
+          `https://api.cloudinary.com/v1_1/dy78nlcso/image/upload`,
+          {
+              method: 'POST',
+              body: formData,
+          }
+      );
+      if (!cloudinaryUploadRes.ok) {
+        const errorData = await cloudinaryUploadRes.json();
+        throw new Error(`Cloudinary upload failed: ${errorData.error.message}`);
+      }
+      const cloudinaryData = await cloudinaryUploadRes.json();
+      const imgUrl = cloudinaryData.secure_url;
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      }
+      const res = await fetch("http://127.0.1:8000/update_background_image", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ backgroundImageUrl: imgUrl })
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status} updating background image:`, errorText);
+        if (res.status === 401) { 
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        throw new Error(`Server error updating background image: ${res.status}`);
+      }
+      setBackgroundImageUrl(imgUrl);
+      console.log("Background image uploaded and URL saved:", imgUrl);
+    } catch (error) {
+      console.error('Error uploading background image:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const removeBackgroundImage = async () => {
+    if (!auth.currentUser) return;
+    setIsLoading(true);
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+      };
+      const res = await fetch("http://127.0.1:8000/remove_background_image", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ backgroundImageUrl: '' })
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status} removing background image:`, errorText);
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        throw new Error(`Server error removing background image: ${res.status}`);
+      }
+      setBackgroundImageUrl('');
+      console.log("Background image removed successfully.");
+    } catch (error) {
+      console.error('Error removing background image:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderAuthModal = () => {
     if (!showAuthModal) return null;
 
@@ -1746,6 +1829,41 @@ export default function App() {
         console.error("Error fetching user data:", error);
       } finally {
         setPicturesLoading(false);
+      }
+    };
+
+    const getBackgroundImage = async () => {
+      if (!auth.currentUser) return;
+      
+      try {
+        const headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        };
+        
+        const res = await fetch("http://127.0.0.1:8000/background_image", {
+          method: "GET",
+          headers: headers
+        });
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Server error ${res.status} retrieving background image:`, errorText);
+          if (res.status === 401) {
+            setAuthError("Authentication failed. Please log in again.");
+            setShowAuthModal(true);
+            logout();
+          }
+          throw new Error(`Server error retrieving background image: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        setBackgroundImageUrl(data.backgroundImageUrl);
+        console.log("Background image retrieved:", data.backgroundImageUrl);
+        return data.backgroundImageUrl;
+      } catch (error) {
+        console.error('Error retrieving background image:', error);
+        return '';
       }
     };
     
@@ -2497,6 +2615,7 @@ export default function App() {
                  aiPicture={aiAvatarImage}
                  userPicture={userAvatarImage}
                  handleDocumentUpload={handleDocumentUpload}
+                 backgroundImageUrl={backgroundImageUrl}
           />
         )}
         {tab === "graph" && (
@@ -2530,6 +2649,8 @@ export default function App() {
             setShowPaymentModal={setShowCreditModal}
             creditsInfo={creditsInfo}
             loadingCredits={loadingCredits}
+            uploadBackgroundImage={uploadBackgroundImage}
+            removeBackgroundImage={removeBackgroundImage}
           />
         )}
       </div>

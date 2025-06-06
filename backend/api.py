@@ -1923,6 +1923,68 @@ async def get_pictures(user_info: dict = Depends(verify_token)):
             detail=f"Error retrieving profile pictures: {str(e)}"
         )
 
+@app.post("/update_background_image")
+async def update_background_image(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    background_image_url = body.get("backgroundImageUrl")
+    
+    if background_image_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Background image URL is required"
+        )
+    
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_ref.update({
+            "backgroundImageUrl": background_image_url
+        })
+        return {"message": "Background image updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating background image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating background image: {str(e)}"
+        )
+
+@app.post("/remove_background_image")
+async def remove_background_image(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_ref.update({
+            "backgroundImageUrl": ""
+        })
+        return {"message": "Background image removed successfully"}
+    except Exception as e:
+        logger.error(f"Error removing background image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error removing background image: {str(e)}"
+        )
+
+@app.get("/background_image")
+async def get_background_image(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        background_image = {
+            "backgroundImageUrl": user_data.get("backgroundImageUrl", "")
+        }
+        return background_image
+    except Exception as e:
+        logger.error(f"Error retrieving background image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving background image: {str(e)}"
+        )
+
 @app.post("/rename_ai")
 async def rename_ai(user_info: dict = Depends(verify_token), body: dict = Body(...)):
     new_name = body.get("newName")
