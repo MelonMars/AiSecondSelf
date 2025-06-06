@@ -554,6 +554,7 @@ export default function App() {
   const personalityIconInputRef = useRef(null);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const navigate = useNavigate();
   const { tab: urlTab, conversationId: urlConversationId} = useParams();
@@ -962,22 +963,45 @@ export default function App() {
 
     try {
       const headers = {
-        "Content-Type": "application/json",
         "Authorization": `Bearer ${authToken}`,
       };
+
+      const formData = new FormData();
 
       const requestBody = {
         messages: messagesForApi, 
         conversation_id: currentConversationId,
-        bulletProse: bulletProse
+        bulletProse: bulletProse,
       };
+
+      formData.append('request', JSON.stringify(requestBody));
+
+      if (uploadedFiles.length > 0) {
+        uploadedFiles.forEach((file, index) => {
+          formData.append('files', file);
+        });
+        console.log("Added files to form data:", uploadedFiles.map(f => f.name));
+      } else {
+        console.log("No files to add to form data.");
+      }
+
+      setUploadedFiles([]);
+
+      const formDataEntries = Array.from(formData.entries()).map(([key, value]) => {
+        if (value instanceof File) {
+          return `${key}: ${value.name} (File)`;
+        }
+        return `${key}: ${value}`;
+      });
+
+      console.log("Sending form data to server in App.js:", formDataEntries.join(", "));
 
       console.log("Sending message to streaming server from App.js:", requestBody);
 
       const res = await fetch("http://127.0.0.1:8000/chat-stream", {
         method: "POST",
         headers: headers,
-        body: JSON.stringify(requestBody)
+        body: formData
       });
 
       console.log("Got response from server in App.js:", res.ok, res.status);
@@ -2194,6 +2218,16 @@ export default function App() {
     navigate('/chat');
   };
 
+  const handleDocumentUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("File selected:", file.name, file.type, file.size);
+      setUploadedFiles([file]);
+      
+      console.log(`File "${file.name}" ready to send with next message`);
+    }
+  };
+
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <header className="md:hidden fixed top-0 left-0 right-0 z-[1000] py-3 px-4">
@@ -2444,7 +2478,7 @@ export default function App() {
                  isLoading={isLoading}
                  isConversationsLoading={isConversationsLoading}
                  loadConversation={handleLoadConversation}
-                 startNewConversation={startNewConversation}
+                 startNewConversation={handleStartNewConversation}
                  setAuthError={setAuthError} 
                  setShowAuthModal={setShowAuthModal}
                  logout={logout}
@@ -2462,6 +2496,7 @@ export default function App() {
                  currentConversationBranchInfo={currentConversationBranchInfo}
                  aiPicture={aiAvatarImage}
                  userPicture={userAvatarImage}
+                 handleDocumentUpload={handleDocumentUpload}
           />
         )}
         {tab === "graph" && (

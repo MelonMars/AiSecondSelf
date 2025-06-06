@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu } from 'lucide-react';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu, Paperclip } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -59,11 +59,13 @@ const ChatMessage = memo(({ content, darkMode, messager, reaction }) => {
   let cleanedContent = displayContent
     .replace(/<GRAPH[\s\S]*?<\/GRAPH>/g, '')
     .replace(/<PREF[\s\S]*?<\/PREF>/g, '');
-    // .replace(/REACTION\{[^}]*\}/g, '');
 
-  if (messager === 'user') {
-  } else {
-    cleanedContent = cleanedContent.replace(/REACTION\{([^}]*)\}/g);
+  if (messager !== 'user') {
+    cleanedContent = cleanedContent.replace(/REACTION\{[^}]*\}/g, '');
+  }
+
+  if (!cleanedContent.trim()) {
+    return null;
   }
 
   const parts = [];
@@ -424,7 +426,7 @@ const ChatMessage = memo(({ content, darkMode, messager, reaction }) => {
               }`}>
                 {children}
               </h2>
-            ),
+              ),
             h3: ({node, children}) => (
               <h3 className={`text-lg font-bold mt-3 mb-2 bg-gradient-to-r bg-clip-text ${
                 darkMode 
@@ -686,6 +688,7 @@ const ChatComponent = ({
   currentConversationBranchInfo,
   aiPicture,
   userPicture,
+  handleDocumentUpload,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -1377,6 +1380,21 @@ const ChatComponent = ({
             : 'bg-white/60 border-white/40'
         }`}>
           <div className="flex items-end space-x-2 md:space-x-3">
+            <label htmlFor="document-upload" className={`p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg flex-shrink-0 cursor-pointer ${
+                darkMode
+                  ? 'bg-gradient-to-r from-teal-500/20 to-cyan-500/20 border-teal-400/30 text-teal-400 hover:bg-gradient-to-r hover:from-teal-500/30 hover:to-cyan-500/30'
+                  : 'bg-gradient-to-r from-green-500/20 to-lime-500/20 border-green-500/40 text-green-600 hover:bg-gradient-to-r hover:from-green-500/30 hover:to-lime-500/30'
+            }`}>
+              <Paperclip size={18} className="md:hidden" />
+              <Paperclip size={20} className="hidden md:block" />
+              <input 
+                id="document-upload" 
+                type="file" 
+                className="hidden" 
+                onChange={handleDocumentUpload}
+              />
+            </label>
+
             <textarea
               ref={inputRef}
               value={inputMessage}

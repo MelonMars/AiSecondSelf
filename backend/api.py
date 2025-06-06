@@ -18,6 +18,7 @@ from google import genai
 from google.genai import types
 import stripe
 import asyncio
+import io
 
 cred = ""
 gemini_cred = ""
@@ -148,10 +149,11 @@ class Conversation(BaseModel):
     forked_from_message_id: Optional[str] = None
     children_branches: Optional[List[dict]] = []
 
-class ChatRequest(BaseModel):
-    messages: List[dict]
-    bulletProse: str
+class ChatRequestWithDocs(BaseModel):
     conversation_id: Optional[str] = None
+    messages: List[dict]
+    bulletProse: str = ""
+    documents: Optional[List[dict]] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -623,15 +625,24 @@ async def summarize_long_chat_history(
 
 @app.post("/chat-stream")
 async def chat_stream(
-    request: ChatRequest,
     raw_request: Request,
     background_tasks: BackgroundTasks,
-    user_info: dict = Depends(verify_token)
+    user_info: dict = Depends(verify_token),
+    request: str = Form(...),
+    files: Optional[List[UploadFile]] = File(None),
 ):
+    try:
+        request_data = json.loads(request)
+        chat_request = ChatRequestWithDocs(**request_data)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON in request field: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid request data: {e}")
+
     user_uid = user_info["uid"]
     user_ref = db.collection("users").document(user_uid)
 
-    conversation_id = request.conversation_id
+    conversation_id = chat_request.conversation_id
     now = datetime.datetime.now(datetime.timezone.utc)
     is_brand_new_conversation_this_call = False
 
@@ -659,7 +670,7 @@ async def chat_stream(
     else:
         logger.info(f"Continuing conversation: {conversation_id} for user {user_uid}")
 
-    all_messages: List[Message] = [Message(**msg) for msg in request.messages]
+    all_messages: List[Message] = [Message(**msg) for msg in chat_request.messages]
     if all_messages and not all_messages[-1].timestamp:
         all_messages[-1].timestamp = now
 
@@ -684,7 +695,7 @@ async def chat_stream(
             "You can set a reaction emoji by setting reaction in your response."
         )
 
-    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    system_prompt = prompt_template.replace("{bulletProse}", chat_request.bulletProse)
     system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
     system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
     system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
@@ -698,6 +709,7 @@ async def chat_stream(
 
     messages_for_gemini_processing = list(all_messages)
 
+    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 
     total_tokens = 3 # I think it is so cheap that this is fine, I'm charging like $1 per 10 messages, and 10 messages costs me maybe like .2$
     if not CreditManager.deduct_credits(user_ref, total_tokens/3):
         raise HTTPException(status_code=402, detail="Insufficient credits")
