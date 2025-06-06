@@ -165,15 +165,8 @@ class EditRequest(BaseModel):
     new_message_content: str
     bulletProse: str = ""
 
-# class AiChatResponse(BaseModel):
-#     reply: str
-#     updated_preferences: str
-#     updated_graph: Dict[str, str]
-#     reaction: str
-
 class AiChatResponse(BaseModel):
     reply: str
-    reaction: str
     updated_preferences: str
     updated_graph: str
 
@@ -730,6 +723,26 @@ async def chat_stream(
         )
         contents.append(content)
 
+    # Handle file uploads - add to the last user message
+    if files:
+        file = files[0]
+        file_content = await file.read()
+        file_name = file.filename
+        logger.info(f"Received file: {file_name} with size {len(file_content)} bytes")
+        
+        file_data = io.BytesIO(file_content)
+        doc = genai.upload_file(path=file_data, mime_type=file.content_type)
+        
+        # Add the file to the last message (which should be the user's message)
+        if contents and contents[-1].role == 'user':
+            contents[-1].parts.append(doc)
+        else:
+            # If no user message exists, create one with just the file
+            contents.append(types.Content(
+                role='user',
+                parts=[doc]
+            ))
+
     contents = [types.Content(role="model", parts=[types.Part(text=system_prompt)])] + contents
 
     try:
@@ -752,7 +765,6 @@ async def chat_stream(
                 reply=response_text,
                 updated_preferences="",
                 updated_graph="{}",
-                reaction=""
             )
         
         logger.info(f"Generated structured response for conversation {conversation_id}")
@@ -764,7 +776,6 @@ async def chat_stream(
             reply="Error: Could not get response from AI. Got error: " + str(e),
             updated_preferences="",
             updated_graph="{}",
-            reaction=""
         )
     
     background_tasks.add_task(

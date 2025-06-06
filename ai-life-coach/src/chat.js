@@ -465,7 +465,7 @@ const ChatMessage = memo(({ content, darkMode, messager, reaction }) => {
     );
   }
 
-  return <div className="max-w-full px-2">{parts}</div>;
+  return <div className="max-w-full px-2 max-w-[40vw]">{parts}</div>;
 });
 
 export const extractReaction = (content) => {
@@ -719,6 +719,43 @@ const ChatComponent = ({
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+    
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+  
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+  
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
+  const mobileStyles = `
+    @supports (-webkit-touch-callout: none) {
+      .chat-container {
+        height: calc(var(--vh, 1vh) * 100);
+      }
+    }
+    
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    @media (max-width: 768px) {
+      .input-container {
+        position: sticky;
+        bottom: 0;
+        z-index: 100;
+      }
+    }
+  `;
 
   const gradientTones = {
     classic: {
@@ -1057,7 +1094,7 @@ const ChatComponent = ({
       )}
     </div>
 
-      <div className="flex-grow flex flex-col" style={{ height: '100vh' }}>
+      <div className="flex-grow flex flex-col" style={{ minHeight: '100vh' }}>
         <div className={`md:hidden flex items-center justify-between p-4 border-b backdrop-blur-sm ${
           darkMode ? 'bg-white/10 border-white/20' : 'bg-white/60 border-white/40'
         }`}>
@@ -1090,7 +1127,7 @@ const ChatComponent = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-6 scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent pb-safe">
         {messages.map((message, index) => {
           const parts = message.content.split('\n\n').filter(part => part.trim() !== '');
 
@@ -1374,11 +1411,11 @@ const ChatComponent = ({
         <div ref={messagesEndRef} />
         </div>
 
-        <div className={`flex-shrink-0 p-3 md:p-4 border-t shadow-xl backdrop-blur-sm transition-all duration-300 ${
+        <div className={`flex-shrink-0 p-3 md:p-4 border-t shadow-xl backdrop-blur-sm transition-all duration-300 input-container ${
           darkMode 
             ? 'bg-white/10 border-white/20' 
             : 'bg-white/60 border-white/40'
-        }`}>
+        }`} style={{ position: 'sticky', bottom: 0, zIndex: 100 }}>
           <div className="flex items-end space-x-2 md:space-x-3">
             <label htmlFor="document-upload" className={`p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg flex-shrink-0 cursor-pointer ${
                 darkMode
