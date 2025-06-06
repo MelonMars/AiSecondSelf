@@ -1227,6 +1227,7 @@ export default function App() {
       setMessages([]);
       setInput(""); 
       inputRef.current?.focus();
+      navigate('/chat');
   };
 
   const handleUserAvatarUpload = (file) => {

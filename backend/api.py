@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form, Request, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, status, Header, Body, File, UploadFile, Form, Request, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import uvicorn
@@ -14,8 +14,10 @@ import json
 import datetime
 import logging
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import stripe
+import asyncio
 
 cred = ""
 gemini_cred = ""
@@ -30,7 +32,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 print("Got gemini cred: ", gemini_cred)
-client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+# client = genai.configure(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
 stripe.api_key = open("stripekey.txt", "r").read()
 
 db = firestore.client()
@@ -160,6 +162,18 @@ class EditRequest(BaseModel):
     message_index: int
     new_message_content: str
     bulletProse: str = ""
+
+# class AiChatResponse(BaseModel):
+#     reply: str
+#     updated_preferences: str
+#     updated_graph: Dict[str, str]
+#     reaction: str
+
+class AiChatResponse(BaseModel):
+    reply: str
+    reaction: str
+    updated_preferences: str
+    updated_graph: str
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -503,32 +517,29 @@ async def post_stream_save_to_db(
     user_ref: firestore.DocumentReference,
     conversation_ref: firestore.DocumentReference,
     all_messages: List[Message],
-    full_ai_reply: str,
+    ai_response: AiChatResponse,
     is_brand_new_conversation: bool
 ):
     logger.info(f"Background task started for conversation: {conversation_ref.id}")
-    ai_message = Message(role="assistant", content=full_ai_reply, timestamp=datetime.datetime.now(datetime.timezone.utc))
+    ai_message = Message(role="assistant", content=ai_response.reply, timestamp=datetime.datetime.now(datetime.timezone.utc))
     all_messages.append(ai_message)
 
     user_uid = user_ref.id
-    ai_reply_content = full_ai_reply
-    if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
+    
+    if ai_response.updated_graph:
+        updated_graph = json.loads(ai_response.updated_graph)
         try:
-            start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
-            end_index = ai_reply_content.find("</GRAPH>", start_index)
-            graph_string = ai_reply_content[start_index:end_index]
-            graph_data = json.loads(graph_string)
-            user_ref.update({"edges": graph_data.get("edges", []), "nodes": graph_data.get("nodes", [])})
+            user_ref.update({
+                "edges": updated_graph.get("edges", []), 
+                "nodes": updated_graph.get("nodes", [])
+            })
             logger.info(f"Graph data updated in Firestore for user {user_uid}")
         except Exception as e:
             logger.error(f"Error processing graph data in background: {e}")
 
-    if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
+    if ai_response.updated_preferences:
         try:
-            start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
-            end_index = ai_reply_content.find("</PREF>", start_index)
-            pref = ai_reply_content[start_index:end_index]
-            user_ref.update({"ChatPreferences": pref})
+            user_ref.update({"ChatPreferences": ai_response.updated_preferences})
             logger.info(f"User preferences updated in Firestore for user {user_uid}")
         except Exception as e:
             logger.error(f"Error processing user preferences in background: {e}")
@@ -544,9 +555,11 @@ async def post_stream_save_to_db(
             first_message_content = all_messages[0].content
             with open("titleprompt.txt", "r") as f:
                 titleprompt = f.read()
-            title_model = genai.GenerativeModel('gemini-1.5-flash-latest')
-            title_response = await title_model.generate_content_async(
-                f"{titleprompt}\n\nPlease generate a short, descriptive conversation title for this message:\n{first_message_content}"
+            
+            title_client = genai.Client(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+            title_response = await title_client.aio.models.generate_content(
+                model='gemini-1.5-flash-latest',
+                contents=f"{titleprompt}\n\nPlease generate a short, descriptive conversation title for this message:\n{first_message_content}"
             )
             title = title_response.text.strip().replace('"', '')
             update_data["title"] = title
@@ -559,7 +572,7 @@ async def post_stream_save_to_db(
 
 async def summarize_long_chat_history(
     messages: List[Message],
-    model: genai.GenerativeModel,
+    client: genai.Client,
     max_messages_to_keep: int
 ) -> List[Message]:
     if len(messages) <= max_messages_to_keep:
@@ -586,8 +599,9 @@ async def summarize_long_chat_history(
     logger.debug(f"Summarization prompt preview: {summary_prompt[:200]}...")
 
     try:
-        summarization_response = await model.generate_content_async(
-            [{"role": "user", "parts": [summary_prompt]}]
+        summarization_response = await client.aio.models.generate_content(
+            model='gemini-1.5-flash-latest',
+            contents=summary_prompt
         )
         
         summary_text = summarization_response.text
@@ -606,7 +620,6 @@ async def summarize_long_chat_history(
     except Exception as e:
         logger.error(f"Error during chat summarization: {e}. Sending last {max_messages_to_keep} messages instead.")
         return messages[len(messages) - max_messages_to_keep:]
-
 
 @app.post("/chat-stream")
 async def chat_stream(
@@ -665,7 +678,10 @@ async def chat_stream(
             "Your location is {location} in {country}. "
             "Here are some instructions: {instructionSet}. "
             "Your personalities are: {personalities}. "
-            "Context: {bulletProse}"
+            "Context: {bulletProse}. "
+            "You can update user preferences by setting updated_preferences in your response. "
+            "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
+            "You can set a reaction emoji by setting reaction in your response."
         )
 
     system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
@@ -678,60 +694,82 @@ async def chat_stream(
     system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
     system_prompt = system_prompt.replace("{country}", user_data.get("country", "Unknown"))
 
-    model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash-latest',
-        system_instruction=system_prompt
-    )
+    client = genai.Client(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
 
-    messages_for_gemini_processing = list(all_messages) 
+    messages_for_gemini_processing = list(all_messages)
 
-    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 1
     total_tokens = 3 # I think it is so cheap that this is fine, I'm charging like $1 per 10 messages, and 10 messages costs me maybe like .2$
     if not CreditManager.deduct_credits(user_ref, total_tokens/3):
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
     processed_messages_for_gemini = await summarize_long_chat_history(
         messages_for_gemini_processing,
-        model,
+        client,
         10
     )
     logger.info(f"Messages prepared for Gemini (after potential summarization): {len(processed_messages_for_gemini)} messages.")
 
-    messages_for_gemini = []
+    contents = []
     for msg in processed_messages_for_gemini:
         role = 'model' if msg.role == 'assistant' else 'user'
-        messages_for_gemini.append({'role': role, 'parts': [msg.content]})
+        content = types.Content(
+            role=role,
+            parts=[types.Part(text=msg.content)]
+        )
+        contents.append(content)
 
-    async def stream_generator() -> AsyncGenerator[str, None]:
-        full_response_content = []
+    contents = [types.Content(role="model", parts=[types.Part(text=system_prompt)])] + contents
+
+    try:
+        structured_response_raw = client.models.generate_content(
+            model='gemini-1.5-flash-latest',
+            contents=contents,
+            config={
+                "response_mime_type": "application/json",
+                "response_schema": AiChatResponse,
+            }
+        )
+        
+        response_text = structured_response_raw.text
         try:
-            response_stream = await model.generate_content_async(
-                messages_for_gemini,
-                stream=True
+            response_json = json.loads(response_text)
+            structured_response = AiChatResponse(**response_json)
+        except (json.JSONDecodeError, ValueError) as parse_error:
+            logger.error(f"Failed to parse structured response: {parse_error}")
+            structured_response = AiChatResponse(
+                reply=response_text,
+                updated_preferences="",
+                updated_graph="{}",
+                reaction=""
             )
-            async for chunk in response_stream:
-                if chunk.text:
-                    print(f"Streaming chunk: {chunk.text}")
-                    yield chunk.text 
-                    full_response_content.append(chunk.text)
-        except Exception as e:
-            logger.error(f"Error during Gemini stream: {e}")
-            yield "Error: Could not get response from AI."
-        finally:
-            logger.info("Stream finished. Scheduling background task for DB update.")
-            final_reply = "".join(full_response_content)
-            
-            background_tasks.add_task(
-                post_stream_save_to_db,
-                user_ref=user_ref,
-                conversation_ref=conversation_ref,
-                all_messages=all_messages,
-                full_ai_reply=final_reply,
-                is_brand_new_conversation=is_brand_new_conversation_this_call
-            )
+        
+        logger.info(f"Generated structured response for conversation {conversation_id}")
+        
+    except Exception as e:
+        logger.error(f"Error during structured response generation: {e}")
+
+        structured_response = AiChatResponse(
+            reply="Error: Could not get response from AI. Got error: " + str(e),
+            updated_preferences="",
+            updated_graph="{}",
+            reaction=""
+        )
+    
+    background_tasks.add_task(
+        post_stream_save_to_db,
+        user_ref=user_ref,
+        conversation_ref=conversation_ref,
+        all_messages=all_messages,
+        ai_response=structured_response,
+        is_brand_new_conversation=is_brand_new_conversation_this_call
+    )
 
     headers = {"X-Conversation-Id": conversation_id}
-    return StreamingResponse(stream_generator(), media_type="text/plain", headers=headers)
+    return Response(
+        content=structured_response.reply,
+        media_type="text/plain",
+        headers=headers
+    )
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Depends(verify_token)):
