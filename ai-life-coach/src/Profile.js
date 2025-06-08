@@ -128,7 +128,7 @@ function ProfileComponent({
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
                     darkMode
                       ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:shadow-lg hover:shadow-yellow-500/25'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/25'
+                      : 'bg-gradient-to-r from-indigo-500 to-purple-500 text-black hover:shadow-lg hover:shadow-indigo-500/25'
                   }`}
                 >
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}

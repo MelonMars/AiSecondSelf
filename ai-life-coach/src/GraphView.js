@@ -650,18 +650,7 @@ const handleZoomOut = (event) => {
       <br />
       <br />
       <br />
-      <div className="mb-6 flex justify-between items-center">
-        <div className="flex items-center space-x-3">
-          <div className={`w-2 h-2 rounded-full animate-pulse ${darkMode ? "bg-orange-500" : "bg-blue-500"}`} />
-          <h3 className={`text-xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
-            darkMode 
-              ? "from-orange-400 to-red-400" 
-              : "from-blue-600 to-purple-600"
-          }`}>
-            Knowledge Graph
-          </h3>
-        </div>
-        
+      <div className="mb-6 flex justify-between items-center">        
         <div className="flex items-center space-x-6">
 
           <div className={`flex items-center rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border transition-all duration-200 ${
