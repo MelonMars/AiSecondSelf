@@ -690,6 +690,8 @@ const ChatComponent = ({
   userPicture,
   handleDocumentUpload,
   backgroundImageUrl,
+  gradientTone,
+  gradientTones,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -704,7 +706,6 @@ const ChatComponent = ({
   const editTextareaRef = useRef(null);
 
   const [gradientPhase, setGradientPhase] = useState(0);
-  const [gradientTone, setGradientTone] = useState('classic');
 
   useEffect(() => {
     if (editingMessageIndex !== null && editTextareaRef.current) {
@@ -758,29 +759,6 @@ const ChatComponent = ({
     }
   `;
 
-  const gradientTones = {
-    classic: {
-      colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
-      speed: 0.8,
-      intensity: 0.6
-    },
-    vibrant: {
-      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'],
-      speed: 1.2,
-      intensity: 0.8
-    },
-    calm: {
-      colors: ['#a8edea', '#fed6e3', '#e0c3fc', '#8ec5fc'],
-      speed: 0.5,
-      intensity: 0.4
-    },
-    cosmic: {
-      colors: ['#8360c3', '#2ebf91', '#fc466b', '#3fcdc7', '#fd79a8'],
-      speed: 1.5,
-      intensity: 0.9
-    }
-  };
-
   const adjustTextareaHeight = (textarea) => {
     if (textarea) {
       textarea.style.height = 'auto';
@@ -808,6 +786,15 @@ const ChatComponent = ({
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  useEffect(() => {
+    const animate = () => {
+      setGradientPhase(prev => prev + 1);
+      requestAnimationFrame(animate);
+    };
+    const animationId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationId);
+  }, []);
 
   const getAnimatedGradientStyle = () => {
     const tone = gradientTones[gradientTone];
@@ -838,6 +825,7 @@ const ChatComponent = ({
     };
   };
 
+  const gradientStyle = getAnimatedGradientStyle();
 
   const handleSendMessage = () => {
     if (inputMessage.trim()) {
@@ -915,7 +903,7 @@ const ChatComponent = ({
               backgroundPosition: 'center',
               backgroundRepeat: 'no-repeat'
             }
-          : getAnimatedGradientStyle()
+          : gradientStyle
       }
     >
       {!isSidebarCollapsed && (

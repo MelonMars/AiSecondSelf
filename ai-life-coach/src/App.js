@@ -557,6 +557,31 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [gradientTone, setGradientTone] = useState(localStorage.getItem("gradientTone") || "classic");
+
+  const gradientTones = {
+    classic: {
+      colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+      speed: 0.8,
+      intensity: 0.6
+    },
+    vibrant: {
+      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'],
+      speed: 1.2,
+      intensity: 0.8
+    },
+    calm: {
+      colors: ['#a8edea', '#fed6e3', '#e0c3fc', '#8ec5fc'],
+      speed: 0.5,
+      intensity: 0.4
+    },
+    cosmic: {
+      colors: ['#8360c3', '#2ebf91', '#fc466b', '#3fcdc7', '#fd79a8'],
+      speed: 1.5,
+      intensity: 0.9
+    }
+  };
+
 
   const navigate = useNavigate();
   const { tab: urlTab, conversationId: urlConversationId} = useParams();
@@ -564,6 +589,10 @@ export default function App() {
 
   const cld = new Cloudinary({ cloud: { cloudName: 'dy78nlcso' } });
 
+  useEffect(() => {
+    localStorage.setItem("gradientTone", gradientTone);
+  }, [gradientTone]);
+  
   const signInWithGoogle = async () => {
     setIsLoading(true);
     setAuthError("");
@@ -662,7 +691,7 @@ export default function App() {
             fetchUserPictures(idToken),
             fetchPersonalities(idToken),
             fetchUserCredits(idToken),
-            getBackgroundImage(),
+            getBackgroundImage(idToken),
           ]).then(() => {
             console.log("All user data loaded");
           });
@@ -1832,13 +1861,13 @@ export default function App() {
       }
     };
 
-    const getBackgroundImage = async () => {
+    const getBackgroundImage = async (token) => {
       if (!auth.currentUser) return;
       
       try {
         const headers = {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`,
+          "Authorization": `Bearer ${token}`,
         };
         
         const res = await fetch("http://127.0.0.1:8000/background_image", {
@@ -2391,7 +2420,10 @@ export default function App() {
       </header>
 
       <header
-        className="hidden md:block fixed top-0 left-[25%] w-[50%] z-[1000] py-4"
+        className="hidden md:block fixed top-0 left-[25%] w-[50%] z-[1000] py-4 transition-transform duration-500 ease-out"
+        style={{
+          transform: isHovering ? 'translateY(0)' : 'translateY(-75%)'
+        }}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
@@ -2587,7 +2619,7 @@ export default function App() {
         </div>
       )}
 
-      <div className={`flex-1 relative pt-20 md:pt-0 ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
+      <div className={`flex-1 relative pt-20 md:pt-4 ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
         {tab === "chat" && (
           <ChatComponent
             messages={messages}
@@ -2616,6 +2648,8 @@ export default function App() {
                  userPicture={userAvatarImage}
                  handleDocumentUpload={handleDocumentUpload}
                  backgroundImageUrl={backgroundImageUrl}
+                 gradientTone={gradientTone}
+                 gradientTones={gradientTones}
           />
         )}
         {tab === "graph" && (
@@ -2651,6 +2685,9 @@ export default function App() {
             loadingCredits={loadingCredits}
             uploadBackgroundImage={uploadBackgroundImage}
             removeBackgroundImage={removeBackgroundImage}
+            gradientTone={gradientTone}
+            setGradientTone={setGradientTone}
+            tonePresets={gradientTones}
           />
         )}
       </div>

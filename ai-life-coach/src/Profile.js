@@ -25,15 +25,18 @@ function ProfileComponent({
   creditsInfo,
   loadingCredits,
   uploadBackgroundImage,
-  removeBackgroundImage
+  removeBackgroundImage,
+  gradientTone,
+  setGradientTone,
+  tonePresets
 }) {
   const [activeSection, setActiveSection] = useState('profile');
+  const [showGradientCustomizer, setShowGradientCustomizer] = useState(false);
 
   useEffect(() => {
     fetchUserCredits();
   }, [authToken]);
 
-  const newLocal = '';
   const availablePersonalities = [
     { name: 'Friendly', color: 'from-green-400 to-emerald-500', icon: '😊' },
     { name: 'Formal', color: 'from-blue-400 to-blue-600', icon: '🎩' },
@@ -180,23 +183,31 @@ function ProfileComponent({
                         </div>
                       </div>
 
-                      <div className={`p-6 rounded-xl border transition-all duration-300 ${
+                      <div className={`p-6 rounded-xl border transition-all duration-300 backdrop-blur-md ${
                         darkMode 
                           ? 'bg-white/5 border-white/10' 
                           : 'bg-white/40 border-black/30'
                       }`}>
-                        <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                          Background Image
+                        <h3 className={`text-lg font-semibold mb-6 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                          Background Customization
                         </h3>
-                        <div className="flex flex-col items-center space-y-4">
-                          <div className="flex gap-3">
-                            <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                        
+                        <div className="mb-8">
+                          <h4 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                            Background Image
+                          </h4>
+                          <div className="flex flex-col sm:flex-row gap-3">
+                            <label className={`group cursor-pointer flex-1 relative overflow-hidden rounded-2xl transition-all duration-300 transform hover:scale-[1.02] backdrop-blur-xl border ${
                               darkMode
-                                ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-green-500/25'
-                                : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-green-500/25'
+                                ? 'bg-gradient-to-r from-emerald-500/20 via-green-500/20 to-teal-500/20 hover:from-emerald-400/30 hover:via-green-400/30 hover:to-teal-400/30 border-emerald-400/30 hover:border-emerald-300/50 shadow-[0_8px_32px_rgba(16,185,129,0.15)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.25)]'
+                                : 'bg-gradient-to-r from-emerald-400/30 via-green-400/30 to-teal-400/30 hover:from-emerald-300/40 hover:via-green-300/40 hover:to-teal-300/40 border-emerald-300/40 hover:border-emerald-200/60 shadow-[0_8px_32px_rgba(16,185,129,0.2)] hover:shadow-[0_12px_40px_rgba(16,185,129,0.3)]'
                             }`}>
-                              <Upload className="w-4 h-4" />
-                              Upload Background
+                              <div className="flex items-center justify-center gap-3 px-6 py-4 text-white font-semibold relative z-10">
+                                <Upload className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                <span className="drop-shadow-lg">Upload Image</span>
+                              </div>
+                              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-60"></div>
                               <input
                                 type="file"
                                 accept="image/*"
@@ -205,19 +216,171 @@ function ProfileComponent({
                                 disabled={isLoading}
                               />
                             </label>
+                            
                             <button
                               onClick={removeBackgroundImage}
-                              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                              className={`group flex-1 relative overflow-hidden rounded-2xl transition-all duration-300 transform hover:scale-[1.02] backdrop-blur-xl border ${
                                 darkMode
-                                  ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg hover:shadow-red-500/25'
-                                  : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-lg hover:shadow-red-500/25'
+                                  ? 'bg-gradient-to-r from-red-500/20 via-rose-500/20 to-pink-500/20 hover:from-red-400/30 hover:via-rose-400/30 hover:to-pink-400/30 border-red-400/30 hover:border-red-300/50 shadow-[0_8px_32px_rgba(239,68,68,0.15)] hover:shadow-[0_12px_40px_rgba(239,68,68,0.25)]'
+                                  : 'bg-gradient-to-r from-red-400/30 via-rose-400/30 to-pink-400/30 hover:from-red-300/40 hover:via-rose-300/40 hover:to-pink-300/40 border-red-300/40 hover:border-red-200/60 shadow-[0_8px_32px_rgba(239,68,68,0.2)] hover:shadow-[0_12px_40px_rgba(239,68,68,0.3)]'
                               }`}
                               disabled={isLoading}
                             >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                              Remove Background
+                              <div className="flex items-center justify-center gap-3 px-6 py-4 text-white font-semibold relative z-10">
+                                <Trash2 className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                                <span className="drop-shadow-lg">Remove Image</span>
+                              </div>
+                              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-60"></div>
                             </button>
                           </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className={`text-md font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+                              Gradient Background
+                            </h4>
+                            <button
+                              onClick={() => setShowGradientCustomizer(!showGradientCustomizer)}
+                              className={`px-6 py-3 rounded-2xl font-medium transition-all duration-300 backdrop-blur-xl border transform hover:scale-[1.02] ${
+                                showGradientCustomizer
+                                  ? darkMode
+                                    ? 'bg-purple-500/25 text-white border-purple-400/40 shadow-[0_8px_32px_rgba(147,51,234,0.2)] hover:shadow-[0_12px_40px_rgba(147,51,234,0.3)]'
+                                    : 'bg-blue-500/25 text-white border-blue-400/40 shadow-[0_8px_32px_rgba(59,130,246,0.2)] hover:shadow-[0_12px_40px_rgba(59,130,246,0.3)]'
+                                  : darkMode
+                                    ? 'bg-white/10 text-gray-300 hover:bg-white/20 border-white/20 hover:border-white/30 shadow-[0_4px_16px_rgba(255,255,255,0.05)] hover:shadow-[0_8px_24px_rgba(255,255,255,0.1)]'
+                                    : 'bg-white/30 text-gray-700 hover:bg-white/40 border-white/30 hover:border-white/50 shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)]'
+                              }`}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-60 rounded-2xl"></div>
+                              <span className="relative z-10">{showGradientCustomizer ? 'Hide' : 'Customize'}</span>
+                            </button>
+                          </div>
+
+                          {showGradientCustomizer && (
+                            <div className={`p-5 rounded-2xl border transition-all duration-500 backdrop-blur-xl ${
+                              darkMode 
+                                ? 'bg-white/5 border-white/10' 
+                                : 'bg-white/30 border-white/40'
+                            }`}>
+                              <div className="space-y-6">
+                                <div className="space-y-4">
+                                  <label className={`block text-sm font-medium ${
+                                    darkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Choose Gradient Style
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {Object.entries(tonePresets).map(([toneName, toneData]) => (
+                                      <button
+                                        key={toneName}
+                                        onClick={() => setGradientTone(toneName)}
+                                        className={`relative overflow-hidden rounded-2xl h-20 transition-all duration-300 transform hover:scale-[1.02] border-2 backdrop-blur-md ${
+                                          gradientTone === toneName
+                                            ? 'border-white/60 shadow-[0_8px_32px_rgba(147,51,234,0.25)] ring-2 ring-purple-400/50'
+                                            : 'border-white/20 hover:border-white/40 shadow-[0_4px_16px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)]'
+                                        }`}
+                                        style={{
+                                          background: `linear-gradient(135deg, ${toneData.colors.join(', ')})`
+                                        }}
+                                      >
+                                        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center">
+                                          <span className="text-white font-semibold capitalize text-sm drop-shadow-lg">
+                                            {toneName}
+                                          </span>
+                                        </div>
+                                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-60"></div>
+                                        {gradientTone === toneName && (
+                                          <div className="absolute top-2 right-2 w-5 h-5 bg-white/80 backdrop-blur-md rounded-full shadow-lg flex items-center justify-center border border-white/20">
+                                            <div className="w-2 h-2 bg-purple-600 rounded-full"></div>
+                                          </div>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                  <label className={`block text-sm font-medium ${
+                                    darkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Current Selection: <span className="capitalize font-semibold">{gradientTone}</span>
+                                  </label>
+                                  <div 
+                                    className="h-24 rounded-2xl shadow-inner border-2 border-white/20 relative overflow-hidden backdrop-blur-md"
+                                    style={{
+                                      background: `linear-gradient(135deg, ${tonePresets[gradientTone]?.colors.join(', ')})`
+                                    }}
+                                  >
+                                    <div className="absolute inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center">
+                                      <span className="text-white font-medium drop-shadow-lg">
+                                        Preview
+                                      </span>
+                                    </div>
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-60"></div>
+                                  </div>
+                                </div>
+
+                                <div className={`p-4 rounded-2xl backdrop-blur-md border ${
+                                  darkMode ? 'bg-white/5 border-white/10' : 'bg-white/30 border-white/30'
+                                }`}>
+                                  <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-60 rounded-2xl"></div>
+                                  <h4 className={`text-sm font-medium mb-3 relative z-10 ${
+                                    darkMode ? 'text-gray-300' : 'text-gray-600'
+                                  }`}>
+                                    Gradient Properties
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-4 text-sm relative z-10">
+                                    <div>
+                                      <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        Animation Speed:
+                                      </span>
+                                      <span className={`ml-2 font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                        {tonePresets[gradientTone]?.speed}x
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className={`${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        Intensity:
+                                      </span>
+                                      <span className={`ml-2 font-medium ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                                        {Math.round((tonePresets[gradientTone]?.intensity || 0) * 100)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-2">
+                                  <button
+                                    onClick={() => setGradientTone('classic')}
+                                    className={`flex-1 px-4 py-3 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-[1.02] backdrop-blur-xl border relative overflow-hidden ${
+                                      darkMode
+                                        ? 'bg-gray-600/20 hover:bg-gray-500/30 text-white border-gray-400/30 hover:border-gray-300/50 shadow-[0_8px_32px_rgba(107,114,128,0.15)] hover:shadow-[0_12px_40px_rgba(107,114,128,0.25)]'
+                                        : 'bg-gray-400/20 hover:bg-gray-300/30 text-gray-700 border-gray-300/40 hover:border-gray-200/60 shadow-[0_8px_32px_rgba(107,114,128,0.15)] hover:shadow-[0_12px_40px_rgba(107,114,128,0.25)]'
+                                    }`}
+                                  >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-60"></div>
+                                    <span className="relative z-10">Reset to Classic</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      console.log('Applying gradient tone:', gradientTone, tonePresets[gradientTone]);
+                                      setShowGradientCustomizer(false);
+                                    }}
+                                    className={`flex-1 px-4 py-3 rounded-2xl font-semibold transition-all duration-300 transform hover:scale-[1.02] backdrop-blur-xl border relative overflow-hidden ${
+                                      darkMode
+                                        ? 'bg-gradient-to-r from-purple-600/25 to-pink-600/25 hover:from-purple-500/35 hover:to-pink-500/35 text-white border-purple-400/40 hover:border-purple-300/60 shadow-[0_8px_32px_rgba(147,51,234,0.2)] hover:shadow-[0_12px_40px_rgba(147,51,234,0.3)]'
+                                        : 'bg-gradient-to-r from-blue-600/25 to-purple-600/25 hover:from-blue-500/35 hover:to-purple-500/35 text-white border-blue-400/40 hover:border-blue-300/60 shadow-[0_8px_32px_rgba(59,130,246,0.2)] hover:shadow-[0_12px_40px_rgba(59,130,246,0.3)]'
+                                    }`}
+                                  >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-60"></div>
+                                    <span className="relative z-10 drop-shadow-sm">Apply Gradient</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -351,7 +514,6 @@ function ProfileComponent({
                         )}
                       </div>
 
-                      {/* Second card can be used for additional info or stats */}
                       <div className={`p-6 rounded-xl border transition-all duration-300 ${
                         darkMode 
                           ? 'bg-white/5 border-white/10' 
