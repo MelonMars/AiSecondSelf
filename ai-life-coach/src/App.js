@@ -976,11 +976,11 @@ export default function App() {
     const waitForGraphData = () => {
       return new Promise((resolve) => {
         const checkGraphData = () => {
-          if (graphData !== null && graphData !== undefined) {
-            console.log("GraphData is now available, proceeding with message send.");
+          if (graphHistory !== null && graphHistory !== undefined) {
+            console.log("GraphHistory is now available, proceeding with message send.");
             resolve();
           } else {
-            console.log("GraphData not yet available, waiting...");
+            console.log("GraphHistory not yet available, waiting...");
             setTimeout(checkGraphData, 100);
           }
         };
@@ -1000,7 +1000,7 @@ export default function App() {
     });
     let newMessage = formattedDate + " - " + messageInput;
     const userMessage = { role: "user", content: newMessage };
-    const bulletProse = JSON.stringify(graphData);
+    const bulletProse = JSON.stringify(graphHistory[-1]);
     const messagesForApi = [...messages, userMessage];
     const placeholderAiMessage = { role: "assistant", content: "" };
     
@@ -1050,7 +1050,9 @@ export default function App() {
       const res = await fetch("http://127.0.0.1:8000/chat-stream", {
         method: "POST",
         headers: headers,
-        body: formData
+        body: formData,
+        mode: 'cors',
+        credentials: 'include'
       });
 
       console.log("Got response from server in App.js:", res.ok, res.status);
@@ -2662,6 +2664,8 @@ export default function App() {
             aiModes={aiModes}
             aiMode={aiMode}
             setAiMode={setAiMode}
+            uploadedFiles={uploadedFiles}
+            setUploadedFiles={setUploadedFiles}
           />
         )}
         {tab === "graph" && (

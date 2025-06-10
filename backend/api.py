@@ -19,6 +19,8 @@ from google.genai import types
 import stripe
 import asyncio
 import io
+from openai import OpenAI
+import base64
 
 cred = ""
 gemini_cred = ""
@@ -56,7 +58,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["X-Conversation-Id"] 
 )
@@ -714,7 +716,7 @@ async def chat_stream(
             with open("planprompt.txt", "r") as f:
                 prompt_template = f.read()
         except FileNotFoundError:
-            logger.error("prompt.txt not found. Using a default prompt template.")
+            logger.error("planprompt.txt not found. Using a default prompt template.")
             prompt_template = (
                 "You are a helpful AI assistant named {name}. "
                 "The current date is {date} and time is {time}. "
@@ -732,7 +734,7 @@ async def chat_stream(
             with open("reflectprompt.txt", "r") as f:
                 prompt_template = f.read()
         except FileNotFoundError:
-            logger.error("prompt.txt not found. Using a default prompt template.")
+            logger.error("reflectprompt.txt not found. Using a default prompt template.")
             prompt_template = (
                 "You are a helpful AI assistant named {name}. "
                 "The current date is {date} and time is {time}. "
@@ -750,7 +752,7 @@ async def chat_stream(
             with open("reviewprompt.txt", "r") as f:
                 prompt_template = f.read()
         except FileNotFoundError:
-            logger.error("prompt.txt not found. Using a default prompt template.")
+            logger.error("reviewprompt.txt not found. Using a default prompt template.")
             prompt_template = (
                 "You are a helpful AI assistant named {name}. "
                 "The current date is {date} and time is {time}. "
@@ -774,7 +776,10 @@ async def chat_stream(
     system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
     system_prompt = system_prompt.replace("{country}", user_data.get("country", "Unknown"))
 
-    client = genai.Client(api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+    client = OpenAI(
+        api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
 
     messages_for_gemini_processing = list(all_messages)
 
@@ -790,14 +795,14 @@ async def chat_stream(
     )
     logger.info(f"Messages prepared for Gemini (after potential summarization): {len(processed_messages_for_gemini)} messages.")
 
-    contents = []
+    openai_messages = [{"role": "system", "content": system_prompt}]
+    
     for msg in processed_messages_for_gemini:
-        role = 'model' if msg.role == 'assistant' else 'user'
-        content = types.Content(
-            role=role,
-            parts=[types.Part(text=msg.content)]
-        )
-        contents.append(content)
+        role = 'assistant' if msg.role == 'assistant' else 'user'
+        openai_messages.append({
+            "role": role,
+            "content": msg.content
+        })
 
     if files:
         file = files[0]
@@ -805,40 +810,58 @@ async def chat_stream(
         file_name = file.filename
         logger.info(f"Received file: {file_name} with size {len(file_content)} bytes")
         
-        file_data = io.BytesIO(file_content)
-        doc = genai.upload_file(path=file_data, mime_type=file.content_type)
+        base64_file = base64.b64encode(file_content).decode('utf-8')
         
-        if contents and contents[-1].role == 'user':
-            contents[-1].parts.append(doc)
+        mime_type = file.content_type or "application/octet-stream"
+        
+        if mime_type.startswith('image/'):
+            if openai_messages and openai_messages[-1]["role"] == "user":
+                last_message = openai_messages[-1]
+                openai_messages[-1] = {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": last_message["content"]
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{base64_file}"
+                            }
+                        }
+                    ]
+                }
+            else:
+                openai_messages.append({
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{base64_file}"
+                            }
+                        }
+                    ]
+                })
         else:
-            contents.append(types.Content(
-                role='user',
-                parts=[doc]
-            ))
-
-    contents = [types.Content(role="model", parts=[types.Part(text=system_prompt)])] + contents
+            file_content_text = f"[File: {file_name}]"
+            if openai_messages and openai_messages[-1]["role"] == "user":
+                openai_messages[-1]["content"] += f"\n{file_content_text}"
+            else:
+                openai_messages.append({
+                    "role": "user",
+                    "content": file_content_text
+                })
 
     try:
-        structured_response_raw = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=contents,
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": AiChatResponse,
-            }
+        completion = client.beta.chat.completions.parse(
+            model="gemini-2.0-flash",
+            messages=openai_messages,
+            response_format=AiChatResponse,
         )
         
-        response_text = structured_response_raw.text
-        try:
-            response_json = json.loads(response_text)
-            structured_response = AiChatResponse(**response_json)
-        except (json.JSONDecodeError, ValueError) as parse_error:
-            logger.error(f"Failed to parse structured response: {parse_error}")
-            structured_response = AiChatResponse(
-                reply=response_text,
-                updated_preferences="",
-                updated_graph="{}",
-            )
+        structured_response = completion.choices[0].message.parsed
         
         logger.info(f"Generated structured response for conversation {conversation_id}")
         

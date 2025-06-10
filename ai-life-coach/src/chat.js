@@ -696,7 +696,9 @@ const ChatComponent = ({
   gradientTones,
   aiMode,
   setAiMode,
-  aiModes
+  aiModes,
+  uploadedFiles,
+  setUploadedFiles
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -712,8 +714,6 @@ const ChatComponent = ({
   const editTextareaRef = useRef(null);
 
   const [gradientPhase, setGradientPhase] = useState(0);
-
-  console.log("Current conversation branch info:", currentConversationBranchInfo);
 
   useEffect(() => {
     if (editingMessageIndex !== null && editTextareaRef.current) {
@@ -839,7 +839,31 @@ const ChatComponent = ({
     if (inputMessage.trim()) {
       sendMessage(inputMessage);
       setInputMessage('');
+      setUploadedFiles([]);
+      const fileInput = document.getElementById('fileInput');
+      if (fileInput) {
+        fileInput.value = '';
+      }
     }
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFiles([]);
+    // Reset the file input
+    if (inputRef.current) {
+      const fileInput = document.getElementById('document-upload');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleKeyPress = (e) => {
@@ -1583,6 +1607,51 @@ const ChatComponent = ({
             ? 'bg-white/10 border-white/20' 
             : 'bg-white/60 border-white/40'
         }`} style={{ position: 'sticky', bottom: 0, zIndex: 100 }}>
+          
+          {uploadedFiles && uploadedFiles.length > 0 && (
+            <div className="mb-3">
+              <div className={`p-3 rounded-xl backdrop-blur-sm border transition-all duration-300 ${
+                darkMode
+                  ? 'bg-white/10 border-white/20'
+                  : 'bg-white/60 border-white/40'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-lg ${
+                      darkMode
+                        ? 'bg-blue-500/20 text-blue-400'
+                        : 'bg-blue-500/20 text-blue-600'
+                    }`}>
+                      <Paperclip size={16} />
+                    </div>
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        darkMode ? 'text-white' : 'text-gray-800'
+                      }`}>
+                        {uploadedFiles[0].name}
+                      </p>
+                      <p className={`text-xs ${
+                        darkMode ? 'text-gray-400' : 'text-gray-500'
+                      }`}>
+                        {formatFileSize(uploadedFiles[0].size)}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRemoveFile}
+                    className={`p-1 rounded-full transition-all duration-200 hover:scale-110 ${
+                      darkMode
+                        ? 'text-gray-400 hover:text-red-400 hover:bg-red-500/20'
+                        : 'text-gray-500 hover:text-red-600 hover:bg-red-500/20'
+                    }`}
+                    title="Remove file"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex items-end space-x-2 md:space-x-3">
             <label htmlFor="document-upload" className={`p-3 md:p-4 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg flex-shrink-0 cursor-pointer ${
                 darkMode
