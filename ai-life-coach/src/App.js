@@ -991,7 +991,17 @@ export default function App() {
     };  
 
     await waitForGraphData();
-    const userMessage = { role: "user", content: messageInput };
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    let newMessage = formattedDate + " - " + messageInput;
+    const userMessage = { role: "user", content: newMessage };
     const bulletProse = JSON.stringify(graphData);
     const messagesForApi = [...messages, userMessage];
     const placeholderAiMessage = { role: "assistant", content: "" };
