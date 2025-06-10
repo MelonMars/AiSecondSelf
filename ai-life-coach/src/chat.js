@@ -849,7 +849,7 @@ const ChatComponent = ({
 
   const handleRemoveFile = () => {
     setUploadedFiles([]);
-    // Reset the file input
+    
     if (inputRef.current) {
       const fileInput = document.getElementById('document-upload');
       if (fileInput) {

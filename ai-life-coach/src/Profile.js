@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain, CreditCard, Coins, Trash2 } from 'lucide-react';
+import { Moon, Sun, User, Bot, Upload, Camera, Sparkles, Settings, User2, Brain, CreditCard, Coins, Trash2, X, ChevronUp, ChevronDown, Star, ArrowRight } from 'lucide-react';
 
 function ProfileComponent({
   authToken,
   userName,
   userEmail,
-  chatPrefs,
-  handleChatPrefsChange,
-  sendMessageWithDoc,
   isLoading,
   darkMode,
   setDarkMode,
@@ -28,14 +25,41 @@ function ProfileComponent({
   removeBackgroundImage,
   gradientTone,
   setGradientTone,
-  tonePresets
+  tonePresets,
+  missionStatement,
+  setMissionStatement,
+  coreValues,
+  setCoreValues,
+  lifeDomains,
+  setLifeDomains,
+  handleMissionStatementSubmit,
+  updateUserPrefs,
 }) {
   const [activeSection, setActiveSection] = useState('profile');
   const [showGradientCustomizer, setShowGradientCustomizer] = useState(false);
+  const [showMissionStatementEntryModal, setShowMissionStatementEntryModal] = useState(false);
+  const [missionStatementInput, setMissionStatementInput] = useState('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [originalPrefs, setOriginalPrefs] = useState({
+    missionStatement: '',
+    coreValues: [],
+    lifeDomains: []
+  });
 
   useEffect(() => {
     fetchUserCredits();
   }, [authToken]);
+
+  useEffect(() => {
+    if (activeSection === 'preferences') {
+      setOriginalPrefs({
+        missionStatement: missionStatement || '',
+        coreValues: [...coreValues],
+        lifeDomains: [...lifeDomains]
+      });
+      setHasUnsavedChanges(false);
+    }
+  }, [activeSection]);
 
   const availablePersonalities = [
     { name: 'Friendly', color: 'from-green-400 to-emerald-500', icon: '😊' },
@@ -66,6 +90,33 @@ function ProfileComponent({
   }));
   
   const allPersonalitiesToDisplay = [...availablePersonalities, ...customPersonalityObjects];
+
+  const checkForChanges = (newMissionStatement, newCoreValues, newLifeDomains) => {
+    const missionChanged = newMissionStatement !== originalPrefs.missionStatement;
+    const coreValuesChanged = JSON.stringify(newCoreValues) !== JSON.stringify(originalPrefs.coreValues);
+    const lifeDomainsChanged = JSON.stringify(newLifeDomains) !== JSON.stringify(originalPrefs.lifeDomains);
+    
+    setHasUnsavedChanges(missionChanged || coreValuesChanged || lifeDomainsChanged);
+  };
+
+  const handleApplyChanges = async () => {
+    try {
+      await updateUserPrefs({
+        missionStatement,
+        coreValues,
+        lifeDomains
+      });
+      
+      setOriginalPrefs({
+        missionStatement: missionStatement || '',
+        coreValues: [...coreValues],
+        lifeDomains: [...lifeDomains]
+      });
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Failed to save preferences:', error);
+    }
+  };
 
   return (
     <div className={`min-h-screen transition-all duration-500 ${
@@ -695,8 +746,8 @@ function ProfileComponent({
 
               {activeSection === 'preferences' && (
                 <div className={`rounded-2xl backdrop-blur-sm border p-8 transition-all duration-500 ${
-                  darkMode 
-                    ? 'bg-white/10 border-white/20' 
+                  darkMode
+                    ? 'bg-white/10 border-white/20'
                     : 'bg-white/60 border-white/40'
                 }`}>
                   <div className="flex items-center gap-4 mb-8">
@@ -708,75 +759,264 @@ function ProfileComponent({
                     </h2>
                   </div>
 
-                  <div className="space-y-8">
-                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
-                      darkMode 
-                        ? 'bg-white/5 border-white/10' 
-                        : 'bg-white/40 border-white/30'
-                    }`}>
-                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        System Prompt
+                  <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Mission Statement
                       </h3>
-                      <textarea
-                        value={chatPrefs}
-                        onChange={(e) => handleChatPrefsChange(e.target.value)}
-                        rows={8}
-                        className={`w-full px-4 py-3 rounded-lg border-2 backdrop-blur-sm transition-all duration-300 focus:outline-none focus:ring-4 resize-none ${
-                          darkMode
-                            ? "bg-white/10 text-white border-white/20 focus:border-purple-500 focus:ring-purple-500/25"
-                            : "bg-white/50 text-gray-800 border-black/30 focus:border-blue-500 focus:ring-blue-500/25"
+                      <button
+                        onClick={() => setShowMissionStatementEntryModal(true)}
+                        className={`p-1 rounded-full transition-colors hover:bg-yellow-100 ${
+                          darkMode ? 'text-yellow-400 hover:bg-yellow-400/20' : 'text-yellow-500'
                         }`}
-                        placeholder="Define how your AI should behave, respond, and interact with you..."
-                      />
-                      <p className={`text-sm mt-3 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Customize your AI's behavior with detailed instructions and preferences
-                      </p>
+                        title="Get AI help with your mission statement"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </button>
                     </div>
-
-                    <div className={`p-6 rounded-xl border transition-all duration-300 ${
-                      darkMode 
-                        ? 'bg-white/5 border-white/10' 
-                        : 'bg-white/40 border-white/30'
-                    }`}>
-                      <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                        Document Upload
-                      </h3>
-                      <div className="flex items-center justify-center w-full">
-                        <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 hover:scale-[1.02] ${
-                          darkMode 
-                            ? 'border-white/30 hover:border-purple-500 bg-white/5 hover:bg-white/10' 
-                            : 'border-gray-300 hover:border-blue-500 bg-gray/30 hover:bg-gray/50'
-                        }`}>
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            <Upload className={`w-8 h-8 mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                            <p className={`mb-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                              <span className="font-semibold">Click to upload</span> or drag and drop
-                            </p>
-                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                              TXT files only
-                            </p>
-                          </div>
-                          <input
-                            type="file"
-                            accept=".txt"
-                            onChange={(e) => sendMessageWithDoc(e.target.files[0])}
-                            className="hidden"
-                            disabled={isLoading}
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    <div
-                      id="doc-result"
-                      className={`p-4 rounded-xl border transition-all duration-300 min-h-[50px] ${
+                    <textarea
+                      value={missionStatement || ''}
+                      onChange={(e) => {
+                        setMissionStatement(e.target.value);
+                        checkForChanges(e.target.value, coreValues, lifeDomains);
+                      }}
+                      placeholder="Write your personal mission statement here..."
+                      className={`w-full p-4 rounded-xl border resize-none transition-colors ${
                         darkMode
-                          ? "bg-white/5 border-white/10 text-gray-300"
-                          : "bg-white/40 border-white/30 text-gray-700"
+                          ? 'bg-white/5 border-white/20 text-white placeholder-white/50'
+                          : 'bg-white/70 border-gray-200 text-gray-800 placeholder-gray-500'
                       }`}
-                    >
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Core Values
+                      </h3>
+                      <button
+                        onClick={() => {
+                          const updated = [...coreValues, { id: Date.now(), value: '', rank: coreValues.length + 1 }];
+                          setCoreValues(updated);
+                          checkForChanges(missionStatement, updated, lifeDomains);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                          darkMode
+                            ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'
+                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                        }`}
+                      >
+                        Add Value
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {coreValues.map((item, index) => (
+                        <div key={item.id} className={`p-4 rounded-xl border ${
+                          darkMode ? 'bg-white/5 border-white/20' : 'bg-white/70 border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-sm font-medium w-8 ${
+                              darkMode ? 'text-white/70' : 'text-gray-600'
+                            }`}>
+                              #{index + 1}
+                            </span>
+                            <input
+                              type="text"
+                              value={item.value}
+                              onChange={(e) => {
+                                const updated = coreValues.map(v => 
+                                  v.id === item.id ? { ...v, value: e.target.value } : v
+                                );
+                                setCoreValues(updated);
+                                checkForChanges(missionStatement, updated, lifeDomains);
+                              }}
+                              placeholder="Enter core value..."
+                              className={`flex-1 p-2 rounded-lg border transition-colors ${
+                                darkMode
+                                  ? 'bg-white/10 border-white/20 text-white placeholder-white/50'
+                                  : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500'
+                              }`}
+                            />
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  if (index > 0) {
+                                    const updated = [...coreValues];
+                                    [updated[index], updated[index - 1]] = [updated[index - 1], updated[index]];
+                                    setCoreValues(updated);
+                                    checkForChanges(missionStatement, updated, lifeDomains);
+                                  }
+                                }}
+                                disabled={index === 0}
+                                className={`p-1 rounded transition-colors ${
+                                  index === 0
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : darkMode
+                                      ? 'text-white/70 hover:bg-white/10'
+                                      : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (index < coreValues.length - 1) {
+                                    const updated = [...coreValues];
+                                    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+                                    setCoreValues(updated);
+                                    checkForChanges(missionStatement, updated, lifeDomains);
+                                  }
+                                }}
+                                disabled={index === coreValues.length - 1}
+                                className={`p-1 rounded transition-colors ${
+                                  index === coreValues.length - 1
+                                    ? 'opacity-50 cursor-not-allowed'
+                                    : darkMode
+                                      ? 'text-white/70 hover:bg-white/10'
+                                      : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const updated = coreValues.filter(v => v.id !== item.id);
+                                  setCoreValues(updated);
+                                  checkForChanges(missionStatement, updated, lifeDomains);
+                                }}
+                                className={`p-1 rounded transition-colors ${
+                                  darkMode
+                                    ? 'text-red-400 hover:bg-red-400/20'
+                                    : 'text-red-500 hover:bg-red-100'
+                                }`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {coreValues.length === 0 && (
+                        <p className={`text-center py-8 ${
+                          darkMode ? 'text-white/50' : 'text-gray-500'
+                        }`}>
+                          No core values added yet. Click "Add Value" to get started.
+                        </p>
+                      )}
                     </div>
                   </div>
+
+                  <div className="mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Life Domains
+                      </h3>
+                      <button
+                        onClick={() => {
+                          const updated = [...lifeDomains, { id: Date.now(), domain: '', weight: 1 }];
+                          setLifeDomains(updated);
+                          checkForChanges(missionStatement, coreValues, updated);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                          darkMode
+                            ? 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
+                            : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                        }`}
+                      >
+                        Add Domain
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {lifeDomains.map((item) => (
+                        <div key={item.id} className={`p-4 rounded-xl border ${
+                          darkMode ? 'bg-white/5 border-white/20' : 'bg-white/70 border-gray-200'
+                        }`}>
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="text"
+                              value={item.domain}
+                              onChange={(e) => {
+                                const updated = lifeDomains.map(d => 
+                                  d.id === item.id ? { ...d, domain: e.target.value } : d
+                                );
+                                setLifeDomains(updated);
+                                checkForChanges(missionStatement, coreValues, updated);
+                              }}
+                              placeholder="Enter life domain (e.g., Health, Career, Relationships)..."
+                              className={`flex-1 p-2 rounded-lg border transition-colors ${
+                                darkMode
+                                  ? 'bg-white/10 border-white/20 text-white placeholder-white/50'
+                                  : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500'
+                              }`}
+                            />
+                            <div className="flex items-center gap-2">
+                              <label className={`text-sm ${
+                                darkMode ? 'text-white/70' : 'text-gray-600'
+                              }`}>
+                                Weight:
+                              </label>
+                              <input
+                                type="range"
+                                min="1"
+                                max="10"
+                                value={item.weight}
+                                onChange={(e) => {
+                                  const updated = lifeDomains.map(d => 
+                                    d.id === item.id ? { ...d, weight: parseInt(e.target.value) } : d
+                                  );
+                                  setLifeDomains(updated);
+                                  checkForChanges(missionStatement, coreValues, updated);
+                                }}
+                                className="w-20"
+                              />
+                              <span className={`text-sm font-medium w-6 text-center ${
+                                darkMode ? 'text-white' : 'text-gray-800'
+                              }`}>
+                                {item.weight}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const updated = lifeDomains.filter(d => d.id !== item.id);
+                                  setLifeDomains(updated);
+                                  checkForChanges(missionStatement, coreValues, updated);
+                                }}
+                                className={`p-1 rounded transition-colors ${
+                                  darkMode
+                                    ? 'text-red-400 hover:bg-red-400/20'
+                                    : 'text-red-500 hover:bg-red-100'
+                                }`}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {lifeDomains.length === 0 && (
+                        <p className={`text-center py-8 ${
+                          darkMode ? 'text-white/50' : 'text-gray-500'
+                        }`}>
+                          No life domains added yet. Click "Add Domain" to get started.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {hasUnsavedChanges && (
+                    <div className="flex justify-center pt-4 border-t border-white/20">
+                      <button
+                        onClick={handleApplyChanges}
+                        className={`px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                          darkMode
+                            ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700'
+                            : 'bg-gradient-to-r from-green-500 to-teal-600 text-white hover:from-green-600 hover:to-teal-700'
+                        } shadow-lg hover:shadow-xl transform hover:scale-105`}
+                      >
+                        Apply Changes
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -798,6 +1038,108 @@ function ProfileComponent({
             </p>
           </div>
         )}
+        {showMissionStatementEntryModal && (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className={`w-full max-w-2xl rounded-2xl border p-8 transition-all duration-300 ${
+      darkMode
+        ? 'bg-gray-900/95 border-white/20'
+        : 'bg-white/95 border-gray-200'
+    }`}>
+      {/* Header */}
+      <div className="text-center mb-8">
+        <div className="flex items-center justify-center mb-4">
+          <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-600">
+            <Star className="w-6 h-6 text-white" />
+          </div>
+        </div>
+        <h2 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+          AI Mission Statement Helper
+        </h2>
+        <p className={`text-sm ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>
+          Tell me about yourself and I'll help you craft a meaningful mission statement
+        </p>
+      </div>
+
+      {/* Input Section */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3">
+          <input
+            type="text"
+            value={missionStatementInput}
+            onChange={(e) => setMissionStatementInput(e.target.value)}
+            placeholder="Tell me about your values, goals, or what drives you..."
+            className={`flex-1 p-4 rounded-xl border transition-all duration-200 ${
+              darkMode
+                ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-white/40 focus:bg-white/15'
+                : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-blue-400 focus:bg-blue-50/50'
+            } focus:outline-none focus:ring-0`}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && missionStatementInput.trim()) {
+                handleMissionStatementSubmit();
+              }
+            }}
+          />
+          <button
+            onClick={handleMissionStatementSubmit}
+            disabled={!missionStatementInput.trim()}
+            className={`p-4 rounded-xl transition-all duration-200 ${
+              missionStatementInput.trim()
+                ? darkMode
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+                : darkMode
+                  ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <ArrowRight className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Example prompts */}
+      <div className="mb-6">
+        <p className={`text-xs mb-3 ${darkMode ? 'text-white/50' : 'text-gray-500'}`}>
+          Try something like:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            "I value creativity and helping others grow",
+            "I want to make a positive impact on my community",
+            "I'm passionate about technology and innovation",
+            "I believe in lifelong learning and authenticity"
+          ].map((example, index) => (
+            <button
+              key={index}
+              onClick={() => setMissionStatementInput(example)}
+              className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                darkMode
+                  ? 'bg-white/10 text-white/70 hover:bg-white/20'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Close button */}
+      <div className="flex justify-center">
+        <button
+          onClick={() => setShowMissionStatementEntryModal(false)}
+          className={`px-6 py-2 rounded-lg text-sm transition-colors ${
+            darkMode
+              ? 'text-white/70 hover:bg-white/10'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );

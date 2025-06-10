@@ -501,7 +501,9 @@ export default function App() {
   const [graphData, setGraphData] = useState(null);
   const [graphHistory, setGraphHistory] = useState([]);
   const [currentGraphIndex, setCurrentGraphIndex] = useState(0);
-  const [chatPrefs, setChatPrefs] = useState("");
+  const [lifeDomains, setLifeDomains] = useState([]);
+  const [coreValues, setCoreValues] = useState([]);
+  const [missionStatement, setMissionStatement] = useState("");
 
   const [sharedURL, setSharedURL] = useState("");
   const [showSharedModal, setShowSharedModal] = useState(false);
@@ -1674,7 +1676,10 @@ export default function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        setChatPrefs(data.prefs || "");
+        console.log("Fetched user preferences:", data);
+        setLifeDomains(data.lifeDomains || []);
+        setMissionStatement(data.missionStatement || "");
+        setCoreValues(data.coreValues || []);
       } else {
          if (response.status === 401) {
             console.error("Auth failed fetching user prefs. Logging out.");
@@ -1682,14 +1687,38 @@ export default function App() {
          } else {
             console.error("Failed to fetch user preferences", response.status);
          }
-         setChatPrefs("");
+        setLifeDomains([]);
+        setMissionStatement("");
+        setCoreValues([]);
       }
     }
     catch (error) {
       console.error("Error fetching user preferences:", error);
-       setChatPrefs(""); 
+      setLifeDomains([]);
+      setMissionStatement("");
+      setCoreValues([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const updateUserPrefs = () => {
+    const token = authToken;
+    if (token) {
+      const data = JSON.stringify({
+        missionStatement: missionStatement,
+        lifeDomains: lifeDomains,
+        coreValues: coreValues
+      });
+      console.log("Saving user preferences with token:", token, "Data:", data);
+      fetch("http://127.0.0.1:8000/user_prefs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: data
+      });
     }
   };
 
@@ -1906,41 +1935,6 @@ export default function App() {
       });
       fetchUserData(authToken);
       return success;
-    };
-
-    const handleGraphIndexChange = (newIndex) => {
-      console.log("Graph index changed:", newIndex);
-      setCurrentGraphIndex(newIndex);
-    };
-
-    const handleChatPrefsChange = (newValue) => {
-      setChatPrefs(newValue); 
-      const authToken = localStorage.getItem("authToken");
-      if (!authToken) {
-          console.warn("No auth token found. Cannot save chat preferences.");
-          return;
-      }
-  
-      fetch("http://127.0.0.1:8000/user_prefs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ prefs: newValue })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Failed to update user preferences");
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log("User preferences updated:", data);
-      })
-      .catch(error => {
-        console.error("Error updating user preferences:", error);
-      });
     };
 
     const renderCustomPersonalityModal = () => {
@@ -2682,9 +2676,6 @@ export default function App() {
             authToken={authToken} 
             userName={userName} 
             userEmail={userEmail} 
-            chatPrefs={chatPrefs}
-            handleChatPrefsChange={handleChatPrefsChange}
-            sendMessageWithDoc={sendMessageWithDoc}
             isLoading={isLoading}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
@@ -2706,6 +2697,13 @@ export default function App() {
             gradientTone={gradientTone}
             setGradientTone={setGradientTone}
             tonePresets={gradientTones}
+            missionStatement={missionStatement}
+            setMissionStatement={setMissionStatement}
+            coreValues={coreValues}
+            setCoreValues={setCoreValues}
+            lifeDomains={lifeDomains}
+            setLifeDomains={setLifeDomains}
+            updateUserPrefs={updateUserPrefs}
           />
         )}
       </div>

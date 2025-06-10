@@ -1767,9 +1767,10 @@ async def get_user_prefs(user_info: dict = Depends(verify_token)):
             )
         
         user_data = user_doc.to_dict()
-        prefs = user_data.get("ChatPreferences", "")
-        print(f"User preferences retrieved: {prefs}")
-        return {"prefs": prefs}
+        mission_statement = user_data.get("missionStatement", "")
+        core_values = user_data.get("coreValues", [])
+        life_domains = user_data.get("lifeDomains", [])
+        return {"missionStatement": mission_statement, "coreValues": core_values, "lifeDomains": life_domains}
     except Exception as e:
         print(f"Error retrieving user preferences: {str(e)}")
         if isinstance(e, HTTPException):
@@ -1782,7 +1783,10 @@ async def get_user_prefs(user_info: dict = Depends(verify_token)):
 @app.post("/user_prefs")
 async def update_user_prefs(user_info: dict = Depends(verify_token), prefs: dict = Body(...)):
     try:
-        prefs_value = prefs.get("prefs", "")
+        mission_statement = prefs.get("missionStatement", "")
+        core_values = prefs.get("coreValues", [])
+        life_domains = prefs.get("lifeDomains", [])
+
         user_ref = db.collection("users").document(user_info["uid"])
         user_doc = user_ref.get()
         
@@ -1793,9 +1797,11 @@ async def update_user_prefs(user_info: dict = Depends(verify_token), prefs: dict
             )
         
         user_ref.update({
-            "ChatPreferences": prefs_value
+            "missionStatement": mission_statement,
+            "coreValues": core_values,
+            "lifeDomains": life_domains
         })
-        
+
         return {"message": "User preferences updated successfully"}
     except Exception as e:
         print(f"Error updating user preferences: {str(e)}")
@@ -1898,106 +1904,10 @@ async def share_conversation(user_info: dict = Depends(verify_token), conversati
 
 @app.post("/update_prefs_from_message")
 async def update_prefs_from_message(user_info: dict = Depends(verify_token), body: dict = Body(...)):
-    target_message = body.get("targetMessage")
-    convo_history = body.get("convoHistory")
-    pref = body.get("pref")
+    # Decided not to actually even have user preferences, deprecated them in order to have a more structured format
+    # This is kept to allow the user to say they like/dislike something without actually doing anything about it.
+    return {"message": "Preferences updated successfully"}
 
-    if not target_message or not convo_history or not pref:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Both 'targetMessage' and 'convoHistory' are required"
-        )
-
-    try:
-        with open("promptlikedislike.txt", "r") as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        logger.error("promptlikedislike.txt not found")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Server error: Prompt file not found."
-        )
-
-    user_doc = db.collection("users").document(user_info["uid"]).get()
-    if not user_doc.exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    user_data = user_doc.to_dict()
-    chat_prefs = user_data.get("ChatPreferences", "")
-
-    prompt = prompt_template.replace("{RESPONSE}", pref).replace("{PREFS}", chat_prefs)
-
-    url = "https://ai.hackclub.com/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-    }
-    data = {
-        "messages": [
-            {
-                "role": "system",
-                "content": prompt
-            },
-            {
-                "role": "user",
-                "content": f"I {pref} {target_message} in convo {convo_history}"
-            }
-        ],
-        "model": "llama-3.3-70b-versatile"
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-
-        response_data = response.json()
-        if "choices" in response_data and len(response_data["choices"]) > 0:
-            reply = response_data["choices"][0]["message"]["content"]
-
-            if "<PREF>" in reply and "</PREF>" in reply:
-                start_index = reply.find("<PREF>") + len("<PREF>")
-                end_index = reply.find("</PREF>", start_index)
-                if end_index != -1:
-                    extracted_prefs = reply[start_index:end_index]
-
-                    user_ref = db.collection("users").document(user_info["uid"])
-                    user_ref.update({
-                        "ChatPreferences": extracted_prefs
-                    })
-
-                    logger.info(f"User preferences updated successfully for user {user_info['uid']}")
-                    return {"message": "Preferences updated successfully", "prefs": extracted_prefs}
-                else:
-                    logger.error("Mismatched <PREF> tags in AI response")
-                    raise HTTPException(
-                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="Error processing preferences from AI response"
-                    )
-            else:
-                logger.error("No <PREF> tags found in AI response")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="No preferences found in AI response"
-                )
-        else:
-            logger.error("No choices found in the AI response")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No valid response from AI"
-            )
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error communicating with AI: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error communicating with AI"
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
-        )
 
 @app.post("/update_picture")
 async def update_picture(user_info: dict = Depends(verify_token), body: dict = Body(...)):
