@@ -420,18 +420,86 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
       <span className={`text-sm font-medium ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
         Timeline
       </span>
-      <div className="flex-1 relative">
+      <div className="flex-1 relative group">
         <input
           type="range"
           min={0}
           max={Math.max(0, graphHistory.length - 1)}
           value={currentGraphIndex}
           onChange={(e) => onGraphIndexChange(parseInt(e.target.value))}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+          className={`
+            w-full h-3 rounded-lg appearance-none cursor-pointer transition-all duration-200 ease-out
+            ${darkMode 
+              ? 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500' 
+              : 'bg-gradient-to-r from-gray-200 to-gray-300 hover:from-gray-300 hover:to-gray-400'
+            }
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
+            hover:shadow-lg hover:scale-y-110 active:scale-y-125
+            [&::-webkit-slider-thumb]:appearance-none
+            [&::-webkit-slider-thumb]:w-6
+            [&::-webkit-slider-thumb]:h-6
+            [&::-webkit-slider-thumb]:rounded-full
+            [&::-webkit-slider-thumb]:bg-gradient-to-br
+            [&::-webkit-slider-thumb]:from-blue-400
+            [&::-webkit-slider-thumb]:to-blue-600
+            [&::-webkit-slider-thumb]:border-2
+            [&::-webkit-slider-thumb]:border-white
+            [&::-webkit-slider-thumb]:shadow-lg
+            [&::-webkit-slider-thumb]:cursor-pointer
+            [&::-webkit-slider-thumb]:transition-all
+            [&::-webkit-slider-thumb]:duration-150
+            [&::-webkit-slider-thumb]:hover:scale-110
+            [&::-webkit-slider-thumb]:hover:shadow-xl
+            [&::-webkit-slider-thumb]:active:scale-125
+            [&::-webkit-slider-thumb]:active:shadow-2xl
+            [&::-moz-range-thumb]:w-6
+            [&::-moz-range-thumb]:h-6
+            [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:bg-gradient-to-br
+            [&::-moz-range-thumb]:from-blue-400
+            [&::-moz-range-thumb]:to-blue-600
+            [&::-moz-range-thumb]:border-2
+            [&::-moz-range-thumb]:border-white
+            [&::-moz-range-thumb]:cursor-pointer
+            [&::-moz-range-thumb]:transition-all
+            [&::-moz-range-thumb]:duration-150
+          `}
+          style={{
+            background: `linear-gradient(to right, 
+              ${darkMode ? '#3b82f6' : '#60a5fa'} 0%, 
+              ${darkMode ? '#3b82f6' : '#60a5fa'} ${(currentGraphIndex / Math.max(1, graphHistory.length - 1)) * 100}%, 
+              ${darkMode ? '#374151' : '#d1d5db'} ${(currentGraphIndex / Math.max(1, graphHistory.length - 1)) * 100}%, 
+              ${darkMode ? '#374151' : '#d1d5db'} 100%)`
+          }}
         />
-        <div className="flex justify-between text-xs text-gray-500 mt-1">
-          <span>Start</span>
-          <span>Current</span>
+        
+        <div className="flex justify-between absolute top-0 left-0 right-0 pointer-events-none">
+          {Array.from({ length: Math.min(graphHistory.length, 10) }, (_, i) => {
+            const dotIndex = Math.floor((i / Math.max(1, 9)) * Math.max(0, graphHistory.length - 1));
+            const isActive = dotIndex <= currentGraphIndex;
+            return (
+              <div
+                key={i}
+                className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-blue-400 shadow-sm' 
+                    : darkMode ? 'bg-gray-600' : 'bg-gray-400'
+                }`}
+              />
+            );
+          })}
+        </div>
+        
+        <div className="flex justify-between text-xs mt-2 transition-opacity duration-200 group-hover:opacity-100 opacity-75">
+          <span className={`font-medium ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            Start
+          </span>
+          <span className={`font-medium ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
+            {currentGraphIndex + 1} / {graphHistory.length}
+          </span>
+          <span className={`font-medium ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            Current
+          </span>
         </div>
       </div>
     </div>
@@ -781,7 +849,7 @@ const handleZoomOut = (event) => {
    const isGraphReady = layoutNodes.length > 0 || structuralNodes.length === 0; 
 
    return (
-    <div className={`w-full h-full p-6 rounded-2xl shadow-2xl relative overflow-hidden backdrop-blur-sm border transition-all duration-300 ${
+    <div className={`w-full h-full p-6 rounded-2xl shadow-2xl relative overflow-y-auto backdrop-blur-sm border transition-all duration-300 ${
       darkMode 
         ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50" 
         : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-200/50"

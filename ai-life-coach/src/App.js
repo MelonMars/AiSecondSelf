@@ -2674,7 +2674,7 @@ export default function App() {
             graphHistory={graphHistory}
             currentGraphIndex={currentGraphIndex}
             onDataChange={handleGraphDataChange}
-            onGraphIndexChange={handleGraphIndexChange}
+            onGraphIndexChange={setCurrentGraphIndex}
           />
         )}
         {tab === "profile" && (
