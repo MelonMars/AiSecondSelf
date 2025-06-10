@@ -713,6 +713,8 @@ const ChatComponent = ({
 
   const [gradientPhase, setGradientPhase] = useState(0);
 
+  console.log("Current conversation branch info:", currentConversationBranchInfo);
+
   useEffect(() => {
     if (editingMessageIndex !== null && editTextareaRef.current) {
       editTextareaRef.current.focus();
@@ -1490,98 +1492,78 @@ const ChatComponent = ({
                           (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
                         ) && (
                           <div className={`flex mt-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
-                            <div className={`relative inline-block text-left ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+                            <div className="flex items-center space-x-2">
                               <button
-                                onClick={() => {
-                                  setOpenBranchDropdownIndex(openBranchDropdownIndex === index ? null : index);
+                                onClick={async () => {
+                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
+                                                      currentConversationBranchInfo.branch_from_message_index === index;
+                                  
+                                  if (isChildBranch) {
+                                    await loadConversation(currentConversationBranchInfo.parent_conversation_id);
+                                  } else {
+                                    const childBranches = currentConversationBranchInfo?.children_branches
+                                      ?.filter(b => b.branch_from_message_index === index) || [];
+                                    
+                                    if (childBranches.length > 0) {
+                                      const lastChildBranch = childBranches[childBranches.length - 1];
+                                      await loadConversation(lastChildBranch.id);
+                                    }
+                                  }
                                 }}
-                                className={`inline-flex justify-center px-3 md:px-4 py-2 text-sm font-medium rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
                                     : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-700 shadow-md'
-                                } focus:outline-none focus:ring-2 ${
-                                  darkMode 
-                                    ? 'focus:ring-purple-400/50' 
-                                    : 'focus:ring-blue-500/50'
                                 }`}
-                                id={`options-menu-${index}`}
-                                aria-haspopup="true"
-                                aria-expanded="true"
+                                title="Previous branch"
                               >
-                                Branches
-                                <ChevronDown className="-mr-1 ml-2 h-5 w-5" aria-hidden="true" />
+                                <ChevronLeft size={16} />
                               </button>
 
-                              {openBranchDropdownIndex === index && (
-                                <div
-                                  className={`origin-top-right absolute ${message.role === 'user' ? 'right-0' : 'left-0'} mt-2 w-56 rounded-2xl backdrop-blur-sm border shadow-xl transition-all duration-300 z-50 ${
-                                    darkMode 
-                                      ? 'bg-white/10 border-white/20' 
-                                      : 'bg-white/80 border-white/50'
-                                  }`}
-                                  role="menu"
-                                  aria-orientation="vertical"
-                                  aria-labelledby={`options-menu-${index}`}
-                                >
-                                  <div className="py-2" role="none">
-                                    {currentConversationBranchInfo?.parent_conversation_id &&
-                                      currentConversationBranchInfo.branch_from_message_index === index && (
-                                      <button
-                                        onClick={() => {
-                                          loadConversation(currentConversationBranchInfo.parent_conversation_id);
-                                          setOpenBranchDropdownIndex(null);
-                                        }}
-                                        className={`${
-                                          darkMode 
-                                            ? 'text-gray-300 hover:bg-white/20' 
-                                            : 'text-gray-700 hover:bg-white/60'
-                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200 active:scale-95`}
-                                        role="menuitem"
-                                      >
-                                        <ArrowLeft className="inline-block mr-2" size={14} /> Go to Parent
-                                      </button>
-                                    )}
+                              <div className={`px-3 py-1 rounded-full backdrop-blur-sm border text-xs font-medium ${
+                                darkMode 
+                                  ? 'bg-white/10 border-white/20 text-white' 
+                                  : 'bg-white/60 border-white/40 text-gray-700'
+                              }`}>
+                                {(() => {
+                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
+                                                      currentConversationBranchInfo.branch_from_message_index === index;
+                                  
+                                  if (isChildBranch) {
+                                    return "Branch";
+                                  } else {
+                                    const childBranches = currentConversationBranchInfo?.children_branches
+                                      ?.filter(b => b.branch_from_message_index === index) || [];
+                                    return `1 / ${childBranches.length + 1}`;
+                                  }
+                                })()}
+                              </div>
 
-                                    {currentConversationBranchInfo?.children_branches
-                                      .filter(b => b.branch_from_message_index === index && b.id !== currentConversationId)
-                                      .map((branch, idx) => (
-                                      <button
-                                        key={branch.id}
-                                        onClick={() => {
-                                          loadConversation(branch.id);
-                                          setOpenBranchDropdownIndex(null);
-                                        }}
-                                        className={`${
-                                          darkMode 
-                                            ? 'text-gray-300 hover:bg-white/20' 
-                                            : 'text-gray-700 hover:bg-white/60'
-                                        } block px-4 py-2 text-sm w-full text-left rounded-xl mx-2 transition-all duration-200 active:scale-95`}
-                                        role="menuitem"
-                                      >
-                                        <GitBranch className="inline-block mr-2" size={14} /> Branch {idx + 1}
-                                      </button>
-                                    ))}
-
-                                    {currentConversationBranchInfo?.parent_conversation_id &&
-                                      currentConversationBranchInfo.branch_from_message_index === index && (
-                                      <button
-                                        onClick={() => {
-                                          setOpenBranchDropdownIndex(null);
-                                        }}
-                                        className={`${
-                                          darkMode 
-                                            ? 'text-orange-400 bg-gradient-to-r from-orange-500/20 to-red-500/20' 
-                                            : 'text-blue-600 bg-gradient-to-r from-blue-500/20 to-purple-500/20'
-                                        } block px-4 py-2 text-sm w-full text-left cursor-default rounded-xl mx-2`}
-                                        role="menuitem"
-                                        disabled
-                                      >
-                                        <Check className="inline-block mr-2" size={14} /> Current Branch
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
+                              <button
+                                onClick={async () => {
+                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
+                                                      currentConversationBranchInfo.branch_from_message_index === index;
+                                  
+                                  if (isChildBranch) {
+                                    await loadConversation(currentConversationBranchInfo.parent_conversation_id);
+                                  } else {
+                                    const childBranches = currentConversationBranchInfo?.children_branches
+                                      ?.filter(b => b.branch_from_message_index === index) || [];
+                                    
+                                    if (childBranches.length > 0) {
+                                      await loadConversation(childBranches[0].id);
+                                    }
+                                  }
+                                }}
+                                className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
+                                  darkMode 
+                                    ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
+                                    : 'bg-white/60 hover:bg-white/80 border-white/40 text-gray-700 shadow-md'
+                                }`}
+                                title="Next branch"
+                              >
+                                <ChevronRight size={16} />
+                              </button>
                             </div>
                           </div>
                         )}
