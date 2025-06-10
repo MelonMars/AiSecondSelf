@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu, Paperclip } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu, Paperclip, MessageCircle, Eye, MapPin, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -639,7 +640,6 @@ const ConversationItem = ({
                 </button>
               </div>
             )}
-            
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -692,6 +692,9 @@ const ChatComponent = ({
   backgroundImageUrl,
   gradientTone,
   gradientTones,
+  aiMode,
+  setAiMode,
+  aiModes
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -701,6 +704,7 @@ const ChatComponent = ({
   const [editMessageContent, setEditMessageContent] = useState('');
   const [hoveredMessageIndex, setHoveredMessageIndex] = useState(null);
   const [openBranchDropdownIndex, setOpenBranchDropdownIndex] = useState(null);
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const editTextareaRef = useRef(null);
@@ -950,7 +954,6 @@ const ChatComponent = ({
           </button>
         </div>
       )}
-
       <div className={`flex-shrink-0 ${
         isSidebarCollapsed ? 'px-2 py-4' : 'px-4 py-3'
       } border-b backdrop-blur-sm ${
@@ -988,6 +991,119 @@ const ChatComponent = ({
               <Share size={18} className="relative z-10" />
             </button>
           )}
+          {!isSidebarCollapsed && (
+            <div className="relative">
+              <button
+                onClick={() => setShowModeDropdown(!showModeDropdown)}
+                className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                  darkMode 
+                    ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                }`}
+                title="AI Mode"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 18, className: "relative z-10" })}
+              </button>
+              
+              {/* {showModeDropdown && (
+                  <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
+                    darkMode 
+                      ? 'bg-white/10 border-white/20' 
+                      : 'bg-white/80 border-white/50'
+                  }`}
+                  style={{
+                    left: isSidebarCollapsed ? '72px' : '272px',
+                    top: '120px',
+                  }}>
+                    <div className="py-2">
+                      {aiModes.map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() => {
+                            setAiMode(mode.id);
+                            setShowModeDropdown(false);
+                          }}
+                          className={`w-full px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
+                            aiMode === mode.id
+                              ? darkMode
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
+                                : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
+                              : darkMode
+                                ? 'text-gray-300 hover:bg-white/20'
+                                : 'text-gray-700 hover:bg-white/60'
+                          }`}
+                        >
+                          <div className="flex items-center">
+                            {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
+                            <div>
+                              <div className="font-medium text-sm">{mode.name}</div>
+                              <div className={`text-xs ${
+                                darkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {mode.description}
+                              </div>
+                            </div>
+                            {aiMode === mode.id && (
+                              <Check size={16} className="ml-auto" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+              )} */}
+              {showModeDropdown && createPortal(
+                <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
+                  darkMode 
+                    ? 'bg-white/10 border-white/20' 
+                    : 'bg-white/80 border-white/50'
+                }`}
+                style={{
+                  left: isSidebarCollapsed ? '72px' : '272px',
+                  top: '120px',
+                }}>
+                  <div className="py-2">
+                    {aiModes.map((mode) => (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          setAiMode(mode.id);
+                          setShowModeDropdown(false);
+                        }}
+                        className={`w-full px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
+                          aiMode === mode.id
+                            ? darkMode
+                              ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
+                              : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
+                            : darkMode
+                              ? 'text-gray-300 hover:bg-white/20'
+                              : 'text-gray-700 hover:bg-white/60'
+                        }`}
+                      >
+                        <div className="flex items-center">
+                          {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
+                          <div>
+                            <div className="font-medium text-sm">{mode.name}</div>
+                            <div className={`text-xs ${
+                              darkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                              {mode.description}
+                            </div>
+                          </div>
+                          {aiMode === mode.id && (
+                            <Check size={16} className="ml-auto" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
+          )}
+
 
           {isSidebarCollapsed && (
             <button
@@ -1017,6 +1133,70 @@ const ChatComponent = ({
               <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
               <Share size={20} className="relative z-10" />
             </button>
+          )}
+          {isSidebarCollapsed && (
+            <div className="relative">
+              <button
+                onClick={() => setShowModeDropdown(!showModeDropdown)}
+                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                  darkMode 
+                    ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                }`}
+                title={`AI Mode: ${aiModes.find(mode => mode.id === aiMode)?.name || 'Normal'}`}
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 20, className: "relative z-10" })}
+              </button>
+              
+              {showModeDropdown && (
+                  <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
+                    darkMode 
+                      ? 'bg-white/10 border-white/20' 
+                      : 'bg-white/80 border-white/50'
+                  }`}
+                  style={{
+                    left: '72px',
+                    top: '180px',
+                  }}>
+                    <div className="py-2">
+                      {aiModes.map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() => {
+                            setAiMode(mode.id);
+                            setShowModeDropdown(false);
+                          }}
+                          className={`w-full px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
+                            aiMode === mode.id
+                              ? darkMode
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
+                                : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
+                              : darkMode
+                                ? 'text-gray-300 hover:bg-white/20'
+                                : 'text-gray-700 hover:bg-white/60'
+                          }`}
+                        >
+                          <div className="flex items-center">
+                            {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
+                            <div>
+                              <div className="font-medium text-sm">{mode.name}</div>
+                              <div className={`text-xs ${
+                                darkMode ? 'text-gray-400' : 'text-gray-500'
+                              }`}>
+                                {mode.description}
+                              </div>
+                            </div>
+                            {aiMode === mode.id && (
+                              <Check size={16} className="ml-auto" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+              )}
+            </div>
           )}
         </div>
       </div>

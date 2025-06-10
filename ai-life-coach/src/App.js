@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, UserPlus, Star, Camera, Share, Copy, X, Eraser, Menu, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
+import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, MessageCircle, Eye, MapPin, UserPlus, Star, Camera, Share, Copy, X, Eraser, Menu, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
 import { auth, googleProvider } from "./firebase";
@@ -558,7 +558,7 @@ export default function App() {
 
   const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
   const [gradientTone, setGradientTone] = useState(localStorage.getItem("gradientTone") || "classic");
-
+  const [aiMode, setAiMode] = useState('normal');
   const gradientTones = {
     classic: {
       colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
@@ -615,7 +615,14 @@ export default function App() {
         setIsLoading(false);
         fetchConversations();
     }
-};
+  };
+
+  const aiModes = [
+    { id: 'normal', name: 'Normal', icon: MessageCircle, description: 'Standard conversation' },
+    { id: 'reflect', name: 'Reflect', icon: Eye, description: 'Thoughtful analysis' },
+    { id: 'plan', name: 'Plan', icon: MapPin, description: 'Strategic planning' },
+    { id: 'review', name: 'Review', icon: CheckCircle, description: 'Critical evaluation' },
+  ];
 
   useEffect(() => {
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -1004,9 +1011,11 @@ export default function App() {
         messages: messagesForApi, 
         conversation_id: currentConversationId,
         bulletProse: bulletProse,
+        ai_mode: aiMode,
       };
 
       formData.append('request', JSON.stringify(requestBody));
+      formData.append('ai_mode', aiMode);
 
       if (uploadedFiles.length > 0) {
         uploadedFiles.forEach((file, index) => {
@@ -2623,33 +2632,36 @@ export default function App() {
         {tab === "chat" && (
           <ChatComponent
             messages={messages}
-                 conversations={conversations}
-                 currentConversationId={currentConversationId}
-                 isLoading={isLoading}
-                 isConversationsLoading={isConversationsLoading}
-                 loadConversation={handleLoadConversation}
-                 startNewConversation={handleStartNewConversation}
-                 setAuthError={setAuthError} 
-                 setShowAuthModal={setShowAuthModal}
-                 logout={logout}
-                 starredConversations={starredConversations}
-                 onToggleStar={onToggleStar}
-                 onConversationRenamed={renameConversation}
-                 sendMessage={sendMessage}
-                 sendMessages={sendMessages}
-                 darkMode={darkMode}
-                 updateMessages={updateMessages}
-                 shareConversation={shareConversation}
-                 handleLikeMessage={handleLikeMessage}
-                 handleDislikeMessage={handleDislikeMessage}
-                 handleSaveEditMessage={handleSaveEditMessage}
-                 currentConversationBranchInfo={currentConversationBranchInfo}
-                 aiPicture={aiAvatarImage}
-                 userPicture={userAvatarImage}
-                 handleDocumentUpload={handleDocumentUpload}
-                 backgroundImageUrl={backgroundImageUrl}
-                 gradientTone={gradientTone}
-                 gradientTones={gradientTones}
+            conversations={conversations}
+            currentConversationId={currentConversationId}
+            isLoading={isLoading}
+            isConversationsLoading={isConversationsLoading}
+            loadConversation={handleLoadConversation}
+            startNewConversation={handleStartNewConversation}
+            setAuthError={setAuthError} 
+            setShowAuthModal={setShowAuthModal}
+            logout={logout}
+            starredConversations={starredConversations}
+            onToggleStar={onToggleStar}
+            onConversationRenamed={renameConversation}
+            sendMessage={sendMessage}
+            sendMessages={sendMessages}
+            darkMode={darkMode}
+            updateMessages={updateMessages}
+            shareConversation={shareConversation}
+            handleLikeMessage={handleLikeMessage}
+            handleDislikeMessage={handleDislikeMessage}
+            handleSaveEditMessage={handleSaveEditMessage}
+            currentConversationBranchInfo={currentConversationBranchInfo}
+            aiPicture={aiAvatarImage}
+            userPicture={userAvatarImage}
+            handleDocumentUpload={handleDocumentUpload}
+            backgroundImageUrl={backgroundImageUrl}
+            gradientTone={gradientTone}
+            gradientTones={gradientTones}
+            aiModes={aiModes}
+            aiMode={aiMode}
+            setAiMode={setAiMode}
           />
         )}
         {tab === "graph" && (

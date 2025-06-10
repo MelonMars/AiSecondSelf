@@ -623,6 +623,7 @@ async def chat_stream(
     user_info: dict = Depends(verify_token),
     request: str = Form(...),
     files: Optional[List[UploadFile]] = File(None),
+    ai_mode: Optional[str] = Form("default")
 ):
     try:
         request_data = json.loads(request)
@@ -670,23 +671,79 @@ async def chat_stream(
     user_doc = user_ref.get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
     
-    try:
-        with open("prompt.txt", "r") as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        logger.error("prompt.txt not found. Using a default prompt template.")
-        prompt_template = (
-            "You are a helpful AI assistant named {name}. "
-            "The current date is {date} and time is {time}. "
-            "Your user is {user}. "
-            "Your location is {location} in {country}. "
-            "Here are some instructions: {instructionSet}. "
-            "Your personalities are: {personalities}. "
-            "Context: {bulletProse}. "
-            "You can update user preferences by setting updated_preferences in your response. "
-            "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
-            "You can set a reaction emoji by setting reaction in your response."
-        )
+    # normal, plan, reflect, review
+    if ai_mode == "normal":
+        try:
+            with open("prompt.txt", "r") as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            logger.error("prompt.txt not found. Using a default prompt template.")
+            prompt_template = (
+                "You are a helpful AI assistant named {name}. "
+                "The current date is {date} and time is {time}. "
+                "Your user is {user}. "
+                "Your location is {location} in {country}. "
+                "Here are some instructions: {instructionSet}. "
+                "Your personalities are: {personalities}. "
+                "Context: {bulletProse}. "
+                "You can update user preferences by setting updated_preferences in your response. "
+                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
+                "You can set a reaction emoji by setting reaction in your response."
+            )
+    elif ai_mode == "plan":
+        try:
+            with open("planprompt.txt", "r") as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            logger.error("prompt.txt not found. Using a default prompt template.")
+            prompt_template = (
+                "You are a helpful AI assistant named {name}. "
+                "The current date is {date} and time is {time}. "
+                "Your user is {user}. "
+                "Your location is {location} in {country}. "
+                "Here are some instructions: {instructionSet}. "
+                "Your personalities are: {personalities}. "
+                "Context: {bulletProse}. "
+                "You can update user preferences by setting updated_preferences in your response. "
+                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
+                "You can set a reaction emoji by setting reaction in your response."
+            )
+    elif ai_mode == "reflect":
+        try:
+            with open("reflectprompt.txt", "r") as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            logger.error("prompt.txt not found. Using a default prompt template.")
+            prompt_template = (
+                "You are a helpful AI assistant named {name}. "
+                "The current date is {date} and time is {time}. "
+                "Your user is {user}. "
+                "Your location is {location} in {country}. "
+                "Here are some instructions: {instructionSet}. "
+                "Your personalities are: {personalities}. "
+                "Context: {bulletProse}. "
+                "You can update user preferences by setting updated_preferences in your response. "
+                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
+                "You can set a reaction emoji by setting reaction in your response."
+            )
+    elif ai_mode == "review":
+        try:
+            with open("reviewprompt.txt", "r") as f:
+                prompt_template = f.read()
+        except FileNotFoundError:
+            logger.error("prompt.txt not found. Using a default prompt template.")
+            prompt_template = (
+                "You are a helpful AI assistant named {name}. "
+                "The current date is {date} and time is {time}. "
+                "Your user is {user}. "
+                "Your location is {location} in {country}. "
+                "Here are some instructions: {instructionSet}. "
+                "Your personalities are: {personalities}. "
+                "Context: {bulletProse}. "
+                "You can update user preferences by setting updated_preferences in your response. "
+                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
+                "You can set a reaction emoji by setting reaction in your response."
+            )
 
     system_prompt = prompt_template.replace("{bulletProse}", chat_request.bulletProse)
     system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
@@ -747,7 +804,7 @@ async def chat_stream(
 
     try:
         structured_response_raw = client.models.generate_content(
-            model='gemini-1.5-flash-latest',
+            model='gemini-1.5-flash',
             contents=contents,
             config={
                 "response_mime_type": "application/json",
