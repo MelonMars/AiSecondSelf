@@ -23,32 +23,28 @@ const saveGraphData = async (graphData) => {
       console.warn("No auth token found. Cannot save graph data.");
       return false;
   }
-  const dataToSave = {
-      nodes: Array.isArray(graphData?.nodes) ? graphData.nodes : [],
-      edges: Array.isArray(graphData?.edges) ? graphData.edges : []
-  };
   try {
-    console.log("Saving graph data:", dataToSave);
-    const response = await fetch("http://127.0.0.1:8000/user_data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${authToken}`
-      },
-      body: JSON.stringify({
-        user_data: dataToSave
-      })
-    });
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to save graph data:", response.status, errorText);
-        return false;
-    }
-    console.log("Graph data saved successfully");
-    return true;
+      const response = await fetch('http://127.0.0.1:8000/user_data', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({
+              user_data: graphData
+          }),
+      });
+      
+      if (response.ok) {
+          console.log('Graph data saved successfully');
+          return true;
+      } else {
+          console.error('Failed to save graph data');
+          return false;
+      }
   } catch (error) {
-    console.error("Error saving graph data:", error);
-    return false;
+      console.error('Error saving graph data:', error);
+      return false;
   }
 };
 
@@ -503,6 +499,8 @@ export default function App() {
   const [linkError, setLinkError] = useState(""); 
 
   const [graphData, setGraphData] = useState(null);
+  const [graphHistory, setGraphHistory] = useState([]);
+  const [currentGraphIndex, setCurrentGraphIndex] = useState(0);
   const [chatPrefs, setChatPrefs] = useState("");
 
   const [sharedURL, setSharedURL] = useState("");
@@ -1118,6 +1116,8 @@ export default function App() {
       ));
     } finally {
       console.log("sendMessage finally block reached in App.js");
+      fetchUserData(authToken);
+      fetchUserCredits(authToken);
       setIsLoading(false);
     }
   };
@@ -1800,29 +1800,8 @@ export default function App() {
 
         if (response.ok) {
           const data = await response.json();
-          if (data && data.user_data && (Array.isArray(data.user_data.nodes) || Array.isArray(data.user_data.edges))) {
-             const nodes = Array.isArray(data.user_data.nodes) ? data.user_data.nodes.map(node => ({
-               ...node,
-               type: node.type || 'default',
-               description: node.description || ''
-             })) : [];
-             const edges = Array.isArray(data.user_data.edges) ? data.user_data.edges : [];
-  
-             setGraphData({ nodes, edges }); 
-  
-          } else if (data && (Array.isArray(data.nodes) || Array.isArray(data.edges))) {
-               const nodes = Array.isArray(data.nodes) ? data.nodes.map(node => ({
-                  ...node,
-                  type: node.type || 'default',
-                  description: node.description || ''
-               })) : [];
-               const edges = Array.isArray(data.edges) ? data.edges : [];
-               setGraphData({ nodes, edges });
-          }
-           else {
-            console.warn("Fetched user data is not in expected format. Loading empty graph.", data);
-            setGraphData({ nodes: [], edges: [] });
-          }
+          setGraphHistory(data.graph_history || []);
+          setCurrentGraphIndex(data.graph_history.length - 1);
         } else {
           if (response.status === 401) {
             console.error("Auth failed fetching user data. Logging out.");
@@ -1834,7 +1813,8 @@ export default function App() {
         }
       } catch (error) {
         console.error("Error fetching user data:", error);
-        setGraphData({ nodes: [], edges: [] });
+        setGraphHistory([]);
+        setCurrentGraphIndex(0);
       } finally {
         setUserDataLoading(false);
       }
@@ -1915,12 +1895,22 @@ export default function App() {
       }
     };
     
-    const handleGraphDataChange = async (updatedStructuralGraphData) => {
-      console.log("Graph data changed by GraphView (structural):", updatedStructuralGraphData);
-      setGraphData(updatedStructuralGraphData);
-      const success = await saveGraphData(updatedStructuralGraphData);
+    const handleGraphDataChange = async (newHistory, newIndex) => {
+      console.log("Graph data changed by GraphView:", newHistory, newIndex);
+      setGraphHistory(newHistory);
+      setCurrentGraphIndex(newIndex);
+      const success = await saveGraphData({
+          graph_history: newHistory,
+      });
+      fetchUserData(authToken);
       return success;
     };
+
+    const handleGraphIndexChange = (newIndex) => {
+      console.log("Graph index changed:", newIndex);
+      setCurrentGraphIndex(newIndex);
+    };
+
     const handleChatPrefsChange = (newValue) => {
       setChatPrefs(newValue); 
       const authToken = localStorage.getItem("authToken");
@@ -2675,11 +2665,13 @@ export default function App() {
           />
         )}
         {tab === "graph" && (
-          <GraphView 
+          <GraphView
             darkMode={darkMode}
-            data={graphData} 
-            onDataChange={handleGraphDataChange} 
-           />
+            graphHistory={graphHistory}
+            currentGraphIndex={currentGraphIndex}
+            onDataChange={handleGraphDataChange}
+            onGraphIndexChange={handleGraphIndexChange}
+          />
         )}
         {tab === "profile" && (
           <ProfileComponent 

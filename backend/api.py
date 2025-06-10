@@ -520,15 +520,34 @@ async def post_stream_save_to_db(
     all_messages.append(ai_message)
 
     user_uid = user_ref.id
-    
+
     if ai_response.updated_graph:
         updated_graph = json.loads(ai_response.updated_graph)
         try:
-            user_ref.update({
-                "edges": updated_graph.get("edges", []), 
-                "nodes": updated_graph.get("nodes", [])
-            })
-            logger.info(f"Graph data updated in Firestore for user {user_uid}")
+            user_doc = user_ref.get()
+            
+            if not user_doc.exists:
+                logger.error(f"User document not found for uid: {user_uid}")
+            else:
+                existing_user_data = user_doc.to_dict()
+                
+                if "graph_history" in existing_user_data and existing_user_data["graph_history"]:
+                    current_history = existing_user_data["graph_history"]
+                    current_index = existing_user_data.get("current_graph_index", len(current_history) - 1)
+                else:
+                    current_history = []
+                    current_index = 0
+
+                if not isinstance(current_history, list):
+                    current_history = [current_history]
+
+                update_data = {
+                    "graph_history": current_history + [updated_graph],
+                }
+
+                user_ref.update(update_data)
+                logger.info(f"Graph data updated in Firestore for user {user_uid}")
+                
         except Exception as e:
             logger.error(f"Error processing graph data in background: {e}")
 
@@ -564,7 +583,7 @@ async def post_stream_save_to_db(
 
     conversation_ref.update(update_data)
     logger.info(f"Background task finished. Conversation {conversation_ref.id} updated in Firestore.")
-
+    
 async def summarize_long_chat_history(
     messages: List[Message],
     client: genai.Client,
@@ -780,7 +799,6 @@ async def chat_stream(
         )
         contents.append(content)
 
-    # Handle file uploads - add to the last user message
     if files:
         file = files[0]
         file_content = await file.read()
@@ -790,11 +808,9 @@ async def chat_stream(
         file_data = io.BytesIO(file_content)
         doc = genai.upload_file(path=file_data, mime_type=file.content_type)
         
-        # Add the file to the last message (which should be the user's message)
         if contents and contents[-1].role == 'user':
             contents[-1].parts.append(doc)
         else:
-            # If no user message exists, create one with just the file
             contents.append(types.Content(
                 role='user',
                 parts=[doc]
@@ -1618,13 +1634,21 @@ async def get_user_data(user_info: dict = Depends(verify_token)):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User data not found"
             )
-            
+        
         user_data = user_doc.to_dict()
-        graph = {
-            "nodes": user_data.get("nodes", []),
-            "edges": user_data.get("edges", []),
-        }
-        return graph
+        
+        if "graph_history" in user_data and user_data["graph_history"]:
+            return {
+                "graph_history": user_data["graph_history"],
+            }
+        else:
+            legacy_graph = {
+                "nodes": user_data.get("nodes", []),
+                "edges": user_data.get("edges", []),
+            }
+            return {
+                "graph_history": [legacy_graph] if legacy_graph["nodes"] or legacy_graph["edges"] else [],
+            }
     except Exception as e:
         print(f"Error retrieving user data: {str(e)}")
         if isinstance(e, HTTPException):
@@ -1648,12 +1672,32 @@ async def update_user_data(user_info: dict = Depends(verify_token), user_data: d
                 detail="User not found"
             )
         
-        user_ref.update({
-            "nodes": user_data["user_data"].get("nodes", []),
-            "edges": user_data["user_data"].get("edges", []),
-        })
+        update_data = {}
+
+        existing_user_data = user_doc.to_dict()
+        if "graph_history" in existing_user_data and existing_user_data["graph_history"]:
+            current_history = existing_user_data["graph_history"]
+            current_index = existing_user_data.get("current_graph_index", len(current_history) - 1)
+        else:
+            current_history = []
+            current_index = 0
+
+        if not isinstance(current_history, list):
+            current_history = [current_history]
+
+        if "graph_history" in user_data["user_data"]:
+            update_data.update({
+                "graph_history": current_history + [user_data["user_data"]["graph_history"]],
+            })
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid graph data format"
+            )
         
+        user_ref.update(update_data)
         return {"message": "User data updated successfully"}
+        
     except Exception as e:
         print(f"Error updating user data: {str(e)}")
         if isinstance(e, HTTPException):
@@ -1662,7 +1706,7 @@ async def update_user_data(user_info: dict = Depends(verify_token), user_data: d
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating user data: {str(e)}"
         )
-
+    
 @app.get("/username")
 async def username(user_info: dict = Depends(verify_token)):
     try:

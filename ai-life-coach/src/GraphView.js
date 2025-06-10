@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User } from "lucide-react";
+import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User, ChevronLeft, ChevronRight } from "lucide-react";
 
 const typeColors = {
   person: "#3b82f6", 
@@ -146,12 +146,21 @@ const computeLayout = (nodes, edges, svgWidth, svgHeight) => {
   return layoutNodes;
 };
 
-export default function GraphView({ data, onDataChange, darkMode }) {
+export default function GraphView({ graphHistory, currentGraphIndex, onDataChange, onGraphIndexChange, darkMode }) {
   const [layoutNodes, setLayoutNodes] = useState([]);
+
+  let data;
+  if (Array.isArray(graphHistory)) {
+    data = graphHistory[currentGraphIndex] || { nodes: [], edges: [] };
+  } else if (graphHistory && typeof graphHistory === "object" && Array.isArray(graphHistory.nodes) && Array.isArray(graphHistory.edges)) {
+    data = graphHistory;
+  } else {
+    data = { nodes: [], edges: [] };
+  }
 
   const structuralEdges = data?.edges || [];
   const structuralNodes = data?.nodes || [];
-
+  console.log("GraphView data:", data);
 
   const [hoveredNode, setHoveredNode] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null); 
@@ -187,6 +196,7 @@ export default function GraphView({ data, onDataChange, darkMode }) {
   const svgRef = useRef(null);
 
   const nodeIdCounter = useRef(1);
+
    useEffect(() => {
        const nodeIds = structuralNodes.map(node => parseInt(node.id) || 0);
        const maxId = nodeIds.length > 0 ? Math.max(...nodeIds) : 0;
@@ -365,6 +375,76 @@ export default function GraphView({ data, onDataChange, darkMode }) {
 
   const handleMouseLeave = () => {
       setIsPanning(false);
+  };
+
+  const HistoryControls = () => (
+    <div className={`flex items-center space-x-2 rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border ${
+      darkMode 
+        ? "border-gray-700/50 bg-gray-800/80" 
+        : "border-gray-200/50 bg-white/80"
+    }`}>
+      <button
+        onClick={() => onGraphIndexChange(Math.max(0, currentGraphIndex - 1))}
+        disabled={currentGraphIndex === 0}
+        className={`p-3 transition-all duration-200 ${
+          darkMode 
+            ? "hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+            : "hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+        } disabled:opacity-40 disabled:cursor-not-allowed`}
+      >
+        <ChevronLeft size={18} />
+      </button>
+      
+      <div className={`px-4 py-2 text-sm font-medium ${
+        darkMode ? "text-gray-300" : "text-gray-700"
+      }`}>
+        {currentGraphIndex + 1} / {graphHistory.length}
+      </div>
+      
+      <button
+        onClick={() => onGraphIndexChange(Math.min(graphHistory.length - 1, currentGraphIndex + 1))}
+        disabled={currentGraphIndex === graphHistory.length - 1}
+        className={`p-3 transition-all duration-200 ${
+          darkMode 
+            ? "hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+            : "hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+        } disabled:opacity-40 disabled:cursor-not-allowed`}
+      >
+        <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+
+  const TimelineSlider = () => (
+    <div className="flex items-center space-x-4">
+      <span className={`text-sm font-medium ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+        Timeline
+      </span>
+      <div className="flex-1 relative">
+        <input
+          type="range"
+          min={0}
+          max={Math.max(0, graphHistory.length - 1)}
+          value={currentGraphIndex}
+          onChange={(e) => onGraphIndexChange(parseInt(e.target.value))}
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>Start</span>
+          <span>Current</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const handleDataChange = async (newData) => {
+    const newHistory = [
+        ...graphHistory.slice(0, currentGraphIndex + 1),
+        newData
+    ];
+    
+    const success = await onDataChange(newHistory, newHistory.length - 1);
+    return success;
   };
 
 
@@ -742,6 +822,8 @@ const handleZoomOut = (event) => {
               <ZoomIn size={18} />
             </button>
           </div>
+
+          {graphHistory.length > 1 && <HistoryControls />}
   
           <div className="flex items-center space-x-4">
             {Object.entries(typeColors).map(([type, color]) => (
@@ -1271,32 +1353,11 @@ const handleZoomOut = (event) => {
         </div>
       )}
 
-            <div className="relative">
-          <div
-            ref={sliderRef}
-            className="relative h-3 bg-white/20 rounded-full cursor-pointer overflow-hidden group"
-            onMouseDown={handleSliderMouseDown}
-            onTouchStart={handleSliderTouchStart}
-          >
-            <div
-              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-200 ease-out"
-              style={{ width: `${sliderValue}%` }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-pulse group-hover:translate-x-full transition-transform duration-1000"></div>
-            </div>
-
-            <div
-              className={`absolute top-1/2 w-6 h-6 bg-white rounded-full shadow-lg transform -translate-y-1/2 -translate-x-1/2 transition-all duration-200 ease-out cursor-grab ${
-                isDragging ? 'scale-125 cursor-grabbing shadow-xl' : 'hover:scale-110'
-              }`}
-              style={{ left: `${sliderValue}%` }}
-            >
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-20 animate-pulse"></div>
-              
-              <div className="absolute inset-1 bg-white rounded-full shadow-inner"></div>
-            </div>
+      {graphHistory.length > 3 && (
+          <div className="w-64">
+            <TimelineSlider />
           </div>
-      </div>
+        )}
 
       <div className={`mt-6 p-4 rounded-xl border transition-all duration-200 ${
         darkMode 
