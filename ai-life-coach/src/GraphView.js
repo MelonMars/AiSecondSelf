@@ -177,6 +177,9 @@ export default function GraphView({ data, onDataChange, darkMode }) {
 
   const [zoomLevel, setZoomLevel] = useState(1);
   const [zoomOrigin, setZoomOrigin] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const sliderRef = useRef(null);
+  const [sliderValue, setSliderValue] = useState(0);
   const zoomStep = 0.1;
   const minZoom = 0.5;
   const maxZoom = 2.0;
@@ -270,6 +273,62 @@ export default function GraphView({ data, onDataChange, darkMode }) {
         svgElement.removeEventListener('wheel', wheelHandler);
     };
   }, [handleWheel]);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleSliderMouseMove);
+      document.addEventListener('mouseup', handleSliderMouseUp);
+      document.addEventListener('touchmove', handleSliderTouchMove, { passive: false });
+      document.addEventListener('touchend', handleSliderTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleSliderMouseMove);
+      document.removeEventListener('mouseup', handleSliderMouseUp);
+      document.removeEventListener('touchmove', handleSliderTouchMove);
+      document.removeEventListener('touchend', handleSliderTouchEnd);
+    };
+  }, [isDragging]);
+
+  const handleSliderMouseDown = (e) => {
+    setIsDragging(true);
+    updateValue(e);
+  };
+
+  const handleSliderMouseMove = (e) => {
+    if (isDragging) {
+      updateValue(e);
+    }
+  };
+
+  const handleSliderMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleSliderTouchStart = (e) => {
+    if (isDragging) {
+      updateValue(e);
+    }
+  };
+
+  const handleSliderTouchMove = (e) => {
+    if (isDragging) {
+      e.preventDefault();
+      updateValue(e.touches[0]);
+    }
+  };
+
+  const handleSliderTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  const updateValue = (event) => {
+    if (sliderRef.current) {
+      const rect = sliderRef.current.getBoundingClientRect();
+      const percentage = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+      setSliderValue(Math.round(percentage));
+    }
+  };
 
   const handleMouseDown = (event) => {
     if (event.button !== 0 || contextMenu.visible || nodeForm.visible || edgeForm.visible) return; 
@@ -647,9 +706,6 @@ const handleZoomOut = (event) => {
         ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50" 
         : "bg-gradient-to-br from-white/95 to-gray-50/95 border-gray-200/50"
     }`}>
-      <br />
-      <br />
-      <br />
       <div className="mb-6 flex justify-between items-center">        
         <div className="flex items-center space-x-6">
 
@@ -1214,7 +1270,34 @@ const handleZoomOut = (event) => {
           <span className="text-white font-medium">{notification.message}</span>
         </div>
       )}
-  
+
+            <div className="relative">
+          <div
+            ref={sliderRef}
+            className="relative h-3 bg-white/20 rounded-full cursor-pointer overflow-hidden group"
+            onMouseDown={handleSliderMouseDown}
+            onTouchStart={handleSliderTouchStart}
+          >
+            <div
+              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-200 ease-out"
+              style={{ width: `${sliderValue}%` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-pulse group-hover:translate-x-full transition-transform duration-1000"></div>
+            </div>
+
+            <div
+              className={`absolute top-1/2 w-6 h-6 bg-white rounded-full shadow-lg transform -translate-y-1/2 -translate-x-1/2 transition-all duration-200 ease-out cursor-grab ${
+                isDragging ? 'scale-125 cursor-grabbing shadow-xl' : 'hover:scale-110'
+              }`}
+              style={{ left: `${sliderValue}%` }}
+            >
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 opacity-20 animate-pulse"></div>
+              
+              <div className="absolute inset-1 bg-white rounded-full shadow-inner"></div>
+            </div>
+          </div>
+      </div>
+
       <div className={`mt-6 p-4 rounded-xl border transition-all duration-200 ${
         darkMode 
           ? "bg-gray-800/50 border-gray-700/50 text-gray-400" 
