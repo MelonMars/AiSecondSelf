@@ -692,79 +692,119 @@ async def chat_stream(
     user_doc = user_ref.get()
     user_data = user_doc.to_dict() if user_doc.exists else {}
     
-    # normal, plan, reflect, review
-    if ai_mode == "normal":
-        try:
-            with open("prompt.txt", "r") as f:
-                prompt_template = f.read()
-        except FileNotFoundError:
-            logger.error("prompt.txt not found. Using a default prompt template.")
-            prompt_template = (
-                "You are a helpful AI assistant named {name}. "
-                "The current date is {date} and time is {time}. "
-                "Your user is {user}. "
-                "Your location is {location} in {country}. "
-                "Here are some instructions: {instructionSet}. "
-                "Your personalities are: {personalities}. "
-                "Context: {bulletProse}. "
-                "You can update user preferences by setting updated_preferences in your response. "
-                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
-                "You can set a reaction emoji by setting reaction in your response."
-            )
-    elif ai_mode == "plan":
-        try:
-            with open("planprompt.txt", "r") as f:
-                prompt_template = f.read()
-        except FileNotFoundError:
-            logger.error("planprompt.txt not found. Using a default prompt template.")
-            prompt_template = (
-                "You are a helpful AI assistant named {name}. "
-                "The current date is {date} and time is {time}. "
-                "Your user is {user}. "
-                "Your location is {location} in {country}. "
-                "Here are some instructions: {instructionSet}. "
-                "Your personalities are: {personalities}. "
-                "Context: {bulletProse}. "
-                "You can update user preferences by setting updated_preferences in your response. "
-                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
-                "You can set a reaction emoji by setting reaction in your response."
-            )
-    elif ai_mode == "reflect":
-        try:
-            with open("reflectprompt.txt", "r") as f:
-                prompt_template = f.read()
-        except FileNotFoundError:
-            logger.error("reflectprompt.txt not found. Using a default prompt template.")
-            prompt_template = (
-                "You are a helpful AI assistant named {name}. "
-                "The current date is {date} and time is {time}. "
-                "Your user is {user}. "
-                "Your location is {location} in {country}. "
-                "Here are some instructions: {instructionSet}. "
-                "Your personalities are: {personalities}. "
-                "Context: {bulletProse}. "
-                "You can update user preferences by setting updated_preferences in your response. "
-                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
-                "You can set a reaction emoji by setting reaction in your response."
-            )
-    elif ai_mode == "review":
-        try:
-            with open("reviewprompt.txt", "r") as f:
-                prompt_template = f.read()
-        except FileNotFoundError:
-            logger.error("reviewprompt.txt not found. Using a default prompt template.")
-            prompt_template = (
-                "You are a helpful AI assistant named {name}. "
-                "The current date is {date} and time is {time}. "
-                "Your user is {user}. "
-                "Your location is {location} in {country}. "
-                "Here are some instructions: {instructionSet}. "
-                "Your personalities are: {personalities}. "
-                "Context: {bulletProse}. "
-                "You can update user preferences by setting updated_preferences in your response. "
-                "You can update the user's knowledge graph by setting updated_graph with nodes and edges. "
-                "You can set a reaction emoji by setting reaction in your response."
-            )
+    with open("prompt.json", "r") as f:
+        prompt_raw = json.load(f)
+    
+    prompt = prompt_raw["base_template"]
+    mode_config = prompt['mode_configs'][ai_mode]
+    template_parts = []
+    
+    core_identity = prompt['core_identity'].format(
+        mode=ai_mode,
+        mode_description=mode_config['mode_description'],
+    )
+    template_parts.append(core_identity)
+    
+    context_mappings = {
+        'reflect': {
+            'mode_specialty': 'reflection',
+            'core_skills': 'asking probing questions, creating safe spaces for vulnerability',
+            'primary_outcome': 'connect with their deeper truths and authentic selves',
+            'context_focus': 'deeper patterns, relationships, and life themes',
+            'mode_purpose': 'more meaningful reflection'
+        },
+        'review': {
+            'mode_specialty': 'review',
+            'core_skills': 'pattern recognition, outcome analysis',
+            'primary_outcome': 'gain clarity on their experiences without judgment',
+            'context_focus': 'history and context',
+            'mode_purpose': 'better review and analysis'
+        },
+        'plan': {
+            'mode_specialty': 'planning',
+            'core_skills': 'strategic thinking, goal-setting, resource allocation',
+            'primary_outcome': 'create realistic yet ambitious plans for their future',
+            'context_focus': 'current situation, resources, and constraints',
+            'mode_purpose': 'better planning'
+        },
+        'normal': {
+            'mode_specialty': 'comprehensive support',
+            'core_skills': 'adapting tone and approach, providing both emotional and technical assistance',
+            'primary_outcome': 'navigate life\'s complexities with both wisdom and practical solutions',
+            'context_focus': 'complete profile and preferences',
+            'mode_purpose': 'personalized assistance'
+        }
+    }
+    
+    context = context_mappings.get(ai_mode, context_mappings['normal'])
+    user_understanding = prompt["shared_instructions"]["user_understanding"].format(**context)
+    template_parts.append(user_understanding)
+    template_parts.extend(prompt['shared_instructions']['core_principles'])
+    
+    template_parts.append(f"In {ai_mode} mode, you focus on:")
+    for area in mode_config['focus_areas']:
+        template_parts.append(f"- {area}")
+
+    template_parts.append(mode_config['special_guidance'])
+    template_parts.append("\n--- USER CONTEXT INTEGRATION ---")
+    
+    core_values = user_data.get("coreValues", [])
+    print("Got core values: ", core_values)
+    core_values = ", ".join([cv.get('value', '') for cv in core_values]) if core_values else "None"
+    
+    life_domains = user_data.get("lifeDomains", [])
+    print("Got life domains: ", life_domains)
+    life_domains = ", ".join([ld.get('domain', '') for ld in life_domains]) if life_domains else "None"
+    
+    context_integration = prompt['shared_instructions']['user_context_integration']
+    template_parts.append(context_integration['mission_statement'].format(
+        mission_statement=user_data.get("missionStatement", "Not specified")
+    ))
+    template_parts.append(context_integration['core_values'].format(
+        core_values=core_values
+    ))
+    template_parts.append(context_integration['life_domains'].format(
+        life_domains=life_domains
+    ))
+    
+    comm_style = prompt['shared_instructions']['communication_style']
+    template_parts.append(comm_style['addressing'].format(
+        name=user_data.get("systemName", "AI"),
+        date=datetime.date.today().strftime("%Y-%m-%d"),
+        time=datetime.datetime.now().strftime("%H:%M:%S"),
+        country=user_data.get("country", "Unknown"),
+        user=user_data.get("name", "User")
+    ))
+    template_parts.append(comm_style['repetition'])
+    template_parts.append(comm_style['messaging'])
+    template_parts.append(comm_style['personalities'].format(
+        personalities=",".join(user_data.get("personalities", []))
+    ))
+
+    if ai_mode in prompt_raw.get('mode_specific_additions', {}):
+        additions = prompt_raw['mode_specific_additions'][ai_mode]
+        if 'additional_principles' in additions:
+            template_parts.extend(additions['additional_principles'])
+        if 'special_tools' in additions:
+            template_parts.extend(additions['special_tools'])
+        if 'markdown_note' in additions:
+            template_parts.append(additions['markdown_note'])
+
+    tools = prompt['shared_instructions']['tools_and_widgets']
+    template_parts.append(tools['graph_modification'])
+    template_parts.append(tools['widget_creation'])
+    template_parts.append("Widget Rules:")
+    for rule in tools['widget_rules']:
+        template_parts.append(f"- {rule}")
+
+    template_parts.append("IMPORTANT - RESPONSE FORMAT:")
+    template_parts.append(prompt['shared_instructions']['response_model'])
+
+    template_parts.append(prompt['shared_instructions']['user_graph'].format(
+        bulletProse=chat_request.bulletProse
+    ))
+
+    prompt_template = '\n\n'.join(template_parts) 
 
     system_prompt = prompt_template.replace("{bulletProse}", chat_request.bulletProse)
     system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
@@ -776,15 +816,15 @@ async def chat_stream(
     system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
     system_prompt = system_prompt.replace("{country}", user_data.get("country", "Unknown"))
 
+    api_key = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
     client = OpenAI(
-        api_key="AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw",
+        api_key=api_key,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
     )
 
     messages_for_gemini_processing = list(all_messages)
 
-    # total_tokens = sum(len(msg.content.split()) for msg in messages_for_gemini_processing) 
-    total_tokens = 3 # I think it is so cheap that this is fine, I'm charging like $1 per 10 messages, and 10 messages costs me maybe like .2$
+    total_tokens = 3 
     if not CreditManager.deduct_credits(user_ref, total_tokens/3):
         raise HTTPException(status_code=402, detail="Insufficient credits")
     
@@ -811,7 +851,6 @@ async def chat_stream(
         logger.info(f"Received file: {file_name} with size {len(file_content)} bytes")
         
         base64_file = base64.b64encode(file_content).decode('utf-8')
-        
         mime_type = file.content_type or "application/octet-stream"
         
         if mime_type.startswith('image/'):
@@ -862,12 +901,10 @@ async def chat_stream(
         )
         
         structured_response = completion.choices[0].message.parsed
-        
         logger.info(f"Generated structured response for conversation {conversation_id}")
         
     except Exception as e:
         logger.error(f"Error during structured response generation: {e}")
-
         structured_response = AiChatResponse(
             reply="Error: Could not get response from AI. Got error: " + str(e),
             updated_preferences="",
@@ -889,414 +926,6 @@ async def chat_stream(
         media_type="text/plain",
         headers=headers
     )
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, raw_request: Request, user_info: dict = Depends(verify_token)):
-    user_uid = user_info["uid"]
-    user_ref = db.collection("users").document(user_uid)
-
-    client_ip = raw_request.client.host if raw_request.client else "Unknown IP"
-    location = "Unknown Location"
-    if client_ip:
-        try:
-            ipinfo_token = "38c16d946ecb52"
-            response = requests.get(f"https://ipinfo.io/{client_ip}?token={ipinfo_token}")
-            response.raise_for_status()
-            location_data = response.json()
-            print(f"Location data for IP {client_ip}: {location_data}")
-            location = location_data.get("city", "Unknown City") + ", " + location_data.get("region", "Unknown Region")
-        except Exception as e:
-            logger.error(f"Error retrieving location for IP {client_ip}: {e}")
-
-    conversation_ref: firestore.DocumentReference
-    conversation_id = request.conversation_id
-    now = datetime.datetime.now(datetime.timezone.utc)
-    is_brand_new_conversation_this_call = False
-
-    if conversation_id:
-        conversation_ref = user_ref.collection("conversations").document(conversation_id)
-        conversation_doc = conversation_ref.get()
-
-        if not conversation_doc.exists:
-            logger.warning(f"Provided conversation ID {conversation_id} not found for user {user_uid}. Starting a new conversation with a *new* ID.")
-            conversation_ref = user_ref.collection("conversations").document()
-            conversation_id = conversation_ref.id
-            conversation_ref.set({
-                "user_id": user_uid,
-                "created_at": now,
-                "last_updated": now,
-                "messages": [],
-                "title": "New Conversation"
-            })
-            logger.info(f"Created new conversation with ID {conversation_id} as provided ID was not found.")
-
-    else:
-        conversation_ref = user_ref.collection("conversations").document()
-        conversation_id = conversation_ref.id
-        conversation_ref.set({
-            "user_id": user_uid,
-            "created_at": now,
-            "last_updated": now,
-            "messages": [],
-            "title": "New Conversation"
-        })
-        logger.info(f"Started brand new conversation: {conversation_id} for user {user_uid}")
-        is_brand_new_conversation_this_call = True
-
-    if not request.messages:
-        logger.warning(f"Received empty message list for conversation {conversation_id}")
-        return ChatResponse(reply="No messages received", conversation_id=conversation_id)
-
-    all_messages: List[Message] = [
-         Message(role=msg['role'], content=msg['content'], timestamp=msg.get('timestamp', now))
-         for msg in request.messages
-     ]
-
-    if all_messages and not all_messages[-1].timestamp:
-         all_messages[-1].timestamp = now
-
-
-    print("Full message history from request:", all_messages)
-
-    user_doc = user_ref.get()
-    user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
-    username = user_data.get("name", "User")
-    user_prefs = user_data.get("ChatPreferences", "")
-    ai_personalities = user_data.get("personalities", [])
-
-    try:
-        with open("prompt.txt", "r") as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        logger.error("prompt.txt not found")
-        return ChatResponse(reply="Server error: Prompt file not found.", conversation_id=conversation_id)
-
-    current_date = datetime.date.today().strftime("%Y-%m-%d")
-    current_time = datetime.datetime.now().strftime("%H:%M:%S")
-
-    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
-    system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
-    system_prompt = system_prompt.replace("{date}", current_date)
-    system_prompt = system_prompt.replace("{time}", current_time)
-    system_prompt = system_prompt.replace("{location}", location)
-    system_prompt = system_prompt.replace("{user}", username)
-    system_prompt = system_prompt.replace("{instructionSet}", user_prefs)
-    system_prompt = system_prompt.replace("{personalities}", ",".join(ai_personalities))
-
-    # system_message = {"role": "system", "content": prompt}
-
-    MAX_WORDS = 120000
-    # total_length = 0
-
-    # messages_for_ai.append(system_message)
-    # total_length += len(system_message["content"].split())
-
-    truncated_history_messages = []
-    total_length = 0
-    for msg in all_messages:
-        message_content = msg.content
-        message_words = message_content.split()
-        if total_length + len(message_words) > MAX_WORDS:
-            remaining_words = MAX_WORDS - total_length
-            if remaining_words > 0:
-                truncated_content = ' '.join(message_words[:remaining_words])
-                truncated_history_messages.append({"role": msg.role, "content": truncated_content})
-                total_length += len(truncated_content.split())
-            break
-        else:
-            truncated_history_messages.append({"role": msg.role, "content": message_content})
-            total_length += len(message_words)
-
-    # messages_for_ai.extend(truncated_history_messages)
-
-    if total_length >= MAX_WORDS:
-        logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {conversation_id})")
-
-    # print("Messages sent to AI:", messages_for_ai)
-
-    try:
-        model = genai.GenerativeModel(
-            model_name='gemini-1.5-flash-latest',
-            system_instruction=system_prompt
-        )
-
-        messages_for_gemini = []
-        for msg in truncated_history_messages:
-            if not msg.get('content'):
-                continue
-            role = 'model' if msg['role'] == 'assistant' else 'user'
-            messages_for_gemini.append({
-                'role': role,
-                'parts': [msg['content']]
-            })
-        
-        logger.info(f"Sending {len(messages_for_gemini)} messages to Gemini for conversation {conversation_id}")
-        chat_session = model.start_chat(history=messages_for_gemini[:-1])
-        last_message = messages_for_gemini[-1]['parts'][0]
-        
-        response = chat_session.send_message(last_message)
-
-        ai_reply_content = response.text
-        logger.info(f"Received AI reply for conversation {conversation_id}")
-        ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
-        all_messages.append(ai_message)
-
-        graph_string = None
-        if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
-            try:
-                start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
-                end_index = ai_reply_content.find("</GRAPH>", start_index)
-                if end_index != -1:
-                    graph_string = ai_reply_content[start_index:end_index]
-                    graph_data = json.loads(graph_string)
-                    user_ref.update({
-                        "edges": graph_data.get("edges", []),
-                        "nodes": graph_data.get("nodes", [])
-                    })
-                    logger.info(f"Graph data updated in Firestore for user {user_uid}")
-                    ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
-                else:
-                    logger.warning("Mismatched <GRAPH> tags in AI response.")
-                    ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
-            except json.JSONDecodeError as e:
-                logger.error(f"Error decoding JSON graph data from AI: {e}")
-                ai_reply_content += "\n\n(Error processing graph data)" 
-            except Exception as e:
-                logger.error(f"Unexpected error processing graph data: {e}")
-                ai_reply_content += "\n\n(Error processing graph data)"
-
-
-        pref = None
-        if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
-            try:
-                start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
-                end_index = ai_reply_content.find("</PREF>", start_index)
-                if end_index != -1:
-                    pref = ai_reply_content[start_index:end_index]
-                    user_ref.update({
-                        "ChatPreferences": pref
-                    })
-                    logger.info(f"User preferences updated in Firestore for user {user_uid}")
-                    ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
-                else:
-                    logger.warning("Mismatched <PREF> tags in AI response.")
-                    ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
-            except Exception as e:
-                logger.error(f"Unexpected error processing user preferences: {e}")
-                ai_reply_content += "\n\n(Error processing user preferences)"
-
-        messages_to_store = [msg.model_dump() for msg in all_messages]
-
-        update_data = {
-            "messages": messages_to_store,
-            "last_updated": datetime.datetime.now(datetime.timezone.utc)
-        }
-
-        if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
-            try:
-                first_message_content = all_messages[0].content
-                with open("titleprompt.txt", "r") as f:
-                    titleprompt = f.read()
-
-                title_model = genai.GenerativeModel('gemini-1.5-flash-latest')
-                title_generation_prompt = f"Please generate a short, descriptive conversation title for the following message:\n{first_message_content}"
-                
-                title_response = title_model.generate_content(
-                    title_generation_prompt,
-                )
-
-                title = title_response.text.strip().replace('"', '')
-                update_data["title"] = title
-                logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
-
-            except FileNotFoundError:
-                logger.error("titleprompt.txt not found, could not generate title.")
-            except Exception as e:
-                logger.error(f"An unexpected error occurred during Gemini title generation: {e}")
-
-        conversation_ref.update(update_data)
-        logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
-
-        return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
-        
-    except Exception as e:
-        logger.error(f"An unexpected error occurred in /chat with Gemini: {e}", exc_info=True)
-        try:
-            messages_to_store = [msg.model_dump() for msg in all_messages]
-            conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"Conversation {conversation_id} updated in Firestore after unexpected error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
-
-        return ChatResponse(reply=f"An unexpected server error occurred with the AI model: {str(e)}", conversation_id=conversation_id)
-
-    # url = "https://ai.hackclub.com/chat/completions"
-    # headers = {
-    #     "Content-Type": "application/json",
-    # }
-    # data_to_send = {
-    #     "messages": messages_for_ai,
-    #     "model": "llama-3.3-70b-versatile"
-    # }
-
-    # try:
-    #     response = requests.post(url, headers=headers, json=data_to_send)
-    #     response.raise_for_status()
-
-    #     response_data = response.json()
-
-    #     ai_reply_content = "No valid response from AI"
-    #     if "choices" in response_data and len(response_data["choices"]) > 0:
-    #         ai_reply_content = response_data["choices"][0]["message"]["content"]
-    #         logger.info(f"Received AI reply for conversation {conversation_id}")
-    #         ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
-    #         all_messages.append(ai_message)
-
-    #         graph_string = None
-    #         if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
-    #             try:
-    #                 start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
-    #                 end_index = ai_reply_content.find("</GRAPH>", start_index)
-    #                 if end_index != -1:
-    #                     graph_string = ai_reply_content[start_index:end_index]
-    #                     graph_data = json.loads(graph_string)
-    #                     user_ref.update({
-    #                         "edges": graph_data.get("edges", []),
-    #                         "nodes": graph_data.get("nodes", [])
-    #                     })
-    #                     logger.info(f"Graph data updated in Firestore for user {user_uid}")
-    #                     ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
-    #                 else:
-    #                     logger.warning("Mismatched <GRAPH> tags in AI response.")
-    #                     ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)" 
-    #             except json.JSONDecodeError as e:
-    #                 logger.error(f"Error decoding JSON graph data from AI: {e}")
-    #                 ai_reply_content += "\n\n(Error processing graph data)" 
-    #             except Exception as e:
-    #                 logger.error(f"Unexpected error processing graph data: {e}")
-    #                 ai_reply_content += "\n\n(Error processing graph data)"
-
-
-    #         pref = None
-    #         if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
-    #             try:
-    #                 start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
-    #                 end_index = ai_reply_content.find("</PREF>", start_index)
-    #                 if end_index != -1:
-    #                     pref = ai_reply_content[start_index:end_index]
-    #                     user_ref.update({
-    #                         "ChatPreferences": pref
-    #                     })
-    #                     logger.info(f"User preferences updated in Firestore for user {user_uid}")
-    #                     ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
-    #                 else:
-    #                     logger.warning("Mismatched <PREF> tags in AI response.")
-    #                     ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
-    #             except Exception as e:
-    #                 logger.error(f"Unexpected error processing user preferences: {e}")
-    #                 ai_reply_content += "\n\n(Error processing user preferences)"
-
-    #         messages_to_store = [msg.model_dump() for msg in all_messages]
-
-    #         update_data = {
-    #             "messages": messages_to_store,
-    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
-    #         }
-
-    #         if is_brand_new_conversation_this_call and len(all_messages) > 0 and all_messages[0].role == "user":
-    #             try:
-    #                 first_message_content = all_messages[0].content
-    #                 titleprompt = open("titleprompt.txt", "r").read()
-    #                 title_data_to_send = {
-    #                     "messages": [
-    #                         {
-    #                             "role": "system",
-    #                             "content": titleprompt
-    #                         },
-    #                         {
-    #                             "role": "user",
-    #                             "content": "Please generate a short, descriptive conversation title for the following message:\n" + first_message_content
-    #                         }
-    #                     ],
-    #                     "model": "llama-3.3-70b-versatile"
-    #                 }
-    #                 title_response = requests.post(url, headers=headers, json=title_data_to_send)
-    #                 title_response.raise_for_status()
-    #                 title_response_data = title_response.json()
-    #                 if "choices" in title_response_data and len(title_response_data["choices"]) > 0:
-    #                     title = title_response_data["choices"][0]["message"]["content"].strip()
-    #                     update_data["title"] = title
-    #                     logger.info(f"Generated title for new conversation {conversation_id}: '{title}'")
-    #                 else:
-    #                     logger.error("No choices found in the AI response for title generation.")
-    #             except FileNotFoundError:
-    #                 logger.error("titleprompt.txt not found, could not generate title.")
-    #             except requests.exceptions.RequestException as e:
-    #                 logger.error(f"Error calling AI for title generation: {e}")
-    #             except Exception as e:
-    #                 logger.error(f"An unexpected error occurred during title generation: {e}")
-
-
-    #         conversation_ref.update(update_data)
-    #         logger.info(f"Conversation {conversation_id} updated in Firestore with {len(all_messages)} messages.")
-
-    #         return ChatResponse(reply=ai_reply_content.strip(), conversation_id=conversation_id)
-
-    #     else:
-    #         logger.error("No choices found in the AI response payload.")
-    #         messages_to_store = [msg.model_dump() for msg in all_messages]
-    #         conversation_ref.update({
-    #             "messages": messages_to_store,
-    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
-    #         })
-    #         logger.info(f"Conversation {conversation_id} updated in Firestore after AI error.")
-    #         return ChatResponse(reply="No valid response from AI", conversation_id=conversation_id)
-
-
-    # except requests.exceptions.HTTPError as e:
-    #     logger.error(f"HTTP error from AI API: {e.response.status_code} - {e.response.text}")
-    #     try:
-    #         messages_to_store = [msg.model_dump() for msg in all_messages]
-    #         conversation_ref.update({
-    #             "messages": messages_to_store,
-    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
-    #         })
-    #         logger.info(f"Conversation {conversation_id} updated in Firestore after HTTP error.")
-    #     except Exception as db_e:
-    #         logger.error(f"Failed to save conversation history after HTTP error: {db_e}")
-
-    #     return ChatResponse(reply=f"Error communicating with AI: {e.response.status_code} - {e.response.text}", conversation_id=conversation_id)
-
-    # except requests.exceptions.RequestException as e:
-    #     logger.error(f"Network error communicating with AI API: {e}")
-    #     try:
-    #         messages_to_store = [msg.model_dump() for msg in all_messages]
-    #         conversation_ref.update({
-    #             "messages": messages_to_store,
-    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
-    #         })
-    #         logger.info(f"Conversation {conversation_id} updated in Firestore after network error.")
-    #     except Exception as db_e:
-    #         logger.error(f"Failed to save conversation history after network error: {db_e}")
-
-    #     return ChatResponse(reply="Network error communicating with AI", conversation_id=conversation_id)
-
-    # except Exception as e:
-    #     logger.error(f"An unexpected error occurred in /chat: {e}", exc_info=True)
-    #     try:
-    #         messages_to_store = [msg.model_dump() for msg in all_messages]
-    #         conversation_ref.update({
-    #             "messages": messages_to_store,
-    #             "last_updated": datetime.datetime.now(datetime.timezone.utc)
-    #         })
-    #         logger.info(f"Conversation {conversation_id} updated in Firestore after unexpected error.")
-    #     except Exception as db_e:
-    #         logger.error(f"Failed to save conversation history after unexpected error: {db_e}")
-
-    #     return ChatResponse(reply="An unexpected server error occurred", conversation_id=conversation_id)
 
 @app.post("/edit", response_model=ChatResponse)
 async def edit_conversation(request: EditRequest, user_info: dict = Depends(verify_token)):
