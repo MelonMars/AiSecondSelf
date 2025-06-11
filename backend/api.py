@@ -1003,184 +1003,233 @@ async def edit_conversation(request: EditRequest, user_info: dict = Depends(veri
     })
 
     user_doc = user_ref.get()
-    user_data = user_doc.to_dict() if user_doc.exists else {"name": "User"}
-    username = user_data.get("name", "User")
-    user_prefs = user_data.get("ChatPreferences", "")
+    user_data = user_doc.to_dict() if user_doc.exists else {}
+    
+    with open("prompt.json", "r") as f:
+        prompt_raw = json.load(f)
+    
+    ai_mode = "normal" 
+    
+    prompt = prompt_raw["base_template"]
+    mode_config = prompt['mode_configs'][ai_mode]
+    template_parts = []
+    
+    core_identity = prompt['core_identity'].format(
+        mode=ai_mode,
+        mode_description=mode_config['mode_description'],
+    )
+    template_parts.append(core_identity)
+    
+    context_mappings = {
+        'reflect': {
+            'mode_specialty': 'reflection',
+            'core_skills': 'asking probing questions, creating safe spaces for vulnerability',
+            'primary_outcome': 'connect with their deeper truths and authentic selves',
+            'context_focus': 'deeper patterns, relationships, and life themes',
+            'mode_purpose': 'more meaningful reflection'
+        },
+        'review': {
+            'mode_specialty': 'review',
+            'core_skills': 'pattern recognition, outcome analysis',
+            'primary_outcome': 'gain clarity on their experiences without judgment',
+            'context_focus': 'history and context',
+            'mode_purpose': 'better review and analysis'
+        },
+        'plan': {
+            'mode_specialty': 'planning',
+            'core_skills': 'strategic thinking, goal-setting, resource allocation',
+            'primary_outcome': 'create realistic yet ambitious plans for their future',
+            'context_focus': 'current situation, resources, and constraints',
+            'mode_purpose': 'better planning'
+        },
+        'normal': {
+            'mode_specialty': 'comprehensive support',
+            'core_skills': 'adapting tone and approach, providing both emotional and technical assistance',
+            'primary_outcome': 'navigate life\'s complexities with both wisdom and practical solutions',
+            'context_focus': 'complete profile and preferences',
+            'mode_purpose': 'personalized assistance'
+        }
+    }
+    
+    context = context_mappings.get(ai_mode, context_mappings['normal'])
+    user_understanding = prompt["shared_instructions"]["user_understanding"].format(**context)
+    template_parts.append(user_understanding)
+    template_parts.extend(prompt['shared_instructions']['core_principles'])
+    
+    template_parts.append(f"In {ai_mode} mode, you focus on:")
+    for area in mode_config['focus_areas']:
+        template_parts.append(f"- {area}")
+
+    template_parts.append(mode_config['special_guidance'])
+    template_parts.append("\n--- USER CONTEXT INTEGRATION ---")
+    
+    core_values = user_data.get("coreValues", [])
+    print("Got core values: ", core_values)
+    core_values = ", ".join([cv.get('value', '') for cv in core_values]) if core_values else "None"
+    
+    life_domains = user_data.get("lifeDomains", [])
+    print("Got life domains: ", life_domains)
+    life_domains = ", ".join([ld.get('domain', '') for ld in life_domains]) if life_domains else "None"
+    
+    context_integration = prompt['shared_instructions']['user_context_integration']
+    template_parts.append(context_integration['mission_statement'].format(
+        mission_statement=user_data.get("missionStatement", "Not specified")
+    ))
+    template_parts.append(context_integration['core_values'].format(
+        core_values=core_values
+    ))
+    template_parts.append(context_integration['life_domains'].format(
+        life_domains=life_domains
+    ))
+    
+    comm_style = prompt['shared_instructions']['communication_style']
+    template_parts.append(comm_style['addressing'].format(
+        name=user_data.get("systemName", "AI"),
+        date=datetime.date.today().strftime("%Y-%m-%d"),
+        time=datetime.datetime.now().strftime("%H:%M:%S"),
+        country=user_data.get("country", "Unknown"),
+        user=user_data.get("name", "User")
+    ))
+    template_parts.append(comm_style['repetition'])
+    template_parts.append(comm_style['messaging'])
+    template_parts.append(comm_style['personalities'].format(
+        personalities=",".join(user_data.get("personalities", []))
+    ))
+
+    if ai_mode in prompt_raw.get('mode_specific_additions', {}):
+        additions = prompt_raw['mode_specific_additions'][ai_mode]
+        if 'additional_principles' in additions:
+            template_parts.extend(additions['additional_principles'])
+        if 'special_tools' in additions:
+            template_parts.extend(additions['special_tools'])
+        if 'markdown_note' in additions:
+            template_parts.append(additions['markdown_note'])
+
+    tools = prompt['shared_instructions']['tools_and_widgets']
+    template_parts.append(tools['graph_modification'])
+    template_parts.append(tools['widget_creation'])
+    template_parts.append("Widget Rules:")
+    for rule in tools['widget_rules']:
+        template_parts.append(f"- {rule}")
+
+    template_parts.append("IMPORTANT - RESPONSE FORMAT:")
+    template_parts.append(prompt['shared_instructions']['response_model'])
+
+    template_parts.append(prompt['shared_instructions']['user_graph'].format(
+        bulletProse=request.bulletProse
+    ))
+
+    prompt_template = '\n\n'.join(template_parts) 
+
+    system_prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
+    system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
+    system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
+    system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
+    system_prompt = system_prompt.replace("{location}", user_data.get("location", "Unknown"))
+    system_prompt = system_prompt.replace("{user}", user_data.get("name", "User"))
+    system_prompt = system_prompt.replace("{instructionSet}", user_data.get("ChatPreferences", ""))
+    system_prompt = system_prompt.replace("{personalities}", ",".join(user_data.get("personalities", [])))
+    system_prompt = system_prompt.replace("{country}", user_data.get("country", "Unknown"))
+
+    # Use Gemini OpenAI API like chat-stream
+    api_key = os.getenv("GOOGLE_AI_API_KEY", "AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw")
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    )
+
+    messages_for_gemini_processing = list(messages_for_new_branch)
+
+    total_tokens = 3 
+    if not CreditManager.deduct_credits(user_ref, total_tokens/3):
+        raise HTTPException(status_code=402, detail="Insufficient credits")
+    
+    processed_messages_for_gemini = await summarize_long_chat_history(
+        messages_for_gemini_processing,
+        client,
+        10
+    )
+    logger.info(f"Messages prepared for Gemini (after potential summarization): {len(processed_messages_for_gemini)} messages.")
+
+    openai_messages = [{"role": "system", "content": system_prompt}]
+    
+    for msg in processed_messages_for_gemini:
+        role = 'assistant' if msg.role == 'assistant' else 'user'
+        openai_messages.append({
+            "role": role,
+            "content": msg.content
+        })
+
+    print("Messages sent to AI for new branch:", openai_messages)
 
     try:
-        with open("prompt.txt", "r") as f:
-            prompt_template = f.read()
-    except FileNotFoundError:
-        logger.error("prompt.txt not found")
-        raise HTTPException(status_code=500, detail="Server error: Prompt file not found.")
+        completion = client.beta.chat.completions.parse(
+            model="gemini-2.0-flash",
+            messages=openai_messages,
+            response_format=AiChatResponse,
+        )
+        
+        structured_response = completion.choices[0].message.parsed
+        logger.info(f"Generated structured response for conversation {new_conversation_id}")
+        
+        ai_reply_content = structured_response.reply
+        
+        # Handle graph updates
+        if structured_response.updated_graph and structured_response.updated_graph != "{}":
+            try:
+                graph_data = json.loads(structured_response.updated_graph)
+                user_ref.update({
+                    "edges": graph_data.get("edges", []),
+                    "nodes": graph_data.get("nodes", [])
+                })
+                logger.info(f"Graph data updated in Firestore for user {user_uid}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error decoding JSON graph data from AI: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error processing graph data: {e}")
 
-    current_date = datetime.date.today().strftime("%Y-%m-%d")
-    current_time = datetime.datetime.now().strftime("%H:%M:%S")
+        # Handle preferences updates
+        if structured_response.updated_preferences:
+            try:
+                user_ref.update({
+                    "ChatPreferences": structured_response.updated_preferences
+                })
+                logger.info(f"User preferences updated in Firestore for user {user_uid}")
+            except Exception as e:
+                logger.error(f"Unexpected error processing user preferences: {e}")
 
-    prompt = prompt_template.replace("{bulletProse}", request.bulletProse)
-    prompt = prompt.replace("{name}", user_data.get("name", "User"))
-    prompt = prompt.replace("{date}", current_date)
-    prompt = prompt.replace("{time}", current_time)
-    prompt = prompt.replace("{location}", "NYC")
-    prompt = prompt.replace("{user}", username)
-    prompt = prompt.replace("{instructionSet}", user_prefs)
+        ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        messages_for_new_branch.append(ai_message)
 
-    system_message = {"role": "system", "content": prompt}
+        messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
 
-    MAX_WORDS = 120000
-    messages_for_ai = []
-    total_length = 0
+        new_conversation_ref.update({
+            "messages": messages_to_store,
+            "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        })
+        logger.info(f"New conversation branch {new_conversation_id} updated in Firestore with {len(messages_for_new_branch)} messages.")
 
-    messages_for_ai.append(system_message)
-    total_length += len(system_message["content"].split())
-
-    truncated_history_messages = []
-    for msg in messages_for_new_branch:
-        message_content = msg.content
-        message_words = message_content.split()
-        if total_length + len(message_words) > MAX_WORDS:
-            remaining_words = MAX_WORDS - total_length
-            if remaining_words > 0:
-                truncated_content = ' '.join(message_words[:remaining_words])
-                truncated_history_messages.append({"role": msg.role, "content": truncated_content})
-                total_length += len(truncated_content.split())
-            break
-        else:
-            truncated_history_messages.append({"role": msg.role, "content": message_content})
-            total_length += len(message_words)
-
-    messages_for_ai.extend(truncated_history_messages)
-
-    if total_length >= MAX_WORDS:
-        logger.warning(f"Total message length ({total_length} words) exceeds {MAX_WORDS}, messages have been truncated for AI call (Conversation ID: {new_conversation_id})")
-
-    print("Messages sent to AI for new branch:", messages_for_ai)
-
-    url = "https://ai.hackclub.com/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-    }
-    data_to_send = {
-        "messages": messages_for_ai,
-        "model": "llama-3.3-70b-versatile"
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=data_to_send)
-        response.raise_for_status()
-
-        response_data = response.json()
-
-        ai_reply_content = "No valid response from AI"
-        if "choices" in response_data and len(response_data["choices"]) > 0:
-            ai_reply_content = response_data["choices"][0]["message"]["content"]
-            logger.info(f"Received AI reply for new conversation branch {new_conversation_id}")
-            ai_message = Message(role="assistant", content=ai_reply_content, timestamp=datetime.datetime.now(datetime.timezone.utc))
-            messages_for_new_branch.append(ai_message)
-
-            graph_string = None
-            if "<GRAPH>" in ai_reply_content and "</GRAPH>" in ai_reply_content:
-                try:
-                    start_index = ai_reply_content.find("<GRAPH>") + len("<GRAPH>")
-                    end_index = ai_reply_content.find("</GRAPH>", start_index)
-                    if end_index != -1:
-                        graph_string = ai_reply_content[start_index:end_index]
-                        graph_data = json.loads(graph_string)
-                        user_ref.update({
-                            "edges": graph_data.get("edges", []),
-                            "nodes": graph_data.get("nodes", [])
-                        })
-                        logger.info(f"Graph data updated in Firestore for user {user_uid}")
-                        ai_reply_content = ai_reply_content.replace(f"<GRAPH>{graph_string}</GRAPH>", "")
-                    else:
-                        logger.warning("Mismatched <GRAPH> tags in AI response.")
-                        ai_reply_content += "\n\n(Warning: Mismatched GRAPH tags)"
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding JSON graph data from AI: {e}")
-                    ai_reply_content += "\n\n(Error processing graph data)"
-                except Exception as e:
-                    logger.error(f"Unexpected error processing graph data: {e}")
-                    ai_reply_content += "\n\n(Error processing graph data)"
-
-            pref = None
-            if "<PREF>" in ai_reply_content and "</PREF>" in ai_reply_content:
-                try:
-                    start_index = ai_reply_content.find("<PREF>") + len("<PREF>")
-                    end_index = ai_reply_content.find("</PREF>", start_index)
-                    if end_index != -1:
-                        pref = ai_reply_content[start_index:end_index]
-                        user_ref.update({
-                            "ChatPreferences": pref
-                        })
-                        logger.info(f"User preferences updated in Firestore for user {user_uid}")
-                        ai_reply_content = ai_reply_content.replace(f"<PREF>{pref}</PREF>", "")
-                    else:
-                        logger.warning("Mismatched <PREF> tags in AI response.")
-                        ai_reply_content += "\n\n(Warning: Mismatched PREF tags)"
-                except Exception as e:
-                    logger.error(f"Unexpected error processing user preferences: {e}")
-                    ai_reply_content += "\n\n(Error processing user preferences)"
-
-            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
-
-            new_conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore with {len(messages_for_new_branch)} messages.")
-
-            return ChatResponse(reply=ai_reply_content.strip(), conversation_id=new_conversation_id)
-
-        else:
-            logger.error("No choices found in the AI response payload for new branch.")
-            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
-            new_conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after AI error.")
-            return ChatResponse(reply="No valid response from AI", conversation_id=new_conversation_id)
-
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"HTTP error from AI API for new branch: {e.response.status_code} - {e.response.text}")
-        try:
-            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
-            new_conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after HTTP error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history for new branch after HTTP error: {db_e}")
-        raise HTTPException(status_code=e.response.status_code, detail=f"Error communicating with AI: {e.response.text}")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error communicating with AI API for new branch: {e}")
-        try:
-            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
-            new_conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after network error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history for new branch after network error: {db_e}")
-        raise HTTPException(status_code=500, detail="Network error communicating with AI")
-
+        return ChatResponse(reply=ai_reply_content.strip(), conversation_id=new_conversation_id)
+        
     except Exception as e:
-        logger.error(f"An unexpected error occurred in /edit: {e}", exc_info=True)
-        try:
-            messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
-            new_conversation_ref.update({
-                "messages": messages_to_store,
-                "last_updated": datetime.datetime.now(datetime.timezone.utc)
-            })
-            logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after unexpected error.")
-        except Exception as db_e:
-            logger.error(f"Failed to save conversation history for new branch after unexpected error: {db_e}")
-        raise HTTPException(status_code=500, detail="An unexpected server error occurred")
-
-    return {"message": "Conversation updated successfully"}
+        logger.error(f"Error during structured response generation: {e}")
+        structured_response = AiChatResponse(
+            reply="Error: Could not get response from AI. Got error: " + str(e),
+            updated_preferences="",
+            updated_graph="{}",
+        )
+        
+        ai_message = Message(role="assistant", content=structured_response.reply, timestamp=datetime.datetime.now(datetime.timezone.utc))
+        messages_for_new_branch.append(ai_message)
+        
+        messages_to_store = [msg.model_dump() for msg in messages_for_new_branch]
+        new_conversation_ref.update({
+            "messages": messages_to_store,
+            "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        })
+        logger.info(f"New conversation branch {new_conversation_id} updated in Firestore after AI error.")
+        return ChatResponse(reply=structured_response.reply, conversation_id=new_conversation_id)
+    
 
 class MissionStatementRequest(BaseModel):
     prompt: str

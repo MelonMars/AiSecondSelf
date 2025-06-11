@@ -698,7 +698,11 @@ const ChatComponent = ({
   setAiMode,
   aiModes,
   uploadedFiles,
-  setUploadedFiles
+  setUploadedFiles,
+  navigateToNextBranch,
+  navigateToPreviousBranch,
+  currentBranchGroup,
+  currentBranchIndex,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [editingConversationId, setEditingConversationId] = useState(null);
@@ -1510,30 +1514,14 @@ const ChatComponent = ({
                             </>
                           )}
                         </div>
-
-                        {(
-                          (currentConversationBranchInfo?.parent_conversation_id && currentConversationBranchInfo.branch_from_message_index === index) ||
-                          (currentConversationBranchInfo?.children_branches && currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))
-                        ) && (
+                        {(currentBranchGroup && currentBranchGroup.length > 1) && 
+                          (currentConversationBranchInfo?.branch_from_message_index === index || 
+                            (currentConversationBranchInfo?.children_branches && 
+                            currentConversationBranchInfo.children_branches.some(b => b.branch_from_message_index === index))) && (
                           <div className={`flex mt-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
                             <div className="flex items-center space-x-2">
                               <button
-                                onClick={async () => {
-                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
-                                                      currentConversationBranchInfo.branch_from_message_index === index;
-                                  
-                                  if (isChildBranch) {
-                                    await loadConversation(currentConversationBranchInfo.parent_conversation_id);
-                                  } else {
-                                    const childBranches = currentConversationBranchInfo?.children_branches
-                                      ?.filter(b => b.branch_from_message_index === index) || [];
-                                    
-                                    if (childBranches.length > 0) {
-                                      const lastChildBranch = childBranches[childBranches.length - 1];
-                                      await loadConversation(lastChildBranch.id);
-                                    }
-                                  }
-                                }}
+                                onClick={navigateToPreviousBranch}
                                 className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
@@ -1549,36 +1537,11 @@ const ChatComponent = ({
                                   ? 'bg-white/10 border-white/20 text-white' 
                                   : 'bg-white/60 border-white/40 text-gray-700'
                               }`}>
-                                {(() => {
-                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
-                                                      currentConversationBranchInfo.branch_from_message_index === index;
-                                  
-                                  if (isChildBranch) {
-                                    return "Branch";
-                                  } else {
-                                    const childBranches = currentConversationBranchInfo?.children_branches
-                                      ?.filter(b => b.branch_from_message_index === index) || [];
-                                    return `1 / ${childBranches.length + 1}`;
-                                  }
-                                })()}
+                                {currentBranchIndex + 1} / {currentBranchGroup.length}
                               </div>
 
                               <button
-                                onClick={async () => {
-                                  const isChildBranch = currentConversationBranchInfo?.parent_conversation_id && 
-                                                      currentConversationBranchInfo.branch_from_message_index === index;
-                                  
-                                  if (isChildBranch) {
-                                    await loadConversation(currentConversationBranchInfo.parent_conversation_id);
-                                  } else {
-                                    const childBranches = currentConversationBranchInfo?.children_branches
-                                      ?.filter(b => b.branch_from_message_index === index) || [];
-                                    
-                                    if (childBranches.length > 0) {
-                                      await loadConversation(childBranches[0].id);
-                                    }
-                                  }
-                                }}
+                                onClick={navigateToNextBranch}
                                 className={`p-2 rounded-full backdrop-blur-sm border transition-all duration-300 hover:scale-105 active:scale-95 ${
                                   darkMode 
                                     ? 'bg-white/10 hover:bg-white/20 border-white/20 text-white shadow-lg' 
@@ -1591,6 +1554,7 @@ const ChatComponent = ({
                             </div>
                           </div>
                         )}
+
                       </>
                     )}
                   </div>
