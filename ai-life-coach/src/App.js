@@ -657,20 +657,22 @@ export default function App() {
         }
       }
     }
-  }, [location.pathname, tab, currentConversationId]);
+  }, [location.pathname, currentConversationId]); 
 
   const handleTabChange = (newTab) => {
     setTab(newTab);
     
-    if (newTab === 'chat') {
-      if (currentConversationId) {
-        navigate(`/chat/${currentConversationId}`);
+    setTimeout(() => {
+      if (newTab === 'chat') {
+        if (currentConversationId) {
+          navigate(`/chat/${currentConversationId}`);
+        } else {
+          navigate('/chat');
+        }
       } else {
-        navigate('/chat');
+        navigate(`/${newTab}`);
       }
-    } else {
-      navigate(`/${newTab}`);
-    }
+    }, 0);
   };
 
   useEffect(() => {
