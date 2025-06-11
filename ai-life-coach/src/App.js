@@ -529,6 +529,10 @@ export default function App() {
   const [creditsInfo, setCreditsInfo] = useState(null);
 
   const [userCredits, setUserCredits] = useState(0);
+  
+  const [missionStatementInput, setMissionStatementInput] = useState('');
+  const [showMissionStatementEntryModal, setShowMissionStatementEntryModal] = useState(false);
+  
 
 
   const messagesEndRef = useRef(null);
@@ -2124,6 +2128,52 @@ export default function App() {
       }
     };
 
+    const handleMissionStatementSubmit = async () => {
+      if (!missionStatementInput.trim()) {
+        return;
+      }
+
+      if (!authToken) {
+        console.warn("No auth token available to save mission statement.");
+        setAuthError("Please log in to save your mission statement.");
+        setShowAuthModal(true);
+        return;
+      }
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`
+      };
+      try {
+        const res = await fetch("http://127.0.0.1:8000/create_mission_statement", {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify({ prompt: missionStatementInput })
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            setAuthError("Authentication failed. Please log in again.");
+            setShowAuthModal(true);
+            logout();
+            return;
+          }
+          const errorText = await res.text();
+          console.error(`Server error ${res.status} creating mission statement:`, errorText);
+        }
+        const data = await res.json();
+        console.log("Mission statement created response:", data);
+        if (data && data.mission_statement) {
+          setMissionStatement(data.mission_statement);
+          setMissionStatementInput("");
+          setShowMissionStatementEntryModal(false);
+        }
+      } catch (error) {
+        console.error("Error creating mission statement:", error);
+        setAuthError("Failed to create mission statement. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     const sendMessageWithDoc = async (file) => {
          if (!file || file.type !== "text/plain") {
             console.error("only .txt files are supported");
@@ -2704,6 +2754,11 @@ export default function App() {
             lifeDomains={lifeDomains}
             setLifeDomains={setLifeDomains}
             updateUserPrefs={updateUserPrefs}
+            handleMissionStatementSubmit={handleMissionStatementSubmit}
+            missionStatementInput={missionStatementInput}
+            setMissionStatementInput={setMissionStatementInput}
+            showMissionStatementEntryModal={showMissionStatementEntryModal}
+            setShowMissionStatementEntryModal={setShowMissionStatementEntryModal}
           />
         )}
       </div>

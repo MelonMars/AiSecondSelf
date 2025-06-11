@@ -34,11 +34,13 @@ function ProfileComponent({
   setLifeDomains,
   handleMissionStatementSubmit,
   updateUserPrefs,
+  missionStatementInput,
+  setMissionStatementInput,
+  showMissionStatementEntryModal,
+  setShowMissionStatementEntryModal
 }) {
   const [activeSection, setActiveSection] = useState('profile');
   const [showGradientCustomizer, setShowGradientCustomizer] = useState(false);
-  const [showMissionStatementEntryModal, setShowMissionStatementEntryModal] = useState(false);
-  const [missionStatementInput, setMissionStatementInput] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [originalPrefs, setOriginalPrefs] = useState({
     missionStatement: '',
@@ -1039,107 +1041,103 @@ function ProfileComponent({
           </div>
         )}
         {showMissionStatementEntryModal && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className={`w-full max-w-2xl rounded-2xl border p-8 transition-all duration-300 ${
-      darkMode
-        ? 'bg-gray-900/95 border-white/20'
-        : 'bg-white/95 border-gray-200'
-    }`}>
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div className="flex items-center justify-center mb-4">
-          <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-600">
-            <Star className="w-6 h-6 text-white" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className={`w-full max-w-2xl rounded-2xl border p-8 transition-all duration-300 ${
+            darkMode
+              ? 'bg-gray-900/95 border-white/20'
+              : 'bg-white/95 border-gray-200'
+          }`}>
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center mb-4">
+                <div className="p-3 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-600">
+                  <Star className="w-6 h-6 text-white" />
+                </div>
+              </div>
+              <h2 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                AI Mission Statement Helper
+              </h2>
+              <p className={`text-sm ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>
+                Tell me about yourself and I'll help you craft a meaningful mission statement
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center gap-3">
+                <input
+                  type="text"
+                  value={missionStatementInput}
+                  onChange={(e) => setMissionStatementInput(e.target.value)}
+                  placeholder="Tell me about your values, goals, or what drives you..."
+                  className={`flex-1 p-4 rounded-xl border transition-all duration-200 ${
+                    darkMode
+                      ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-white/40 focus:bg-white/15'
+                      : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-blue-400 focus:bg-blue-50/50'
+                  } focus:outline-none focus:ring-0`}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && missionStatementInput.trim()) {
+                      handleMissionStatementSubmit();
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleMissionStatementSubmit}
+                  disabled={!missionStatementInput.trim()}
+                  className={`p-4 rounded-xl transition-all duration-200 ${
+                    missionStatementInput.trim()
+                      ? darkMode
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+                        : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
+                      : darkMode
+                        ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className={`text-xs mb-3 ${darkMode ? 'text-white/50' : 'text-gray-500'}`}>
+                Try something like:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "I value creativity and helping others grow",
+                  "I want to make a positive impact on my community",
+                  "I'm passionate about technology and innovation",
+                  "I believe in lifelong learning and authenticity"
+                ].map((example, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setMissionStatementInput(example)}
+                    className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                      darkMode
+                        ? 'bg-white/10 text-white/70 hover:bg-white/20'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowMissionStatementEntryModal(false)}
+                className={`px-6 py-2 rounded-lg text-sm transition-colors ${
+                  darkMode
+                    ? 'text-white/70 hover:bg-white/10'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
-        <h2 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-          AI Mission Statement Helper
-        </h2>
-        <p className={`text-sm ${darkMode ? 'text-white/70' : 'text-gray-600'}`}>
-          Tell me about yourself and I'll help you craft a meaningful mission statement
-        </p>
-      </div>
-
-      {/* Input Section */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3">
-          <input
-            type="text"
-            value={missionStatementInput}
-            onChange={(e) => setMissionStatementInput(e.target.value)}
-            placeholder="Tell me about your values, goals, or what drives you..."
-            className={`flex-1 p-4 rounded-xl border transition-all duration-200 ${
-              darkMode
-                ? 'bg-white/10 border-white/20 text-white placeholder-white/50 focus:border-white/40 focus:bg-white/15'
-                : 'bg-white border-gray-200 text-gray-800 placeholder-gray-500 focus:border-blue-400 focus:bg-blue-50/50'
-            } focus:outline-none focus:ring-0`}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter' && missionStatementInput.trim()) {
-                handleMissionStatementSubmit();
-              }
-            }}
-          />
-          <button
-            onClick={handleMissionStatementSubmit}
-            disabled={!missionStatementInput.trim()}
-            className={`p-4 rounded-xl transition-all duration-200 ${
-              missionStatementInput.trim()
-                ? darkMode
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl'
-                : darkMode
-                  ? 'bg-white/10 text-white/50 cursor-not-allowed'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <ArrowRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* Example prompts */}
-      <div className="mb-6">
-        <p className={`text-xs mb-3 ${darkMode ? 'text-white/50' : 'text-gray-500'}`}>
-          Try something like:
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            "I value creativity and helping others grow",
-            "I want to make a positive impact on my community",
-            "I'm passionate about technology and innovation",
-            "I believe in lifelong learning and authenticity"
-          ].map((example, index) => (
-            <button
-              key={index}
-              onClick={() => setMissionStatementInput(example)}
-              className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-                darkMode
-                  ? 'bg-white/10 text-white/70 hover:bg-white/20'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {example}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Close button */}
-      <div className="flex justify-center">
-        <button
-          onClick={() => setShowMissionStatementEntryModal(false)}
-          className={`px-6 py-2 rounded-lg text-sm transition-colors ${
-            darkMode
-              ? 'text-white/70 hover:bg-white/10'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
       </div>
     </div>
   );

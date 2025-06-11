@@ -1182,6 +1182,51 @@ async def edit_conversation(request: EditRequest, user_info: dict = Depends(veri
 
     return {"message": "Conversation updated successfully"}
 
+class MissionStatementRequest(BaseModel):
+    prompt: str
+
+@app.post("/create_mission_statement")
+async def create_mission_statement(request: MissionStatementRequest, user_info: dict = Depends(verify_token)):
+    try:
+        prompt = request.prompt
+        if not prompt:
+            raise HTTPException(status_code=400, detail="Prompt is required")
+            
+        user_uid = user_info["uid"]
+        user_ref = db.collection("users").document(user_uid)
+        
+        if not CreditManager.deduct_credits(user_ref, 1):
+            raise HTTPException(status_code=402, detail="Insufficient credits")
+            
+        client = OpenAI(
+            api_key=os.getenv("GOOGLE_AI_API_KEY", "AIzaSyA9z3L28gtJ91FJpl-YX3Bam00UCVF6Qyw"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+        
+        response = client.beta.chat.completions.parse(
+            model='gemini-1.5-flash-latest',
+            messages=[
+                {"role": "system", "content": "You are an AI assistant that helps users create a mission statement for help/improvement that they are seeking. Reply with a concise mission statement based on the user's input. DO NOT INCLUDE ANYTHING ELSE. BE DECISIVE."},
+                {"role": "user", "content": "Make my mission statement based on: I value creativity and helping others grow"},
+                {"role": "assistant", "content": "To foster creativity and empower individuals to reach their full potential through innovative solutions and compassionate support."},
+                {"role": "user", "content": "Make my mission statement based on: I want to inspire and uplift others through my work."},
+                {"role": "assistant", "content": "To inspire and uplift others through my work by creating a supportive and inclusive environment that encourages growth and collaboration."},
+                {"role": "user", "content": "Make my mission statement based on: " + prompt}
+            ]
+        )
+        
+        mission_statement = response.choices[0].message.content.strip()
+        if not mission_statement:
+            raise HTTPException(status_code=500, detail="AI did not return a valid mission statement")
+            
+        user_ref.update({"missionStatement": mission_statement})
+        return {"mission_statement": mission_statement}
+        
+    except Exception as e:
+        logger.error(f"Error creating mission statement: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creating mission statement: {str(e)}")
+
+
 @app.post("/update_graph_with_doc", response_model=ChatResponse)
 async def update_graph_with_doc(
     bulletProse: str = Form(...),
