@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse
 import uvicorn
 from pydantic import BaseModel, Field
 from fastapi.logger import logger
-from typing import List, Optional, Dict, Any, AsyncGenerator
+from typing import List, Optional, Dict, Any, AsyncGenerator, Literal
 import requests
 import time
 import firebase_admin
@@ -21,6 +21,7 @@ import asyncio
 import io
 from openai import OpenAI
 import base64
+from enum import Enum
 
 cred = ""
 gemini_cred = ""
@@ -167,10 +168,39 @@ class EditRequest(BaseModel):
     new_message_content: str
     bulletProse: str = ""
 
+class GraphAction(str, Enum):
+    ADD_NODE = "add_node"
+    REMOVE_NODE = "remove_node"
+    ADD_CONNECTION = "add_connection"
+    REMOVE_CONNECTION = "remove_connection"
+    UPDATE_NODE = "update_node"
+
+class GraphModification(BaseModel):
+    action: GraphAction
+    node_id: Optional[str] = None
+    node_data: Optional[Dict[str, Any]] = None
+    from_node: Optional[str] = None
+    to_node: Optional[str] = None
+    connection_type: Optional[str] = None
+    connection_data: Optional[Dict[str, Any]] = None
+
+class GraphTool(BaseModel):
+    type: Literal["function"] = "function"
+    function: Dict[str, Any]
+
+class Connection(BaseModel):
+    source: str
+    target: str
+
 class AiChatResponse(BaseModel):
     reply: str
     updated_preferences: str
-    updated_graph: str
+    add_nodes: Optional[List[str]] = []
+    remove_nodes: Optional[List[str]] = []
+    add_connections_source: Optional[List[str]] = []
+    add_connections_target: Optional[List[str]] = []
+    remove_connections_source: Optional[List[str]] = []
+    remove_connections_target: Optional[List[str]] = []
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -515,7 +545,8 @@ async def post_stream_save_to_db(
     conversation_ref: firestore.DocumentReference,
     all_messages: List[Message],
     ai_response: AiChatResponse,
-    is_brand_new_conversation: bool
+    is_brand_new_conversation: bool,
+    graph_modifications
 ):
     logger.info(f"Background task started for conversation: {conversation_ref.id}")
     ai_message = Message(role="assistant", content=ai_response.reply, timestamp=datetime.datetime.now(datetime.timezone.utc))
@@ -523,8 +554,8 @@ async def post_stream_save_to_db(
 
     user_uid = user_ref.id
 
-    if ai_response.updated_graph:
-        updated_graph = json.loads(ai_response.updated_graph)
+    print("Got graph modifications: ", graph_modifications)
+    if graph_modifications:
         try:
             user_doc = user_ref.get()
             
@@ -533,25 +564,174 @@ async def post_stream_save_to_db(
             else:
                 existing_user_data = user_doc.to_dict()
                 
-                if "graph_history" in existing_user_data and existing_user_data["graph_history"]:
+                if existing_user_data["graph_history"]:
                     current_history = existing_user_data["graph_history"]
-                    current_index = existing_user_data.get("current_graph_index", len(current_history) - 1)
+                    current_index = len(current_history) - 1
+                    
+                    if isinstance(current_history, list) and current_history:
+                        current_graph = current_history[current_index] if current_index < len(current_history) else {}
+                    else:
+                        print("Graph history is not a list, using the last known graph.")
+                        current_graph = current_history if isinstance(current_history, dict) else {}
                 else:
+                    print("Graph history is empty, initializing new graph.")
+                    current_graph = {"nodes": [], "edges": []}
                     current_history = []
                     current_index = 0
 
-                if not isinstance(current_history, list):
-                    current_history = [current_history]
+                import copy
+                updated_graph = copy.deepcopy(current_graph)
+                print("Copied current graph: ", updated_graph)
+                
+                if "nodes" not in updated_graph:
+                    updated_graph["nodes"] = []
+                if "edges" not in updated_graph:
+                    updated_graph["edges"] = []
 
+                print("Got original graph: ", updated_graph)
+                print("Using modifications: ", graph_modifications)
+                    
+                if isinstance(updated_graph["nodes"], dict):
+                    updated_graph["nodes"] = list(updated_graph["nodes"].values())
+                    
+                if not isinstance(updated_graph["edges"], list):
+                    updated_graph["edges"] = []
+                
+                modification_summary = []
+                
+                def get_next_node_id():
+                    existing_ids = set()
+                    for node in updated_graph["nodes"]:
+                        node_id = node.get("id", "")
+                        if node_id.isdigit():
+                            existing_ids.add(int(node_id))
+                    
+                    next_id = 1
+                    while next_id in existing_ids:
+                        next_id += 1
+                    return str(next_id)
+                
+                if "add_nodes" in graph_modifications and graph_modifications["add_nodes"]:
+                    for node in graph_modifications["add_nodes"]:
+                        if isinstance(node, str):
+                            node_dict = {
+                                "id": get_next_node_id(),
+                                "label": node,
+                                "type": "person",
+                                "description": "",
+                                "x": 100, 
+                                "y": 100,
+                                "fx": None,
+                                "fy": None,
+                                "vx": 0,
+                                "vy": 0
+                            }
+                        else:
+                            node_dict = {
+                                "id": str(getattr(node, 'id', get_next_node_id())),
+                                "label": getattr(node, 'label', str(node)),
+                                "type": getattr(node, 'type', 'person'),
+                                "description": getattr(node, 'description', ''),
+                                "x": getattr(node, 'x', 100),
+                                "y": getattr(node, 'y', 100),
+                                "fx": getattr(node, 'fx', None),
+                                "fy": getattr(node, 'fy', None),
+                                "vx": getattr(node, 'vx', 0),
+                                "vy": getattr(node, 'vy', 0)
+                            }
+
+                        existing_node_index = next((i for i, n in enumerate(updated_graph["nodes"]) if n.get("label") == node_dict["label"]), None)
+                        if existing_node_index is not None:
+                            node_dict["id"] = updated_graph["nodes"][existing_node_index]["id"]
+                            updated_graph["nodes"][existing_node_index] = node_dict
+                            modification_summary.append(f"Updated node: {node_dict['label']}")
+                        else:
+                            updated_graph["nodes"].append(node_dict)
+                            modification_summary.append(f"Added node: {node_dict['label']}")
+                
+                if "remove_nodes" in graph_modifications and graph_modifications["remove_nodes"]:
+                    for node_id in graph_modifications["remove_nodes"]:
+                        node_id_str = str(node_id)
+                        updated_graph["nodes"] = [
+                            node for node in updated_graph["nodes"] 
+                            if node.get("id") != node_id_str and node.get("label") != node_id_str
+                        ]
+                        updated_graph["edges"] = [
+                            edge for edge in updated_graph["edges"]
+                            if edge.get("source") != node_id_str and edge.get("target") != node_id_str
+                            and edge.get("source") != node_id and edge.get("target") != node_id
+                        ]
+                        modification_summary.append(f"Removed node: {node_id}")
+                
+                def find_node_id_by_label(label):
+                    for node in updated_graph["nodes"]:
+                        if node.get("label") == label:
+                            return node.get("id")
+                    return label
+                
+                if "add_connections" in graph_modifications and graph_modifications["add_connections"]:
+                    for connection in graph_modifications["add_connections"]:
+                        if hasattr(connection, 'source') and hasattr(connection, 'target'):
+                            source = connection.source
+                            target = connection.target
+                            
+                            source_id = find_node_id_by_label(source)
+                            target_id = find_node_id_by_label(target)
+                            
+                            edge_dict = {
+                                "source": str(source_id),
+                                "target": str(target_id),
+                                "label": getattr(connection, 'label', getattr(connection, 'type', 'connected'))
+                            }
+                            
+                            existing_edge = next((
+                                edge for edge in updated_graph["edges"]
+                                if edge.get("source") == str(source_id) and edge.get("target") == str(target_id)
+                            ), None)
+                            
+                            if not existing_edge:
+                                updated_graph["edges"].append(edge_dict)
+                                modification_summary.append(f"Added connection: {source} -> {target}")
+                            else:
+                                modification_summary.append(f"Connection already exists: {source} -> {target}")
+                
+                if "remove_connections" in graph_modifications and graph_modifications["remove_connections"]:
+                    for connection in graph_modifications["remove_connections"]:
+                        if hasattr(connection, 'source') and hasattr(connection, 'target'):
+                            source = connection.source
+                            target = connection.target
+                            
+                            source_id = find_node_id_by_label(source)
+                            target_id = find_node_id_by_label(target)
+                            
+                            updated_graph["edges"] = [
+                                edge for edge in updated_graph["edges"]
+                                if not (edge.get("source") == str(source_id) and edge.get("target") == str(target_id))
+                            ]
+                            modification_summary.append(f"Removed connection: {source} -> {target}")
+
+                if not isinstance(current_history, list):
+                    current_history = [current_history] if current_history else []
+
+                print("Made updated graph: ", updated_graph)
+                
+                new_history = current_history + [updated_graph]
                 update_data = {
-                    "graph_history": current_history + [updated_graph],
+                    "graph_history": new_history,
+                    "current_graph_index": len(new_history) - 1
                 }
 
                 user_ref.update(update_data)
-                logger.info(f"Graph data updated in Firestore for user {user_uid}")
                 
+                if modification_summary:
+                    logger.info(f"Graph modifications applied for user {user_uid}: {'; '.join(modification_summary)}")
+                else:
+                    logger.info(f"No graph modifications were processed for user {user_uid}")
+                    
         except Exception as e:
-            logger.error(f"Error processing graph data in background: {e}")
+            logger.error(f"Error processing graph modifications in background: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
 
     if ai_response.updated_preferences:
         try:
@@ -585,7 +765,7 @@ async def post_stream_save_to_db(
 
     conversation_ref.update(update_data)
     logger.info(f"Background task finished. Conversation {conversation_ref.id} updated in Firestore.")
-    
+
 async def summarize_long_chat_history(
     messages: List[Message],
     client: genai.Client,
@@ -644,7 +824,7 @@ async def chat_stream(
     user_info: dict = Depends(verify_token),
     request: str = Form(...),
     files: Optional[List[UploadFile]] = File(None),
-    ai_mode: Optional[str] = Form("default")
+    ai_mode: Optional[str] = Form("normal") 
 ):
     try:
         request_data = json.loads(request)
@@ -696,12 +876,12 @@ async def chat_stream(
         prompt_raw = json.load(f)
     
     prompt = prompt_raw["base_template"]
-    mode_config = prompt['mode_configs'][ai_mode]
+    mode_config = prompt['mode_configs'].get(ai_mode, prompt['mode_configs']['normal'])
     template_parts = []
     
     core_identity = prompt['core_identity'].format(
         mode=ai_mode,
-        mode_description=mode_config['mode_description'],
+        mode_description=mode_config['mode_description']
     )
     template_parts.append(core_identity)
     
@@ -709,43 +889,37 @@ async def chat_stream(
         'reflect': {
             'mode_specialty': 'reflection',
             'core_skills': 'asking probing questions, creating safe spaces for vulnerability',
-            'primary_outcome': 'connect with their deeper truths and authentic selves',
-            'context_focus': 'deeper patterns, relationships, and life themes',
-            'mode_purpose': 'more meaningful reflection'
+            'primary_outcome': 'connect with their deeper truths and authentic selves'
         },
         'review': {
-            'mode_specialty': 'review',
+            'mode_specialty': 'review', 
             'core_skills': 'pattern recognition, outcome analysis',
-            'primary_outcome': 'gain clarity on their experiences without judgment',
-            'context_focus': 'history and context',
-            'mode_purpose': 'better review and analysis'
+            'primary_outcome': 'gain clarity on their experiences without judgment'
         },
         'plan': {
             'mode_specialty': 'planning',
-            'core_skills': 'strategic thinking, goal-setting, resource allocation',
-            'primary_outcome': 'create realistic yet ambitious plans for their future',
-            'context_focus': 'current situation, resources, and constraints',
-            'mode_purpose': 'better planning'
+            'core_skills': 'strategic thinking, goal-setting, resource allocation', 
+            'primary_outcome': 'create realistic yet ambitious plans for their future'
         },
         'normal': {
             'mode_specialty': 'comprehensive support',
             'core_skills': 'adapting tone and approach, providing both emotional and technical assistance',
-            'primary_outcome': 'navigate life\'s complexities with both wisdom and practical solutions',
-            'context_focus': 'complete profile and preferences',
-            'mode_purpose': 'personalized assistance'
+            'primary_outcome': 'navigate life\'s complexities with both wisdom and practical solutions'
         }
     }
     
     context = context_mappings.get(ai_mode, context_mappings['normal'])
     user_understanding = prompt["shared_instructions"]["user_understanding"].format(**context)
     template_parts.append(user_understanding)
+    
     template_parts.extend(prompt['shared_instructions']['core_principles'])
     
     template_parts.append(f"In {ai_mode} mode, you focus on:")
     for area in mode_config['focus_areas']:
         template_parts.append(f"- {area}")
-
+    
     template_parts.append(mode_config['special_guidance'])
+    
     template_parts.append("\n--- USER CONTEXT INTEGRATION ---")
     
     core_values = user_data.get("coreValues", [])
@@ -781,33 +955,45 @@ async def chat_stream(
         personalities=",".join(user_data.get("personalities", []))
     ))
 
+    graph_mgmt = prompt['shared_instructions']['graph_management']
+    template_parts.append(graph_mgmt['graph_tools_introduction'])
+    template_parts.append("Use these tools when:")
+    for guideline in graph_mgmt['when_to_use_tools']:
+        template_parts.append(f"- {guideline}")
+    template_parts.append("Tool Usage Guidelines:")
+    for guideline in graph_mgmt['tool_usage_guidelines']:
+        template_parts.append(f"- {guideline}")
+
     if ai_mode in prompt_raw.get('mode_specific_additions', {}):
         additions = prompt_raw['mode_specific_additions'][ai_mode]
         if 'additional_principles' in additions:
+            template_parts.append("Additional Principles:")
             template_parts.extend(additions['additional_principles'])
         if 'special_tools' in additions:
+            template_parts.append("Special Tools:")
             template_parts.extend(additions['special_tools'])
         if 'markdown_note' in additions:
             template_parts.append(additions['markdown_note'])
 
     tools = prompt['shared_instructions']['tools_and_widgets']
-    template_parts.append(tools['graph_modification'])
     template_parts.append(tools['widget_creation'])
     template_parts.append("Widget Rules:")
     for rule in tools['widget_rules']:
         template_parts.append(f"- {rule}")
 
+    template_parts.extend(prompt['shared_instructions']['safety_and_accuracy'])
+
     template_parts.append("IMPORTANT - RESPONSE FORMAT:")
     template_parts.append(prompt['shared_instructions']['response_model'])
 
-    template_parts.append(prompt['shared_instructions']['user_graph'].format(
+    graph_context = graph_mgmt['graph_context'].format(
         bulletProse=chat_request.bulletProse
-    ))
+    )
+    template_parts.append(graph_context)
 
-    prompt_template = '\n\n'.join(template_parts) 
+    prompt_template = '\n\n'.join(template_parts)
 
-    system_prompt = prompt_template.replace("{bulletProse}", chat_request.bulletProse)
-    system_prompt = system_prompt.replace("{name}", user_data.get("systemName", "AI"))
+    system_prompt = prompt_template.replace("{name}", user_data.get("systemName", "AI"))
     system_prompt = system_prompt.replace("{date}", datetime.date.today().strftime("%Y-%m-%d"))
     system_prompt = system_prompt.replace("{time}", datetime.datetime.now().strftime("%H:%M:%S"))
     system_prompt = system_prompt.replace("{location}", user_data.get("location", "Unknown"))
@@ -908,16 +1094,29 @@ async def chat_stream(
         structured_response = AiChatResponse(
             reply="Error: Could not get response from AI. Got error: " + str(e),
             updated_preferences="",
-            updated_graph="{}",
+            add_nodes=[],
+            remove_nodes=[],
+            add_connections_source=[],
+            remove_connections_source=[],
+            add_connections_target=[],
+            remove_connections_target=[]
         )
-    
+
+    graph_modifications = {
+        "add_nodes": structured_response.add_nodes,
+        "remove_nodes": structured_response.remove_nodes,
+        "add_connections": [Connection(source=src, target=dst) for src, dst in zip(structured_response.add_connections_source or [], structured_response.add_connections_target or [])],
+        "remove_connections": [Connection(source=src, target=dst) for src, dst in zip(structured_response.remove_connections_source or [], structured_response.remove_connections_target or [])]
+    }
+
     background_tasks.add_task(
         post_stream_save_to_db,
         user_ref=user_ref,
         conversation_ref=conversation_ref,
         all_messages=all_messages,
         ai_response=structured_response,
-        is_brand_new_conversation=is_brand_new_conversation_this_call
+        is_brand_new_conversation=is_brand_new_conversation_this_call,
+        graph_modifications=graph_modifications
     )
 
     headers = {"X-Conversation-Id": conversation_id}
