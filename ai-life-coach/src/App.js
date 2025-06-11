@@ -587,6 +587,15 @@ export default function App() {
     }
   };
 
+  const imageCache = {
+    userAvatar: null,
+    aiAvatar: null,
+    background: null,
+    userAvatarUrl: null,
+    aiAvatarUrl: null,
+    backgroundUrl: null
+  };
+
 
   const navigate = useNavigate();
   const { tab: urlTab, conversationId: urlConversationId} = useParams();
@@ -1953,25 +1962,48 @@ export default function App() {
           method: "GET",
           headers: { "Authorization": `Bearer ${token}` }
         });
-        
+
         if (res.ok) {
           const data = await res.json();
+          
           if (data && data.userAvatarUrl) {
             setUserAvatarUrl(data.userAvatarUrl);
-            const userImage = await fetch(data.userAvatarUrl);
-            const userImageBlob = await userImage.blob();
-            const userImageUrl = URL.createObjectURL(userImageBlob);
-            setAvatarImage(userImageUrl);
+            
+            if (imageCache.userAvatarUrl === data.userAvatarUrl && imageCache.userAvatar) {
+              console.log("Using cached user avatar");
+              setAvatarImage(imageCache.userAvatar);
+            } else {
+              console.log("Fetching new user avatar");
+              const userImage = await fetch(data.userAvatarUrl);
+              const userImageBlob = await userImage.blob();
+              const userImageUrl = URL.createObjectURL(userImageBlob);
+              
+              imageCache.userAvatar = userImageUrl;
+              imageCache.userAvatarUrl = data.userAvatarUrl;
+              
+              setAvatarImage(userImageUrl);
+            }
           }
+          
           if (data && data.aiAvatarUrl) {
             setAiAvatarUrl(data.aiAvatarUrl);
-            const aiImage = await fetch(data.aiAvatarUrl);
-            const aiImageBlob = await aiImage.blob();
-            const aiImageUrl = URL.createObjectURL(aiImageBlob);
-            setAiAvatarImage(aiImageUrl);
+            
+            if (imageCache.aiAvatarUrl === data.aiAvatarUrl && imageCache.aiAvatar) {
+              console.log("Using cached AI avatar");
+              setAiAvatarImage(imageCache.aiAvatar);
+            } else {
+              console.log("Fetching new AI avatar");
+              const aiImage = await fetch(data.aiAvatarUrl);
+              const aiImageBlob = await aiImage.blob();
+              const aiImageUrl = URL.createObjectURL(aiImageBlob);
+              
+              imageCache.aiAvatar = aiImageUrl;
+              imageCache.aiAvatarUrl = data.aiAvatarUrl;
+              
+              setAiAvatarImage(aiImageUrl);
+            }
           }
-        }
-        else {
+        } else {
           if (res.status === 401) {
             console.error("Auth failed fetching user pictures. Logging out.");
             logout();
@@ -1986,41 +2018,57 @@ export default function App() {
       }
     };
 
-    const getBackgroundImage = async (token) => {
-      if (!auth.currentUser) return;
-      
-      try {
-        const headers = {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        };
-        
-        const res = await fetch("http://127.0.0.1:8000/background_image", {
-          method: "GET",
-          headers: headers
-        });
-        
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error(`Server error ${res.status} retrieving background image:`, errorText);
-          if (res.status === 401) {
-            setAuthError("Authentication failed. Please log in again.");
-            setShowAuthModal(true);
-            logout();
-          }
-          throw new Error(`Server error retrieving background image: ${res.status}`);
+  const getBackgroundImage = async (token) => {
+    if (!auth.currentUser) return;
+
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      };
+
+      const res = await fetch("http://127.0.0.1:8000/background_image", {
+        method: "GET",
+        headers: headers
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`Server error ${res.status} retrieving background image:`, errorText);
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
         }
-        
-        const data = await res.json();
-        setBackgroundImageUrl(data.backgroundImageUrl);
-        console.log("Background image retrieved:", data.backgroundImageUrl);
-        return data.backgroundImageUrl;
-      } catch (error) {
-        console.error('Error retrieving background image:', error);
-        return '';
+        throw new Error(`Server error retrieving background image: ${res.status}`);
       }
-    };
-    
+
+      const data = await res.json();
+      
+      if (imageCache.backgroundUrl === data.backgroundImageUrl && imageCache.background) {
+        console.log("Using cached background image");
+        setBackgroundImageUrl(imageCache.background);
+        return imageCache.background;
+      } else {
+        console.log("Fetching new background image");
+        
+        const backgroundImage = await fetch(data.backgroundImageUrl);
+        const backgroundImageBlob = await backgroundImage.blob();
+        const backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
+        
+        imageCache.background = backgroundImageUrl;
+        imageCache.backgroundUrl = data.backgroundImageUrl;
+        
+        setBackgroundImageUrl(backgroundImageUrl);
+        console.log("Background image retrieved and cached:", data.backgroundImageUrl);
+        return backgroundImageUrl;
+      }
+    } catch (error) {
+      console.error('Error retrieving background image:', error);
+      return '';
+    }
+  };
+
     const handleGraphDataChange = async (newHistory, newIndex) => {
       console.log("Graph data changed by GraphView:", newHistory, newIndex);
       setGraphHistory(newHistory);
