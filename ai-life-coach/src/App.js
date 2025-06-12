@@ -567,23 +567,23 @@ export default function App() {
   const gradientTones = {
     classic: {
       colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
-      speed: 0.8,
-      intensity: 0.6
+      speed: 0.7, 
+      intensity: 0.6 
     },
     vibrant: {
       colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57'],
-      speed: 1.2,
-      intensity: 0.8
+      speed: 1.0, 
+      intensity: 0.7 
     },
     calm: {
       colors: ['#a8edea', '#fed6e3', '#e0c3fc', '#8ec5fc'],
-      speed: 0.5,
+      speed: 0.4,
       intensity: 0.4
     },
     cosmic: {
       colors: ['#8360c3', '#2ebf91', '#fc466b', '#3fcdc7', '#fd79a8'],
-      speed: 1.5,
-      intensity: 0.9
+      speed: 1.2,
+      intensity: 0.8
     }
   };
 
@@ -2044,28 +2044,38 @@ export default function App() {
       }
 
       const data = await res.json();
-      
+
+      if (!data.backgroundImageUrl) {
+        setBackgroundImageUrl(null);
+        imageCache.background = null;
+        imageCache.backgroundUrl = null;
+        return null;
+      }
+
       if (imageCache.backgroundUrl === data.backgroundImageUrl && imageCache.background) {
         console.log("Using cached background image");
         setBackgroundImageUrl(imageCache.background);
         return imageCache.background;
       } else {
         console.log("Fetching new background image");
-        
+
         const backgroundImage = await fetch(data.backgroundImageUrl);
         const backgroundImageBlob = await backgroundImage.blob();
         const backgroundImageUrl = URL.createObjectURL(backgroundImageBlob);
-        
+
         imageCache.background = backgroundImageUrl;
         imageCache.backgroundUrl = data.backgroundImageUrl;
-        
+
         setBackgroundImageUrl(backgroundImageUrl);
         console.log("Background image retrieved and cached:", data.backgroundImageUrl);
         return backgroundImageUrl;
       }
     } catch (error) {
       console.error('Error retrieving background image:', error);
-      return '';
+      setBackgroundImageUrl(null);
+      imageCache.background = null;
+      imageCache.backgroundUrl = null;
+      return null;
     }
   };
 

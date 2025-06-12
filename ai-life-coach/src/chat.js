@@ -810,30 +810,75 @@ const ChatComponent = ({
 
   const getAnimatedGradientStyle = () => {
     const tone = gradientTones[gradientTone];
-    const phase1 = (gradientPhase * tone.speed) % 360;
-    const phase2 = (gradientPhase * tone.speed + 120) % 360;
-    const phase3 = (gradientPhase * tone.speed + 240) % 360;
+    
+    const time = gradientPhase * tone.speed * 0.005;
+    
+    const phase1 = time;
+    const phase2 = time + Math.PI * 0.7; 
+    const phase3 = time + Math.PI * 1.3;
+    const phase4 = time + Math.PI * 1.8;
+    const phase5 = time + Math.PI * 0.4;
     
     const colors = tone.colors;
-    const baseOpacity = darkMode ? 0.15 : 0.25;
-    const intensity = tone.intensity;
+    const baseOpacity = darkMode ? 0.20 : 0.30; 
+    const intensity = tone.intensity; 
+    
+    const easeInOutSine = (phase) => (Math.sin(phase - Math.PI/2) + 1) * 0.5;
+    const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+    
+    const smoothWave = (phase) => {
+      const raw = (Math.sin(phase) + 1) * 0.5;
+      return easeInOutCubic(raw);
+    };
+    
+    const pos1X = 25 + smoothWave(phase1) * 50;
+    const pos1Y = 25 + smoothWave(phase1 + Math.PI * 0.3) * 50;
+    
+    const pos2X = 75 + smoothWave(phase2) * 20;
+    const pos2Y = 40 + smoothWave(phase2 + Math.PI * 0.6) * 60;
+    
+    const pos3X = 30 + smoothWave(phase3) * 60;
+    const pos3Y = 70 + smoothWave(phase3 + Math.PI * 0.9) * 30;
+    
+    const getOpacity = (phase, multiplier = 1) => {
+      const primary = Math.sin(phase) * 0.08;
+      const secondary = Math.sin(phase * 0.7 + Math.PI * 0.3) * 0.05;
+      const tertiary = Math.sin(phase * 1.3 + Math.PI * 0.7) * 0.03;
+      
+      const variation = (primary + secondary + tertiary) * intensity * multiplier;
+      const opacity = Math.max(0.08, Math.min(0.65, baseOpacity + variation));
+      
+      return Math.floor(opacity * 255).toString(16).padStart(2, '0');
+    };
+    
+    let gradientLayers = [
+      `radial-gradient(ellipse 120% 80% at ${Math.min(95, pos1X)}% ${Math.min(95, pos1Y)}%, ${colors[0]}${getOpacity(phase1)} 0%, ${colors[0]}${Math.floor(parseInt(getOpacity(phase1, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 25%, transparent 60%)`,
+      `radial-gradient(ellipse 100% 120% at ${Math.min(95, pos2X)}% ${Math.min(95, pos2Y)}%, ${colors[1]}${getOpacity(phase2)} 0%, ${colors[1]}${Math.floor(parseInt(getOpacity(phase2, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 20%, transparent 55%)`,
+      `radial-gradient(ellipse 140% 90% at ${Math.min(95, pos3X)}% ${Math.min(95, pos3Y)}%, ${colors[2]}${getOpacity(phase3)} 0%, ${colors[2]}${Math.floor(parseInt(getOpacity(phase3, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 30%, transparent 65%)`
+    ];
+    
+    if (colors.length > 3) {
+      const pos4X = 55 + smoothWave(phase4) * 35;
+      const pos4Y = 15 + smoothWave(phase4 + Math.PI * 0.4) * 70;
+      gradientLayers.push(
+        `radial-gradient(ellipse 90% 110% at ${Math.min(95, pos4X)}% ${Math.min(95, pos4Y)}%, ${colors[3]}${getOpacity(phase4, 0.5)} 0%, ${colors[3]}${Math.floor(getOpacity(phase4, 0.2) * 0.4).toString(16).padStart(2, '0')} 40%, transparent 80%)`
+      );
+    }
+    
+    if (colors.length > 4) {
+      const pos5X = 85 + smoothWave(phase5) * 15;
+      const pos5Y = 60 + smoothWave(phase5 + Math.PI * 0.8) * 35;
+      gradientLayers.push(
+        `radial-gradient(ellipse 80% 100% at ${Math.min(95, pos5X)}% ${Math.min(95, pos5Y)}%, ${colors[4]}${getOpacity(phase5, 0.3)} 0%, ${colors[4]}${Math.floor(getOpacity(phase5, 0.15) * 0.4).toString(16).padStart(2, '0')} 45%, transparent 85%)`
+      );
+    }
+    
+    const backgroundColor = darkMode ? '#111827' : '#f3f4f6';
+    gradientLayers.push(backgroundColor);
     
     return {
-      background: `
-        radial-gradient(circle at ${20 + Math.sin(phase1 * Math.PI / 180) * 30}% ${30 + Math.cos(phase1 * Math.PI / 180) * 20}%, 
-          ${colors[0]}${Math.floor((baseOpacity + Math.sin(phase1 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
-        radial-gradient(circle at ${70 + Math.sin(phase2 * Math.PI / 180) * 25}% ${60 + Math.cos(phase2 * Math.PI / 180) * 30}%, 
-          ${colors[1]}${Math.floor((baseOpacity + Math.cos(phase2 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
-        radial-gradient(circle at ${40 + Math.sin(phase3 * Math.PI / 180) * 35}% ${80 + Math.cos(phase3 * Math.PI / 180) * 15}%, 
-          ${colors[2]}${Math.floor((baseOpacity + Math.sin(phase3 * Math.PI / 180) * 0.1 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),
-        ${colors.length > 3 ? `
-        radial-gradient(circle at ${60 + Math.sin((phase1 + 180) * Math.PI / 180) * 20}% ${20 + Math.cos((phase1 + 180) * Math.PI / 180) * 25}%, 
-          ${colors[3]}${Math.floor((baseOpacity * 0.7 + Math.cos((phase1 + 180) * Math.PI / 180) * 0.08 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),` : ''}
-        ${colors.length > 4 ? `
-        radial-gradient(circle at ${80 + Math.sin((phase2 + 90) * Math.PI / 180) * 15}% ${50 + Math.cos((phase2 + 90) * Math.PI / 180) * 20}%, 
-          ${colors[4]}${Math.floor((baseOpacity * 0.5 + Math.sin((phase2 + 90) * Math.PI / 180) * 0.06 * intensity) * 255).toString(16).padStart(2, '0')} 0%, transparent 50%),` : ''}
-        ${darkMode ? '#111827' : '#f3f4f6'}
-      `.replace(/\s+/g, ' ').trim()
+      background: gradientLayers.join(', '),
+      transition: 'background 0.1s ease-out'
     };
   };
 
