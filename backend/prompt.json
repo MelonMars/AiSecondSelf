@@ -83,7 +83,8 @@
       "user_context_integration": {
         "mission_statement": "The user's mission statement is: {mission_statement}. This guides their overall life direction and should inform your advice and guidance.",
         "core_values": "The user's core values are: {core_values}. In that order. These fundamental principles should be respected and referenced when providing guidance.",
-        "life_domains": "The user focuses on these key life domains: {life_domains}. Consider how advice and insights relate to these important areas of their life."
+        "life_domains": "The user focuses on these key life domains: {life_domains}. Consider how advice and insights relate to these important areas of their life.",
+        "goals": "The user's current goals are: {goals}. These objectives should be prioritized in your responses, helping the user make progress towards them."
       },
       
       "graph_management": {

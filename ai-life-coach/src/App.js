@@ -564,6 +564,10 @@ export default function App() {
   const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
   const [gradientTone, setGradientTone] = useState(localStorage.getItem("gradientTone") || "classic");
   const [aiMode, setAiMode] = useState('normal');
+
+  const [goals, setGoals] = useState([]);
+  const [hasUnsavedGoalChanges, setHasUnsavedGoalChanges] = useState(false);
+
   const gradientTones = {
     classic: {
       colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
@@ -714,6 +718,7 @@ export default function App() {
             fetchUserPictures(idToken),
             fetchPersonalities(idToken),
             fetchUserCredits(idToken),
+            fetchGoals(idToken),
             getBackgroundImage(idToken),
           ]).then(() => {
             console.log("All user data loaded");
@@ -752,6 +757,39 @@ export default function App() {
       inputRef.current?.focus();
     }
   }, [tab]);
+
+  const fetchGoals = async (token = authToken) => {
+    if (!token) {
+      setGoals([]);
+      return;
+    }
+    if (conversationsLoading) {
+      console.log("fetchGoals already in progress, skipping duplicate call");
+      return;
+    }
+    setConversationsLoading(true);
+    try {
+      const headers = { "Authorization": `Bearer ${token}` };
+      const res = await fetch("http://127.0.0.1:8000/goals", { headers });
+      if (!res.ok) {
+        if (res.status === 401) {
+          setAuthError("Authentication failed. Please log in again.");
+          setShowAuthModal(true);
+          logout();
+        }
+        throw new Error(`Server error: ${res.status}`);
+      }
+      const data = await res.json();
+      setGoals(data.goals || []);
+      console.log("Fetched goals:", data.goals);
+      setHasUnsavedGoalChanges(false);
+    } catch (error) {
+      console.error("Error fetching goals:", error);
+      setGoals([]);
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
 
   const fetchConversations = async (token = authToken) => {
     if (!token) {
@@ -864,6 +902,50 @@ export default function App() {
           console.error("Error toggling star status:", error);
       }
     }
+
+  const checkForGoalChanges = () => {
+    setHasUnsavedGoalChanges(true);
+  }
+
+  const handleApplyGoalChanges = async () => {
+    if (!authToken) {
+        setAuthError("Please log in to save goals.");
+        setShowAuthModal(true);
+        return;
+    }
+
+    setHasUnsavedGoalChanges(false);
+    const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${authToken}`,
+    };
+    console.log("Saving goals:", goals);
+    try {
+        const res = await fetch("http://127.0.0.1:8000/goals", {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({ goals: goals })
+        });
+        if (!res.ok) {
+            if (res.status === 401) {
+                setAuthError("Authentication failed. Please log in again.");
+                setShowAuthModal(true);
+                logout();
+            }
+            throw new Error(`Server error: ${res.status}`);
+        }
+        const data = await res.json();
+        console.log("Goals saved successfully:", data);
+        if (data.success) {
+            setGoals(data.goals);
+            setHasUnsavedGoalChanges(false);
+        } else {
+            console.error("Failed to save goals:", data.message);
+        }
+    } catch (error) {
+        console.error("Error saving goals:", error);
+    }
+  }
 
   const renameConversation = async (conversationId, newName) => {
     if (!authToken) {
@@ -2912,6 +2994,11 @@ export default function App() {
             setMissionStatementInput={setMissionStatementInput}
             showMissionStatementEntryModal={showMissionStatementEntryModal}
             setShowMissionStatementEntryModal={setShowMissionStatementEntryModal}
+            handleApplyGoalChanges={handleApplyGoalChanges}
+            checkForGoalChanges={checkForGoalChanges}
+            goals={goals}
+            setGoals={setGoals}
+            hasUnsavedGoalChanges={hasUnsavedGoalChanges}
           />
         )}
       </div>

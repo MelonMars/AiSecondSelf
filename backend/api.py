@@ -940,6 +940,25 @@ async def chat_stream(
     template_parts.append(context_integration['life_domains'].format(
         life_domains=life_domains
     ))
+
+    goals_list = user_data.get("goals", [])
+    if goals_list:
+        formatted_goals = []
+        for goal in goals_list:
+            formatted_goal = (
+                f"Title: {goal.get('title', '')}, "
+                f"Category: {goal.get('category', '')}, "
+                f"Description: {goal.get('description', '')}, "
+                f"Priority: {goal.get('priority', '')}, "
+                f"Progress: {goal.get('progress', '')}%, "
+                f"Status: {goal.get('status', '')}, "
+                f"Target Date: {goal.get('targetDate', '')}"
+            )
+            formatted_goals.append(formatted_goal)
+        goals_str = "\n".join(formatted_goals)
+    else:
+        goals_str = "None"
+    template_parts.append(context_integration['goals'].format(goals=goals_str))
     
     comm_style = prompt['shared_instructions']['communication_style']
     template_parts.append(comm_style['addressing'].format(
@@ -2111,5 +2130,58 @@ async def get_custom_personalities(user_info: dict = Depends(verify_token)):
             detail=f"Error retrieving custom personalities: {str(e)}"
         )
 
+@app.get("/goals")
+async def get_goals(user_info: dict = Depends(verify_token)):
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_data = user_doc.to_dict()
+        goals = user_data.get("goals", [])
+        return {"goals": goals}
+    except Exception as e:
+        logger.error(f"Error retrieving goals: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving goals: {str(e)}"
+        )
+    
+@app.post("/goals")
+async def create_goal(user_info: dict = Depends(verify_token), body: dict = Body(...)):
+    new_goals = body.get("goals", [])
+    if not new_goals:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Goal is required"
+        )
+
+    try:
+        user_ref = db.collection("users").document(user_info["uid"])
+        user_doc = user_ref.get()
+
+        if not user_doc.exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        user_ref.update({
+            "goals": new_goals
+        })
+        
+        return {"goals": new_goals}
+    except Exception as e:
+        logger.error(f"Error creating goal: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating goal: {str(e)}"
+        )
+    
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True, log_level="info")
