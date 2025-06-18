@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { MessageSquare, Network, Target, User, Send, Loader, ChevronRight, LogOut, LogIn, MessageCircle, Eye, MapPin, UserPlus, Star, Camera, Share, Copy, X, Eraser, Menu, Save, Smile, Mail, Shield, Zap, Lock, Sparkles, Chrome, UserCheck, CreditCard, Crown, CheckCircle } from "lucide-react";
 import GraphView from "./GraphView";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, EmailAuthProvider, linkWithCredential, updateProfile, onAuthStateChanged, getAuth, fetchSignInMethodsForEmail } from "firebase/auth";
@@ -2661,6 +2661,9 @@ export default function App() {
     }
   };
 
+  const MemoizedChatComponent = React.memo(ChatComponent);
+  const MemoizedGraphComponent = React.memo(GraphView);
+
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <header className="md:hidden fixed top-0 left-0 right-0 z-[1000] py-3 px-4">
@@ -2907,7 +2910,7 @@ export default function App() {
 
       <div className={`flex-1 relative pt-20 md:pt-4 ${tab === "chat" ? "overflow-hidden" : "overflow-y-auto"} scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent`}>
         {tab === "chat" && (
-          <ChatComponent
+          <MemoizedChatComponent
             messages={messages}
             conversations={conversations}
             currentConversationId={currentConversationId}
@@ -2948,7 +2951,7 @@ export default function App() {
           />
         )}
         {tab === "graph" && (
-          <GraphView
+          <MemoizedGraphComponent
             darkMode={darkMode}
             graphHistory={graphHistory}
             currentGraphIndex={currentGraphIndex}

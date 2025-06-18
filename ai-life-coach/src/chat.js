@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo, useMemo } from 'react';
+import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu, Paperclip, MessageCircle, Eye, MapPin, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -476,7 +476,7 @@ export const extractReaction = (content) => {
   return reactionMatch ? reactionMatch[1] : null;
 };
 
-const ConversationItem = ({
+const ConversationItem = memo(({
   conversation,
   currentConversationId,
   darkMode,
@@ -663,7 +663,361 @@ const ConversationItem = ({
       )}
     </div>
   );
-};
+});
+
+const Sidebar = memo(({
+  isSidebarCollapsed,
+  darkMode,
+  toggleSidebar,
+  startNewConversation,
+  currentConversationId,
+  shareConversation,
+  showModeDropdown,
+  setShowModeDropdown,
+  aiModes,
+  aiMode,
+  setAiMode,
+  isConversationsLoading,
+  starredChats,
+  nonStarredChats,
+  onConversationRenamed,
+  onToggleStar,
+  starredConversations,
+  loadConversation,
+  setIsSidebarCollapsed,
+}) => {
+  const handleClickOutside = useCallback(() => {
+    setIsSidebarCollapsed(true);
+  }, [setIsSidebarCollapsed]);
+
+  return (
+    <>
+      {!isSidebarCollapsed && (
+        <div
+          className="fixed inset-0 bg-black/50 z-10 md:hidden"
+          onClick={handleClickOutside}
+        />
+      )}
+
+      <div className={`
+        flex flex-col fixed md:relative z-20 md:z-auto
+        transition-all duration-500 ease-out overflow-hidden
+        backdrop-blur-xl border-r shadow-2xl
+        ${isSidebarCollapsed ? 'w-0 md:w-16 opacity-0 md:opacity-100 -translate-x-full md:translate-x-0' : 'w-80 md:w-64 opacity-100 translate-x-0'}
+        ${darkMode
+          ? 'bg-white/15 border-white/20 shadow-black/20'
+          : 'bg-white/70 border-white/30 shadow-black/10'
+        }
+        h-full
+      `}
+      style={{
+        background: darkMode 
+          ? 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%)'
+      }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-r-lg" />
+        
+        {!isSidebarCollapsed && (
+          <div className={`flex-shrink-0 px-4 py-4 border-b backdrop-blur-sm ${
+            darkMode ? 'border-white/20' : 'border-white/30'
+          }`}>
+            <button
+              onClick={startNewConversation}
+              className={`p-3 rounded-xl flex items-center justify-center w-full transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                darkMode 
+                  ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30 hover:shadow-xl' 
+                  : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60 hover:shadow-xl'
+              }`}
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
+              <MessageSquare className="mr-2 relative z-10" size={18} />
+              <span className="font-medium text-sm relative z-10">New Chat</span>
+            </button>
+          </div>
+        )}
+
+        <div className={`flex-shrink-0 ${
+          isSidebarCollapsed ? 'px-2 py-4' : 'px-4 py-3'
+        } border-b backdrop-blur-sm ${
+          darkMode ? 'border-white/20' : 'border-white/30'
+        }`}>
+          <div className={`flex ${isSidebarCollapsed ? 'flex-col space-y-2' : 'justify-between items-center'}`}>
+            <button
+              onClick={toggleSidebar}
+              className={`${
+                isSidebarCollapsed ? 'p-3' : 'p-2'
+              } rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                darkMode 
+                  ? 'hover:bg-white/25 text-gray-300 border-white/30 hover:text-white' 
+                  : 'hover:bg-white/60 border-white/40 text-gray-600 hover:text-gray-800'
+              }`}
+              title={isSidebarCollapsed ? 'Open Sidebar' : 'Close Sidebar'}
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+              <div className="relative z-10">
+                {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+              </div>
+            </button>
+
+            {!isSidebarCollapsed && currentConversationId && (
+              <button
+                onClick={() => shareConversation(currentConversationId)}
+                className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                  darkMode 
+                    ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                }`}
+                title="Share conversation"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                <Share size={18} className="relative z-10" />
+              </button>
+            )}
+
+            {!isSidebarCollapsed && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowModeDropdown(!showModeDropdown)}
+                  className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                    darkMode 
+                      ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                  }`}
+                  title="AI Mode"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                  {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 18, className: "relative z-10" })}
+                </button>
+                
+                {showModeDropdown && createPortal(
+                  <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
+                    darkMode 
+                      ? 'bg-white/10 border-white/20' 
+                      : 'bg-white/80 border-white/50'
+                  }`}
+                  style={{
+                    left: isSidebarCollapsed ? '72px' : '272px',
+                    top: '120px',
+                  }}>
+                    <div className="py-2">
+                      {aiModes.map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() => {
+                            setAiMode(mode.id);
+                            setShowModeDropdown(false);
+                          }}
+                          className={`w-[95%] px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
+                            aiMode === mode.id
+                              ? darkMode
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
+                                : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
+                              : darkMode
+                                ? 'text-gray-300 hover:bg-white/20'
+                                : 'text-gray-700 hover:bg-white/60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
+                              <div>
+                                <div className="font-medium text-sm">{mode.name}</div>
+                                <div className={`text-xs ${
+                                  darkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                  {mode.description}
+                                </div>
+                              </div>
+                            </div>
+                            {aiMode === mode.id && (
+                              <Check size={16} className="flex-shrink-0" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>,
+                  document.body
+                )}
+              </div>
+            )}
+
+            {isSidebarCollapsed && (
+              <>
+                <button
+                  onClick={startNewConversation}
+                  className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                    darkMode 
+                      ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30' 
+                      : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60'
+                  }`}
+                  title="New Chat"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
+                  <MessageSquare size={20} className="relative z-10" />
+                </button>
+
+                {currentConversationId && (
+                  <button
+                    onClick={() => shareConversation(currentConversationId)}
+                    className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                      darkMode 
+                        ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                    }`}
+                    title="Share conversation"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                    <Share size={20} className="relative z-10" />
+                  </button>
+                )}
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowModeDropdown(!showModeDropdown)}
+                    className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
+                      darkMode 
+                        ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
+                    }`}
+                    title={`AI Mode: ${aiModes.find(mode => mode.id === aiMode)?.name || 'Normal'}`}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
+                    {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 20, className: "relative z-10" })}
+                  </button>
+                  
+                  {showModeDropdown && createPortal(
+                    <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
+                      darkMode 
+                        ? 'bg-white/10 border-white/20' 
+                        : 'bg-white/80 border-white/50'
+                    }`}
+                    style={{
+                      left: isSidebarCollapsed ? '72px' : '272px',
+                      top: '120px',
+                    }}>
+                      <div className="py-2">
+                        {aiModes.map((mode) => (
+                          <button
+                            key={mode.id}
+                            onClick={() => {
+                              setAiMode(mode.id);
+                              setShowModeDropdown(false);
+                            }}
+                            className={`w-[95%] px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
+                              aiMode === mode.id
+                                ? darkMode
+                                  ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
+                                  : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
+                                : darkMode
+                                  ? 'text-gray-300 hover:bg-white/20'
+                                  : 'text-gray-700 hover:bg-white/60'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
+                                <div>
+                                  <div className="font-medium text-sm">{mode.name}</div>
+                                  <div className={`text-xs ${
+                                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
+                                    {mode.description}
+                                  </div>
+                                </div>
+                              </div>
+                              {aiMode === mode.id && (
+                                <Check size={16} className="flex-shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+              
+        {!isSidebarCollapsed && (
+          <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
+            {isConversationsLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+              </div>
+            ) : (
+              <>
+                {starredChats.length > 0 && (
+                  <>
+                    <div className={`px-4 py-3 text-xs uppercase font-semibold tracking-wider border-b mb-2 backdrop-blur-sm ${
+                      darkMode 
+                        ? 'text-gray-400 border-white/20 bg-white/5' 
+                        : 'text-gray-600 border-white/40 bg-white/20'
+                    }`}>
+                      <div className="flex items-center">
+                        <Star className="mr-2" size={12} />
+                        Starred
+                      </div>
+                    </div>
+                    {starredChats.map(conversation => (
+                      <ConversationItem
+                        key={conversation.id}
+                        conversation={conversation}
+                        currentConversationId={currentConversationId}
+                        darkMode={darkMode}
+                        loadConversation={loadConversation}
+                        onConversationRenamed={onConversationRenamed}
+                        onToggleStar={onToggleStar}
+                        starredConversations={starredConversations}
+                        isSidebarCollapsed={isSidebarCollapsed}
+                        onConversationShare={shareConversation}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {nonStarredChats.length > 0 && (
+                  <>
+                    <div className={`px-4 py-3 text-xs mb-2 uppercase font-semibold tracking-wider border-b backdrop-blur-sm ${
+                      darkMode 
+                        ? 'text-gray-400 border-white/20 bg-white/5' 
+                        : 'text-gray-600 border-white/40 bg-white/20'
+                    }`}>
+                      <div className="flex items-center">
+                        <MessageSquare className="mr-2" size={12} />
+                        Chats
+                      </div>
+                    </div>
+                    {nonStarredChats.map(conversation => (
+                      <ConversationItem
+                        key={conversation.id}
+                        conversation={conversation}
+                        currentConversationId={currentConversationId}
+                        darkMode={darkMode}
+                        loadConversation={loadConversation}
+                        onConversationRenamed={onConversationRenamed}
+                        onToggleStar={onToggleStar}
+                        starredConversations={starredConversations}
+                        isSidebarCollapsed={isSidebarCollapsed}
+                        onConversationShare={shareConversation}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+});
+
+Sidebar.displayName = 'Sidebar';
 
 const ChatComponent = ({
   messages,
@@ -713,11 +1067,75 @@ const ChatComponent = ({
   const [hoveredMessageIndex, setHoveredMessageIndex] = useState(null);
   const [openBranchDropdownIndex, setOpenBranchDropdownIndex] = useState(null);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const [gradientPhase, setGradientPhase] = useState(0);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const editTextareaRef = useRef(null);
 
-  const [gradientPhase, setGradientPhase] = useState(0);
+  const isConversationStarred = useCallback((conversationId) => {
+    return starredConversations.includes(conversationId);
+  }, [starredConversations]);
+
+  const starredChats = useMemo(() => 
+    conversations.filter(isConversationStarred), 
+    [conversations, isConversationStarred]
+  );
+  
+  const nonStarredChats = useMemo(() => 
+    conversations.filter(conv => !isConversationStarred(conv.id)), 
+    [conversations, isConversationStarred]
+  );
+
+  const sidebarProps = useMemo(() => ({
+    isSidebarCollapsed,
+    setIsSidebarCollapsed,
+    darkMode,
+    toggleSidebar: () => setIsSidebarCollapsed(!isSidebarCollapsed),
+    startNewConversation,
+    currentConversationId,
+    shareConversation,
+    showModeDropdown,
+    setShowModeDropdown,
+    aiModes,
+    aiMode,
+    setAiMode,
+    isConversationsLoading,
+    starredChats,
+    nonStarredChats,
+    onConversationRenamed,
+    onToggleStar,
+    starredConversations,
+    loadConversation,
+  }), [
+    isSidebarCollapsed,
+    darkMode,
+    startNewConversation,
+    currentConversationId,
+    shareConversation,
+    showModeDropdown,
+    aiModes,
+    aiMode,
+    setAiMode,
+    isConversationsLoading,
+    starredChats,
+    nonStarredChats,
+    onConversationRenamed,
+    onToggleStar,
+    starredConversations,
+    loadConversation,
+  ]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showModeDropdown && !event.target.closest('.relative')) {
+        setShowModeDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showModeDropdown]);
 
   useEffect(() => {
     if (editingMessageIndex !== null && editTextareaRef.current) {
@@ -736,7 +1154,6 @@ const ChatComponent = ({
 
   useEffect(() => {
     const handleResize = () => {
-    
       const vh = window.innerHeight * 0.01;
       document.documentElement.style.setProperty('--vh', `${vh}px`);
     };
@@ -751,33 +1168,6 @@ const ChatComponent = ({
     };
   }, []);
 
-  const mobileStyles = `
-    @supports (-webkit-touch-callout: none) {
-      .chat-container {
-        height: calc(var(--vh, 1vh) * 100);
-      }
-    }
-    
-    .pb-safe {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    
-    @media (max-width: 768px) {
-      .input-container {
-        position: sticky;
-        bottom: 0;
-        z-index: 100;
-      }
-    }
-  `;
-
-  const adjustTextareaHeight = (textarea) => {
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  };
-
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -786,105 +1176,31 @@ const ChatComponent = ({
     inputRef.current?.focus();
   }, [currentConversationId, messages]);
 
-  useEffect(() => {
-    if (editingMessageIndex !== null && editTextareaRef.current) {
-      editTextareaRef.current.focus();
-      adjustTextareaHeight(editTextareaRef.current);
+  const adjustTextareaHeight = useCallback((textarea) => {
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [editingMessageIndex]);
+  }, []);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (window.innerWidth >= 768) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  };
-
-  useEffect(() => {
-    const animate = () => {
-      setGradientPhase(prev => prev + 1);
-      requestAnimationFrame(animate);
-    };
-    const animationId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animationId);
   }, []);
 
-  const getAnimatedGradientStyle = () => {
-    const tone = gradientTones[gradientTone];
-    
-    const time = gradientPhase * tone.speed * 0.005;
-    
-    const phase1 = time;
-    const phase2 = time + Math.PI * 0.7; 
-    const phase3 = time + Math.PI * 1.3;
-    const phase4 = time + Math.PI * 1.8;
-    const phase5 = time + Math.PI * 0.4;
-    
-    const colors = tone.colors;
-    const baseOpacity = darkMode ? 0.20 : 0.30; 
-    const intensity = tone.intensity; 
-    
-    const easeInOutSine = (phase) => (Math.sin(phase - Math.PI/2) + 1) * 0.5;
-    const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
-    
-    const smoothWave = (phase) => {
-      const raw = (Math.sin(phase) + 1) * 0.5;
-      return easeInOutCubic(raw);
-    };
-    
-    const pos1X = 25 + smoothWave(phase1) * 50;
-    const pos1Y = 25 + smoothWave(phase1 + Math.PI * 0.3) * 50;
-    
-    const pos2X = 75 + smoothWave(phase2) * 20;
-    const pos2Y = 40 + smoothWave(phase2 + Math.PI * 0.6) * 60;
-    
-    const pos3X = 30 + smoothWave(phase3) * 60;
-    const pos3Y = 70 + smoothWave(phase3 + Math.PI * 0.9) * 30;
-    
-    const getOpacity = (phase, multiplier = 1) => {
-      const primary = Math.sin(phase) * 0.08;
-      const secondary = Math.sin(phase * 0.7 + Math.PI * 0.3) * 0.05;
-      const tertiary = Math.sin(phase * 1.3 + Math.PI * 0.7) * 0.03;
-      
-      const variation = (primary + secondary + tertiary) * intensity * multiplier;
-      const opacity = Math.max(0.08, Math.min(0.65, baseOpacity + variation));
-      
-      return Math.floor(opacity * 255).toString(16).padStart(2, '0');
-    };
-    
-    let gradientLayers = [
-      `radial-gradient(ellipse 120% 80% at ${Math.min(95, pos1X)}% ${Math.min(95, pos1Y)}%, ${colors[0]}${getOpacity(phase1)} 0%, ${colors[0]}${Math.floor(parseInt(getOpacity(phase1, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 25%, transparent 60%)`,
-      `radial-gradient(ellipse 100% 120% at ${Math.min(95, pos2X)}% ${Math.min(95, pos2Y)}%, ${colors[1]}${getOpacity(phase2)} 0%, ${colors[1]}${Math.floor(parseInt(getOpacity(phase2, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 20%, transparent 55%)`,
-      `radial-gradient(ellipse 140% 90% at ${Math.min(95, pos3X)}% ${Math.min(95, pos3Y)}%, ${colors[2]}${getOpacity(phase3)} 0%, ${colors[2]}${Math.floor(parseInt(getOpacity(phase3, 0.4), 16) * 0.6).toString(16).padStart(2, '0')} 30%, transparent 65%)`
-    ];
-    
-    if (colors.length > 3) {
-      const pos4X = 55 + smoothWave(phase4) * 35;
-      const pos4Y = 15 + smoothWave(phase4 + Math.PI * 0.4) * 70;
-      gradientLayers.push(
-        `radial-gradient(ellipse 90% 110% at ${Math.min(95, pos4X)}% ${Math.min(95, pos4Y)}%, ${colors[3]}${getOpacity(phase4, 0.5)} 0%, ${colors[3]}${Math.floor(getOpacity(phase4, 0.2) * 0.4).toString(16).padStart(2, '0')} 40%, transparent 80%)`
-      );
-    }
-    
-    if (colors.length > 4) {
-      const pos5X = 85 + smoothWave(phase5) * 15;
-      const pos5Y = 60 + smoothWave(phase5 + Math.PI * 0.8) * 35;
-      gradientLayers.push(
-        `radial-gradient(ellipse 80% 100% at ${Math.min(95, pos5X)}% ${Math.min(95, pos5Y)}%, ${colors[4]}${getOpacity(phase5, 0.3)} 0%, ${colors[4]}${Math.floor(getOpacity(phase5, 0.15) * 0.4).toString(16).padStart(2, '0')} 45%, transparent 85%)`
-      );
-    }
-    
-    const backgroundColor = darkMode ? '#111827' : '#f3f4f6';
-    gradientLayers.push(backgroundColor);
-    
+  const getAnimatedGradientStyle = useCallback(() => {
     return {
-      background: gradientLayers.join(', '),
+      background: darkMode
+        ? 'radial-gradient(ellipse 120% 80% at 50% 30%, #a78bfa33 0%, transparent 60%), radial-gradient(ellipse 100% 120% at 70% 60%, #f472b633 0%, transparent 55%), radial-gradient(ellipse 140% 90% at 40% 80%, #fbbf2433 0%, transparent 65%), #111827'
+        : 'radial-gradient(ellipse 120% 80% at 50% 30%, #60a5fa33 0%, transparent 60%), radial-gradient(ellipse 100% 120% at 70% 60%, #a78bfa33 0%, transparent 55%), radial-gradient(ellipse 140% 90% at 40% 80%, #f472b633 0%, transparent 65%), #f3f4f6',
       transition: 'background 0.1s ease-out'
     };
-  };
+  }, [darkMode]);
 
   const gradientStyle = getAnimatedGradientStyle();
 
-  const handleSendMessage = () => {
+  const handleSendMessage = useCallback(() => {
     if (inputMessage.trim()) {
       sendMessage(inputMessage);
       setInputMessage('');
@@ -894,9 +1210,9 @@ const ChatComponent = ({
         fileInput.value = '';
       }
     }
-  };
+  }, [inputMessage, sendMessage, setUploadedFiles]);
 
-  const handleRemoveFile = () => {
+  const handleRemoveFile = useCallback(() => {
     setUploadedFiles([]);
     
     if (inputRef.current) {
@@ -905,73 +1221,42 @@ const ChatComponent = ({
         fileInput.value = '';
       }
     }
-  };
+  }, [setUploadedFiles]);
 
-  const formatFileSize = (bytes) => {
+  const formatFileSize = useCallback((bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  }, []);
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
-  const handleStartEditingConversation = (conversationId, currentTitle) => {
-    setEditingConversationId(conversationId);
-    setRenamedTitle(currentTitle);
-    if (isSidebarCollapsed) {
-      setIsSidebarCollapsed(false);
-    }
-  };
-
-  const handleCancelRename = () => {
-    setEditingConversationId(null);
-    setRenamedTitle('');
-  };
-
-  const handleSaveRename = (conversationId) => {
-    if (renamedTitle.trim()) {
-      onConversationRenamed(conversationId, renamedTitle.trim());
-      setEditingConversationId(null);
-    }
-  };
-
-  const isConversationStarred = (conversationId) => {
-    return starredConversations.includes(conversationId);
-  }
-
-  const starredChats = conversations.filter(isConversationStarred);
-  const nonStarredChats = conversations.filter(conv => !isConversationStarred(conv.id));
-
-  const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
-  };
-
-  const handleStartEditingMessage = (index, content) => {
+  const handleStartEditingMessage = useCallback((index, content) => {
     setEditingMessageIndex(index);
     setEditMessageContent(content);
     setHoveredMessageIndex(null);
-  };
+  }, []);
 
-  const handleCancelEditMessage = () => {
+  const handleCancelEditMessage = useCallback(() => {
     setEditingMessageIndex(null);
     setEditMessageContent('');
-  };
+  }, []);
 
-  const isLastMessagePartFromSender = (messages, currentIndex, currentPartIndex, parts) => {
+  const isLastMessagePartFromSender = useCallback((messages, currentIndex, currentPartIndex, parts) => {
     if (currentPartIndex !== parts.length - 1) {
       return false;
     }
     
     const nextMessage = messages[currentIndex + 1];
     return !nextMessage || nextMessage.role !== messages[currentIndex].role;
-  };
+  }, []);
 
   return (
     <div
@@ -987,373 +1272,8 @@ const ChatComponent = ({
           : gradientStyle
       }
     >
-      {!isSidebarCollapsed && (
-       <div
-          className="fixed inset-0 bg-black/50 z-10 md:hidden"
-          onClick={() => setIsSidebarCollapsed(true)}
-        />
-      )}
 
-      <div className={`
-        flex flex-col fixed md:relative z-20 md:z-auto
-        transition-all duration-500 ease-out overflow-hidden
-        backdrop-blur-xl border-r shadow-2xl
-        ${isSidebarCollapsed ? 'w-0 md:w-16 opacity-0 md:opacity-100 -translate-x-full md:translate-x-0' : 'w-80 md:w-64 opacity-100 translate-x-0'}
-        ${darkMode
-          ? 'bg-white/15 border-white/20 shadow-black/20'
-          : 'bg-white/70 border-white/30 shadow-black/10'
-        }
-        h-full
-      `}
-      style={{
-        background: darkMode 
-          ? 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%)'
-          : 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%)'
-      }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-r-lg" />
-      
-      {!isSidebarCollapsed && (
-        <div className={`flex-shrink-0 px-4 py-4 border-b backdrop-blur-sm ${
-          darkMode ? 'border-white/20' : 'border-white/30'
-        }`}>
-          <button
-            onClick={startNewConversation}
-            className={`p-3 rounded-xl flex items-center justify-center w-full transition-all duration-300 hover:scale-105 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-              darkMode 
-                ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30 hover:shadow-xl' 
-                : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60 hover:shadow-xl'
-            }`}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
-            <MessageSquare className="mr-2 relative z-10" size={18} />
-            <span className="font-medium text-sm relative z-10">New Chat</span>
-          </button>
-        </div>
-      )}
-      <div className={`flex-shrink-0 ${
-        isSidebarCollapsed ? 'px-2 py-4' : 'px-4 py-3'
-      } border-b backdrop-blur-sm ${
-        darkMode ? 'border-white/20' : 'border-white/30'
-      }`}>
-        <div className={`flex ${isSidebarCollapsed ? 'flex-col space-y-2' : 'justify-between items-center'}`}>
-          <button
-            onClick={toggleSidebar}
-            className={`${
-              isSidebarCollapsed ? 'p-3' : 'p-2'
-            } rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-              darkMode 
-                ? 'hover:bg-white/25 text-gray-300 border-white/30 hover:text-white' 
-                : 'hover:bg-white/60 border-white/40 text-gray-600 hover:text-gray-800'
-            }`}
-            title={isSidebarCollapsed ? 'Open Sidebar' : 'Close Sidebar'}
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
-            <div className="relative z-10">
-              {isSidebarCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-            </div>
-          </button>
-
-          {!isSidebarCollapsed && currentConversationId && (
-            <button
-              onClick={() => shareConversation(currentConversationId)}
-              className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-                darkMode 
-                  ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
-              }`}
-              title="Share conversation"
-            >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
-              <Share size={18} className="relative z-10" />
-            </button>
-          )}
-          {!isSidebarCollapsed && (
-            <div className="relative">
-              <button
-                onClick={() => setShowModeDropdown(!showModeDropdown)}
-                className={`p-2 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-                  darkMode 
-                    ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
-                }`}
-                title="AI Mode"
-              >
-                <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
-                {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 18, className: "relative z-10" })}
-              </button>
-              
-              {/* {showModeDropdown && (
-                  <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
-                    darkMode 
-                      ? 'bg-white/10 border-white/20' 
-                      : 'bg-white/80 border-white/50'
-                  }`}
-                  style={{
-                    left: isSidebarCollapsed ? '72px' : '272px',
-                    top: '120px',
-                  }}>
-                    <div className="py-2">
-                      {aiModes.map((mode) => (
-                        <button
-                          key={mode.id}
-                          onClick={() => {
-                            setAiMode(mode.id);
-                            setShowModeDropdown(false);
-                          }}
-                          className={`w-full px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
-                            aiMode === mode.id
-                              ? darkMode
-                                ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
-                                : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
-                              : darkMode
-                                ? 'text-gray-300 hover:bg-white/20'
-                                : 'text-gray-700 hover:bg-white/60'
-                          }`}
-                        >
-                          <div className="flex items-center">
-                            {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
-                            <div>
-                              <div className="font-medium text-sm">{mode.name}</div>
-                              <div className={`text-xs ${
-                                darkMode ? 'text-gray-400' : 'text-gray-500'
-                              }`}>
-                                {mode.description}
-                              </div>
-                            </div>
-                            {aiMode === mode.id && (
-                              <Check size={16} className="ml-auto" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-              )} */}
-              {showModeDropdown && createPortal(
-                <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
-                  darkMode 
-                    ? 'bg-white/10 border-white/20' 
-                    : 'bg-white/80 border-white/50'
-                }`}
-                style={{
-                  left: isSidebarCollapsed ? '72px' : '272px',
-                  top: '120px',
-                }}>
-                  <div className="py-2">
-                    {aiModes.map((mode) => (
-                      <button
-                        key={mode.id}
-                        onClick={() => {
-                          setAiMode(mode.id);
-                          setShowModeDropdown(false);
-                        }}
-                        className={`w-[95%] px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
-                          aiMode === mode.id
-                            ? darkMode
-                              ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
-                              : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
-                            : darkMode
-                              ? 'text-gray-300 hover:bg-white/20'
-                              : 'text-gray-700 hover:bg-white/60'
-                        }`}
-                        >
-                          <div className="flex items-center justify-between"> {/* Add justify-between */}
-                            <div className="flex items-center">
-                              {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
-                              <div>
-                                <div className="font-medium text-sm">{mode.name}</div>
-                                <div className={`text-xs ${
-                                  darkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  {mode.description}
-                                </div>
-                              </div>
-                            </div>
-                            {aiMode === mode.id && (
-                              <Check size={16} className="flex-shrink-0" />
-                            )}
-                          </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>,
-                document.body
-              )}
-            </div>
-          )}
-
-
-          {isSidebarCollapsed && (
-            <button
-              onClick={startNewConversation}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-                darkMode 
-                  ? 'bg-white/20 border-white/30 text-orange-300 hover:bg-white/30' 
-                  : 'bg-white/40 border-white/50 text-blue-700 hover:bg-white/60'
-              }`}
-              title="New Chat"
-            >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-xl" />
-              <MessageSquare size={20} className="relative z-10" />
-            </button>
-          )}
-
-          {isSidebarCollapsed && currentConversationId && (
-            <button
-              onClick={() => shareConversation(currentConversationId)}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-                darkMode 
-                  ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
-              }`}
-              title="Share conversation"
-            >
-              <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
-              <Share size={20} className="relative z-10" />
-            </button>
-          )}
-          {isSidebarCollapsed && (
-            <div className="relative">
-              <button
-                onClick={() => setShowModeDropdown(!showModeDropdown)}
-                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 active:scale-95 backdrop-blur-sm border shadow-lg relative overflow-hidden ${
-                  darkMode 
-                    ? 'text-gray-300 hover:text-white hover:bg-white/25 border-white/30' 
-                    : 'text-gray-600 hover:text-gray-800 hover:bg-white/60 border-white/40'
-                }`}
-                title={`AI Mode: ${aiModes.find(mode => mode.id === aiMode)?.name || 'Normal'}`}
-              >
-                <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none rounded-xl" />
-                {React.createElement(aiModes.find(mode => mode.id === aiMode)?.icon || MessageCircle, { size: 20, className: "relative z-10" })}
-              </button>
-              
-              {showModeDropdown && createPortal(
-                <div className={`fixed z-50 w-56 rounded-2xl backdrop-blur-sm border shadow-xl ${
-                  darkMode 
-                    ? 'bg-white/10 border-white/20' 
-                    : 'bg-white/80 border-white/50'
-                }`}
-                style={{
-                  left: isSidebarCollapsed ? '72px' : '272px',
-                  top: '120px',
-                }}>
-                  <div className="py-2">
-                    {aiModes.map((mode) => (
-                      <button
-                        key={mode.id}
-                        onClick={() => {
-                          setAiMode(mode.id);
-                          setShowModeDropdown(false);
-                        }}
-                        className={`w-[95%] px-4 py-3 text-left rounded-xl mx-2 transition-all duration-200 hover:scale-[0.98] active:scale-95 ${
-                          aiMode === mode.id
-                            ? darkMode
-                              ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
-                              : 'bg-blue-500/20 text-blue-700 border border-blue-500/40'
-                            : darkMode
-                              ? 'text-gray-300 hover:bg-white/20'
-                              : 'text-gray-700 hover:bg-white/60'
-                        }`}
-                        >
-                          <div className="flex items-center justify-between"> {/* Add justify-between */}
-                            <div className="flex items-center">
-                              {React.createElement(mode.icon, { size: 16, className: "mr-3" })}
-                              <div>
-                                <div className="font-medium text-sm">{mode.name}</div>
-                                <div className={`text-xs ${
-                                  darkMode ? 'text-gray-400' : 'text-gray-500'
-                                }`}>
-                                  {mode.description}
-                                </div>
-                              </div>
-                            </div>
-                            {aiMode === mode.id && (
-                              <Check size={16} className="flex-shrink-0" />
-                            )}
-                          </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>,
-                document.body
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-          
-      {!isSidebarCollapsed && (
-        <div className="flex-grow overflow-y-auto scrollbar-thin scrollbar-thumb-rounded-full scrollbar-track-transparent">
-          {isConversationsLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader className={`animate-spin ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
-            </div>
-          ) : (
-            <>
-              {starredChats.length > 0 && (
-                <>
-                  <div className={`px-4 py-3 text-xs uppercase font-semibold tracking-wider border-b mb-2 backdrop-blur-sm ${
-                    darkMode 
-                      ? 'text-gray-400 border-white/20 bg-white/5' 
-                      : 'text-gray-600 border-white/40 bg-white/20'
-                  }`}>
-                    <div className="flex items-center">
-                      <Star className="mr-2" size={12} />
-                      Starred
-                    </div>
-                  </div>
-                  {starredChats.map(conversation => (
-                    <ConversationItem
-                      key={conversation.id}
-                      conversation={conversation}
-                      currentConversationId={currentConversationId}
-                      darkMode={darkMode}
-                      loadConversation={loadConversation}
-                      onConversationRenamed={onConversationRenamed}
-                      onToggleStar={onToggleStar}
-                      starredConversations={starredConversations}
-                      isSidebarCollapsed={isSidebarCollapsed}
-                      onConversationShare={shareConversation}
-                    />
-                  ))}
-                </>
-              )}
-
-              {nonStarredChats.length > 0 && (
-                <>
-                  <div className={`px-4 py-3 text-xs mb-2 uppercase font-semibold tracking-wider border-b backdrop-blur-sm ${
-                    darkMode 
-                      ? 'text-gray-400 border-white/20 bg-white/5' 
-                      : 'text-gray-600 border-white/40 bg-white/20'
-                  }`}>
-                    <div className="flex items-center">
-                      <MessageSquare className="mr-2" size={12} />
-                      Chats
-                    </div>
-                  </div>
-                  {nonStarredChats.map(conversation => (
-                    <ConversationItem
-                      key={conversation.id}
-                      conversation={conversation}
-                      currentConversationId={currentConversationId}
-                      darkMode={darkMode}
-                      loadConversation={loadConversation}
-                      onConversationRenamed={onConversationRenamed}
-                      onToggleStar={onToggleStar}
-                      starredConversations={starredConversations}
-                      isSidebarCollapsed={isSidebarCollapsed}
-                      onConversationShare={shareConversation}
-                    />
-                  ))}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-
+      <Sidebar {...sidebarProps} />
       <div className="flex-grow flex flex-col" style={{ minHeight: '100vh' }}>
         <div className={`md:hidden flex items-center justify-between p-4 border-b backdrop-blur-sm ${
           darkMode ? 'bg-white/10 border-white/20' : 'bg-white/60 border-white/40'
