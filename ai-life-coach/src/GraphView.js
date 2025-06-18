@@ -196,9 +196,157 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
   const minZoom = 0.5;
   const maxZoom = 2.0;
 
+  const [floatingButton, setFloatingButton] = useState({
+    x: window.innerWidth - 80,
+    y: window.innerHeight - 80,
+    isDragging: false,
+    dragStart: { x: 0, y: 0 },
+    velocity: { x: 0, y: 0 },
+    lastPosition: { x: 0, y: 0 },
+    lastTime: Date.now()
+  });
+
   const svgRef = useRef(null);
 
   const nodeIdCounter = useRef(1);
+
+  useEffect(() => {
+   let animationFrame;
+  
+    const animate = () => {
+      setFloatingButton(prev => {
+        if (prev.isDragging || (Math.abs(prev.velocity.x) < 0.1 && Math.abs(prev.velocity.y) < 0.1)) {
+          return prev;
+        }
+
+        const friction = 0.95;
+        const newVelocityX = prev.velocity.x * friction;
+        const newVelocityY = prev.velocity.y * friction;
+      
+        let newX = prev.x + newVelocityX;
+        let newY = prev.y + newVelocityY;
+      
+        const buttonSize = 56;
+        const margin = 10;
+      
+        if (newX < margin) {
+          newX = margin;
+          return { ...prev, velocity: { x: -newVelocityX * 0.6, y: newVelocityY }, x: newX, y: newY };
+        }
+        if (newX > window.innerWidth - buttonSize - margin) {
+          newX = window.innerWidth - buttonSize - margin;
+          return { ...prev, velocity: { x: -newVelocityX * 0.6, y: newVelocityY }, x: newX, y: newY };
+        }
+        if (newY < margin) {
+          newY = margin;
+          return { ...prev, velocity: { x: newVelocityX, y: -newVelocityY * 0.6 }, x: newX, y: newY };
+        }
+        if (newY > window.innerHeight - buttonSize - margin) {
+          newY = window.innerHeight - buttonSize - margin;
+          return { ...prev, velocity: { x: newVelocityX, y: -newVelocityY * 0.6 }, x: newX, y: newY };
+        }
+      
+        return {
+          ...prev,
+          x: newX,
+          y: newY,
+          velocity: { x: newVelocityX, y: newVelocityY }
+        };
+      });
+    
+      animationFrame = requestAnimationFrame(animate);
+    };
+  
+    animate();
+  
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setFloatingButton(prev => ({
+        ...prev,
+        x: Math.min(prev.x, window.innerWidth - 66),
+        y: Math.min(prev.y, window.innerHeight - 66)
+      }));
+    };
+  
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleFloatingButtonMouseDown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+  
+    setFloatingButton(prev => ({
+      ...prev,
+      isDragging: true,
+      dragStart: { x: offsetX, y: offsetY },
+      velocity: { x: 0, y: 0 },
+      lastPosition: { x: e.clientX, y: e.clientY },
+      lastTime: Date.now()
+    }));
+  };
+
+  const handleFloatingButtonMouseMove = (e) => {
+    if (!floatingButton.isDragging) return;
+  
+    e.preventDefault();
+    e.stopPropagation();
+  
+    const currentTime = Date.now();
+    const deltaTime = currentTime - floatingButton.lastTime;
+  
+    if (deltaTime > 0) {
+      const velocityX = (e.clientX - floatingButton.lastPosition.x) / deltaTime * 16;
+      const velocityY = (e.clientY - floatingButton.lastPosition.y) / deltaTime * 16;
+    
+      const newX = e.clientX - floatingButton.dragStart.x;
+      const newY = e.clientY - floatingButton.dragStart.y;
+    
+      setFloatingButton(prev => ({
+        ...prev,
+        x: Math.max(10, Math.min(newX, window.innerWidth - 66)),
+        y: Math.max(10, Math.min(newY, window.innerHeight - 66)),
+        velocity: { x: velocityX, y: velocityY },
+        lastPosition: { x: e.clientX, y: e.clientY },
+        lastTime: currentTime
+      }));
+    }
+  };
+
+  const handleFloatingButtonMouseUp = (e) => {
+    handleAddNode();
+  
+    setFloatingButton(prev => ({
+      ...prev,
+      isDragging: false
+    }));
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseMove = (e) => handleFloatingButtonMouseMove(e);
+   const handleGlobalMouseUp = (e) => handleFloatingButtonMouseUp(e);
+  
+    if (floatingButton.isDragging) {
+      document.addEventListener('mousemove', handleGlobalMouseMove);
+      document.addEventListener('mouseup', handleGlobalMouseUp);
+    }
+  
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [floatingButton.isDragging]);
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -392,6 +540,34 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
   const handleMouseLeave = () => {
       setIsPanning(false);
   };
+
+  const FloatingAddButton = () => (
+    <div
+      className={`fixed w-14 h-14 rounded-full shadow-2xl cursor-pointer z-40 flex items-center justify-center transition-all duration-200 select-none ${
+        floatingButton.isDragging ? 'scale-110' : 'hover:scale-105'
+      }`}
+      style={{
+        left: `${floatingButton.x}px`,
+        top: `${floatingButton.y}px`,
+        transform: floatingButton.isDragging ? 'scale(1.1)' : 'scale(1)',
+        filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))',
+        touchAction: 'none',
+        background: darkMode
+          ? '#f59e42'
+          : '#3b82f6'
+      }}
+      onMouseDown={handleFloatingButtonMouseDown}
+    >
+      <Plus 
+        size={24} 
+        color="white" 
+        strokeWidth={3}
+        className={`transition-transform duration-200 ${
+          floatingButton.isDragging ? 'rotate-45' : ''
+        }`}
+      />
+    </div>
+  );
 
   const HistoryControls = () => (
     <div className={`flex items-center space-x-2 rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border ${
@@ -1477,7 +1653,7 @@ const handleZoomOut = (event) => {
           </div>
         </div>
       )}
-  
+      <FloatingAddButton />
       {notification.visible && (
         <div
           className={`fixed bottom-6 right-6 px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center backdrop-blur-sm border transition-all duration-300 transform ${
