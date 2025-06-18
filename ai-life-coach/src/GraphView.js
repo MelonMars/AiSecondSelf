@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User, ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 const typeColors = {
   person: "#3b82f6", 
@@ -148,6 +148,9 @@ const computeLayout = (nodes, edges, svgWidth, svgHeight) => {
 
 export default function GraphView({ graphHistory, currentGraphIndex, onDataChange, onGraphIndexChange, darkMode }) {
   const [layoutNodes, setLayoutNodes] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchActive, setSearchActive] = useState(false);
 
   let data;
   if (Array.isArray(graphHistory)) {
@@ -196,6 +199,19 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
   const svgRef = useRef(null);
 
   const nodeIdCounter = useRef(1);
+
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setSearchResults([]);
+      setSearchActive(false);
+      return;
+    }
+    const results = structuralNodes.filter(
+      n => n.label && n.label.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setSearchResults(results);
+    setSearchActive(true);
+  }, [searchTerm, structuralNodes]);
 
    useEffect(() => {
        const nodeIds = structuralNodes.map(node => parseInt(node.id) || 0);
@@ -847,8 +863,23 @@ const handleZoomOut = (event) => {
   }
 
    const isGraphReady = layoutNodes.length > 0 || structuralNodes.length === 0; 
+  const handleSearchResultClick = (node) => {
+    setSearchTerm("");
+    setSearchActive(false);
+    setHoveredNode(node);
+    
+    if (svgRef.current && node.x != null && node.y != null) {
+      const svgElement = svgRef.current;
+      const svgWidth = svgElement.clientWidth;
+      const svgHeight = svgElement.clientHeight;
+      setPanOffset({
+        x: svgWidth / 2 - node.x * zoomLevel,
+        y: svgHeight / 2 - node.y * zoomLevel
+      });
+    }
+  };
 
-   return (
+  return (
     <div className={`w-full h-full p-6 rounded-2xl shadow-2xl relative overflow-y-auto backdrop-blur-sm border transition-all duration-300 ${
       darkMode 
         ? "bg-gradient-to-br from-gray-900/95 to-gray-800/95 border-gray-700/50" 
@@ -856,6 +887,49 @@ const handleZoomOut = (event) => {
     }`}>
       <div className="mb-6 flex justify-between items-center">        
         <div className="flex items-center space-x-6">
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/3 text-gray-400 dark:text-gray-500 w-[18px] h-[18px]" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search nodes..."
+              className={`pl-10 pr-4 py-2 rounded-xl border shadow-sm focus:outline-none focus:ring-2 transition-all duration-200 w-56 ${
+                darkMode
+                  ? "bg-gray-700 border-gray-600 text-white focus:ring-orange-500 focus:border-orange-500 placeholder-gray-400"
+                  : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              }`}
+            />
+            {searchActive && searchResults.length > 0 && (
+              <div className={`absolute z-50 mt-2 w-full rounded-xl shadow-xl border transition-all duration-200 ${
+                darkMode
+                  ? "bg-gray-800 border-gray-700 text-gray-100"
+                  : "bg-white border-gray-200 text-gray-900"
+              }`}>
+                {searchResults.map(node => (
+                  <button
+                    key={node.id}
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-700 transition-all duration-150`}
+                    onClick={() => handleSearchResultClick(node)}
+                  >
+                    <span>{typeIcons[node.type] || typeIcons.default}</span>
+                    <span className="font-medium">{node.label}</span>
+                    <span className="ml-auto text-xs capitalize text-gray-400">{node.type}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {searchActive && searchResults.length === 0 && (
+              <div className={`absolute z-50 mt-2 w-full rounded-xl shadow-xl border transition-all duration-200 px-4 py-2 text-sm ${
+                darkMode
+                  ? "bg-gray-800 border-gray-700 text-gray-400"
+                  : "bg-white border-gray-200 text-gray-500"
+              }`}>
+                No nodes found.
+              </div>
+            )}
+          </div>
 
           <div className={`flex items-center rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border transition-all duration-200 ${
             darkMode 
