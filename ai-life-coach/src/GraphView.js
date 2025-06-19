@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Info, Plus, Edit, Trash2, X, Save, ZoomIn, ZoomOut, Loader2, Sparkles, Target, Brain, User, ChevronLeft, ChevronRight, Search, Download, Upload, Image as ImageIcon } from "lucide-react";
 
 const typeColors = {
   person: "#3b82f6", 
@@ -195,6 +195,7 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
   const zoomStep = 0.1;
   const minZoom = 0.5;
   const maxZoom = 2.0;
+  const fileInputRef = useRef(null);
 
   const [floatingButton, setFloatingButton] = useState({
     x: window.innerWidth - 80,
@@ -566,6 +567,143 @@ export default function GraphView({ graphHistory, currentGraphIndex, onDataChang
           floatingButton.isDragging ? 'rotate-45' : ''
         }`}
       />
+    </div>
+  );
+
+  const exportGraph = () => {
+    const graphData = {
+      nodes: layoutNodes,
+      edges: structuralEdges,
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        version: "1.0"
+      }
+    };
+  
+    const dataStr = JSON.stringify(graphData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+  
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `graph-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  
+    showNotification('Graph exported successfully!', 'success');
+  };
+
+  const importGraph = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+  
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target.result);
+      
+        if (!importedData.nodes || !importedData.edges || !Array.isArray(importedData.nodes) || !Array.isArray(importedData.edges)) {
+          throw new Error('Invalid graph data format');
+        }
+        onDataChange(importedData.nodes, importedData.edges);
+        showNotification('Graph imported successfully!', 'success');
+      } catch (error) {
+        console.error('Import error:', error);
+        showNotification('Failed to import graph. Please check the file format.', 'error');
+      }
+    };
+  
+    reader.readAsText(file);
+      event.target.value = '';
+  };
+
+  const exportAsImage = () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+  
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+  
+    const rect = svg.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+  
+    img.onload = () => {
+      ctx.scale(2, 2);
+      ctx.fillStyle = darkMode ? '#111827' : '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    
+      const link = document.createElement('a');
+      link.download = `graph-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    
+      showNotification('Graph exported as image!', 'success');
+    };
+  
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    img.src = url;
+  };
+
+  const ImportExportControls = () => (
+    <div className={`flex items-center space-x-2 rounded-xl overflow-hidden shadow-lg backdrop-blur-sm border transition-all duration-200 ${
+      darkMode 
+        ? "border-gray-700/50 bg-gray-800/80" 
+        : "border-gray-200/50 bg-white/80"
+    }`}>
+      <button
+        onClick={exportGraph}
+        className={`p-3 transition-all duration-200 ${
+          darkMode 
+            ? "hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+            : "hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+        } hover:scale-105 active:scale-95`}
+        title="Export Graph Data"
+      >
+        <Download size={18} />
+      </button>
+    
+      <div className={`w-px h-6 ${darkMode ? "bg-gray-700/50" : "bg-gray-200/50"}`} />
+    
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className={`p-3 transition-all duration-200 ${
+            darkMode 
+              ? "hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+              : "hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+          } hover:scale-105 active:scale-95`}
+          title="Import Graph Data"
+        > 
+          <Upload size={18} />
+        </button>
+    
+        <div className={`w-px h-6 ${darkMode ? "bg-gray-700/50" : "bg-gray-200/50"}`} />
+    
+        <button
+          onClick={exportAsImage}
+          className={`p-3 transition-all duration-200 ${
+            darkMode 
+            ? "hover:bg-gray-700/80 text-gray-300 hover:text-orange-400" 
+             : "hover:bg-gray-100/80 text-gray-600 hover:text-blue-600"
+          } hover:scale-105 active:scale-95`}
+          title="Export as Image"
+        >
+          <ImageIcon size={18} />
+        </button>
+    
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={importGraph}
+          className="hidden"
+        />
     </div>
   );
 
@@ -1142,6 +1280,7 @@ const handleZoomOut = (event) => {
           </div>
 
           {graphHistory.length > 1 && <HistoryControls />}
+          <ImportExportControls />
   
           <div className="flex items-center space-x-4">
             {Object.entries(typeColors).map(([type, color]) => (
