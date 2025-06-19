@@ -169,10 +169,10 @@ function ProfileComponent({
                         activeSection === section.id
                           ? darkMode
                             ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25'
-                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+                            : 'bg-gradient-to-r from-blue-600 to-purple-600 text-black shadow-lg shadow-blue-500/25'
                           : darkMode
                             ? 'text-gray-300 hover:bg-white/10 hover:text-white'
-                            : 'text-gray-600 hover:bg-white/50 hover:text-gray-800'
+                            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-800'
                       }`}
                     >
                       <Icon className="w-5 h-5" />
@@ -476,7 +476,7 @@ function ProfileComponent({
                           <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
                             darkMode
                               ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-lg hover:shadow-purple-500/25'
-                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-blue-500/25'
+                              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-black shadow-lg hover:shadow-blue-500/25'
                           }`}>
                             <Upload className="w-4 h-4" />
                             Upload Photo

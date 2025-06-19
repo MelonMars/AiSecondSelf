@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, ChevronDown, Share, ArrowBigUp, ThumbsUp, ThumbsDown, ArrowLeft, GitBranch, Menu, Paperclip, MessageCircle, Eye, MapPin, CheckCircle } from 'lucide-react';
+import { MessageSquare, Loader, Edit2, Check, X, Star, ChevronLeft, ChevronRight, Share, ArrowBigUp, ThumbsUp, ThumbsDown, Menu, Paperclip, MessageCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -1059,13 +1059,13 @@ const ChatComponent = ({
   currentBranchIndex,
 }) => {
   const [inputMessage, setInputMessage] = useState('');
-  const [editingConversationId, setEditingConversationId] = useState(null);
-  const [renamedTitle, setRenamedTitle] = useState('');
+  // const [editingConversationId, setEditingConversationId] = useState(null);
+  // const [renamedTitle, setRenamedTitle] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); 
   const [editingMessageIndex, setEditingMessageIndex] = useState(null);
   const [editMessageContent, setEditMessageContent] = useState('');
   const [hoveredMessageIndex, setHoveredMessageIndex] = useState(null);
-  const [openBranchDropdownIndex, setOpenBranchDropdownIndex] = useState(null);
+  // const [openBranchDropdownIndex, setOpenBranchDropdownIndex] = useState(null);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [gradientPhase, setGradientPhase] = useState(0);
 
